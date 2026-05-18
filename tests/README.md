@@ -18,7 +18,7 @@ This directory contains all testing-related files and documentation for the VPN 
 | **ALPINE_TEST.md** | Alpine Linux testing notes |
 | **STRESS_TESTING.md** | Stress testing guide |
 | **INDUSTRY_STANDARD_STRESS_TESTING.md** | Industry-standard testing methodology |
-| **RUN_STRESS_TESTS.md** | Manual stress test commands |
+| **RUN_STRESS_TESTS.md** | Manual stress test commands (Docker cheatsheet) |
 | **stress_*.sh** | Stress test scripts |
 
 ## Quick Links

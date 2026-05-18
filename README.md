@@ -5,6 +5,10 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Standard Readme](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg)](https://github.com/RichardLitt/standard-readme)
 
+<p align="center">
+  <img src="packetswitch_banner_minimal.svg" alt="PacketSwitch — C++17 Layer-2 virtual switch over UDP" />
+</p>
+
 A modern C++17 Layer-2 virtual switch that bridges TAP devices over UDP.
 
 PacketSwitch implements a learning Ethernet switch as two cooperating programs: **VSwitch**, a central forwarding server that dynamically learns MAC addresses, and **VPort**, a client that attaches a local TAP interface to the switch. Frames sent on one VPort's TAP device are forwarded over UDP to the correct VPort on the other side — or broadcast when the destination is unknown — reproducing the behavior of a physical switch in software.

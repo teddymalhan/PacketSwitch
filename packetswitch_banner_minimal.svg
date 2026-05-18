@@ -1,0 +1,90 @@
+<svg width="100%" viewBox="0 0 680 340" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>PacketSwitch — C++17 Layer-2 virtual switch over UDP</title>
+  <desc>Two VPort TAP devices communicating through a central VSwitch over UDP.</desc>
+  <defs>
+    <mask id="imagine-text-gaps-etxqpc" maskUnits="userSpaceOnUse"><rect x="0" y="0" width="680" height="340" fill="white"/><rect x="71.5062484741211" y="185.60000610351562" width="60.98749923706055" height="16.800000190734863" fill="black" rx="2"/><rect x="58.86249923706055" y="233.40000915527344" width="86.2750015258789" height="16" fill="black" rx="2"/><rect x="81.73750305175781" y="255.20001220703125" width="40.525001525878906" height="20" fill="black" rx="2"/><rect x="547.5062866210938" y="185.60000610351562" width="60.98749923706055" height="16.800000190734863" fill="black" rx="2"/><rect x="534.8624877929688" y="233.40000915527344" width="86.2750015258789" height="16" fill="black" rx="2"/><rect x="557.7374877929688" y="255.20001220703125" width="40.525001525878906" height="20" fill="black" rx="2"/><rect x="311.6125183105469" y="147" width="56.775001525878906" height="14.40000057220459" fill="black" rx="2"/><rect x="300.7749938964844" y="160" width="78.45000457763672" height="14.40000057220459" fill="black" rx="2"/><rect x="300.7749938964844" y="172" width="78.45000457763672" height="14.40000057220459" fill="black" rx="2"/><rect x="311.6125183105469" y="197" width="56.775001525878906" height="14.40000057220459" fill="black" rx="2"/><rect x="312.5187683105469" y="215.1999969482422" width="54.962501525878906" height="20" fill="black" rx="2"/><rect x="199.77500915527344" y="148.8000030517578" width="22.449999809265137" height="12.800000190734863" fill="black" rx="2"/><rect x="447.7749938964844" y="148.8000030517578" width="22.449999809265137" height="12.800000190734863" fill="black" rx="2"/><rect x="202.49375915527344" y="130.1999969482422" width="27.012500762939453" height="15.199999809265137" fill="black" rx="2"/><rect x="450.4937438964844" y="130.1999969482422" width="27.012500762939453" height="15.199999809265137" fill="black" rx="2"/><rect x="269.96875" y="20" width="140.0625" height="28.80000114440918" fill="black" rx="2"/><rect x="212.9375" y="46.79999923706055" width="254.125" height="17.772265434265137" fill="black" rx="2"/></mask>
+  </defs>
+
+  <!-- White background -->
+  <rect width="680" height="340" fill="#ffffff"/>
+
+  <!-- === VPORT LEFT === -->
+  <rect x="28" y="80" width="148" height="170" rx="8" fill="none" stroke="#1a1a1a" stroke-width="1" opacity=".15"/>
+  <!-- Screen -->
+  <rect x="40" y="92" width="124" height="80" rx="4" fill="none" stroke="#1a1a1a" stroke-width="0.6" opacity=".2"/>
+  <!-- Terminal lines -->
+  <rect x="52" y="103" width="55" height="2.5" rx="1" fill="#1a1a1a" opacity=".25"/>
+  <rect x="52" y="111" width="85" height="2.5" rx="1" fill="#1a1a1a" opacity=".18"/>
+  <rect x="52" y="119" width="68" height="2.5" rx="1" fill="#1a1a1a" opacity=".18"/>
+  <rect x="52" y="127" width="45" height="2.5" rx="1" fill="#1a1a1a" opacity=".25"/>
+  <rect x="52" y="135" width="75" height="2.5" rx="1" fill="#1a1a1a" opacity=".15"/>
+  <rect x="52" y="148" width="7" height="9" rx="1" fill="#1a1a1a" opacity=".4"/>
+  <!-- TAP badge -->
+  <rect x="40" y="180" width="124" height="28" rx="5" fill="none" stroke="#1a1a1a" stroke-width="0.8" opacity=".3"/>
+  <text x="102" y="198" font-family="monospace" font-size="11" fill="#1a1a1a" text-anchor="middle" opacity=".7" font-weight="600">TAP  tap0</text>
+  <!-- Keyboard -->
+  <rect x="46" y="220" width="112" height="8" rx="3" fill="#1a1a1a" opacity=".07"/>
+  <!-- IP -->
+  <text x="102" y="245" font-family="monospace" font-size="10" fill="#555555" text-anchor="middle" opacity=".7">10.1.1.101/24</text>
+  <text x="102" y="270" font-family="sans-serif" font-size="13" fill="#1a1a1a" text-anchor="middle" opacity=".6" font-weight="500">VPort</text>
+
+  <!-- === VPORT RIGHT === -->
+  <rect x="504" y="80" width="148" height="170" rx="8" fill="none" stroke="#1a1a1a" stroke-width="1" opacity=".15"/>
+  <rect x="516" y="92" width="124" height="80" rx="4" fill="none" stroke="#1a1a1a" stroke-width="0.6" opacity=".2"/>
+  <rect x="528" y="103" width="55" height="2.5" rx="1" fill="#1a1a1a" opacity=".25"/>
+  <rect x="528" y="111" width="85" height="2.5" rx="1" fill="#1a1a1a" opacity=".18"/>
+  <rect x="528" y="119" width="68" height="2.5" rx="1" fill="#1a1a1a" opacity=".18"/>
+  <rect x="528" y="127" width="45" height="2.5" rx="1" fill="#1a1a1a" opacity=".25"/>
+  <rect x="528" y="135" width="75" height="2.5" rx="1" fill="#1a1a1a" opacity=".15"/>
+  <rect x="528" y="148" width="7" height="9" rx="1" fill="#1a1a1a" opacity=".4"/>
+  <rect x="516" y="180" width="124" height="28" rx="5" fill="none" stroke="#1a1a1a" stroke-width="0.8" opacity=".3"/>
+  <text x="578" y="198" font-family="monospace" font-size="11" fill="#1a1a1a" text-anchor="middle" opacity=".7" font-weight="600">TAP  tap1</text>
+  <rect x="522" y="220" width="112" height="8" rx="3" fill="#1a1a1a" opacity=".07"/>
+  <text x="578" y="245" font-family="monospace" font-size="10" fill="#555555" text-anchor="middle" opacity=".7">10.1.1.102/24</text>
+  <text x="578" y="270" font-family="sans-serif" font-size="13" fill="#1a1a1a" text-anchor="middle" opacity=".6" font-weight="500">VPort</text>
+
+  <!-- === VSWITCH CENTER === -->
+  <rect x="258" y="100" width="164" height="110" rx="10" fill="none" stroke="#1a1a1a" stroke-width="1" opacity=".2"/>
+  <!-- Port slots -->
+  <rect x="272" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <rect x="290" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <rect x="308" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <rect x="326" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <rect x="344" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <rect x="362" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <rect x="380" y="110" width="14" height="8" rx="2" fill="#1a1a1a" opacity=".1" stroke="#1a1a1a" stroke-width="0.5"/>
+  <!-- LEDs -->
+  <circle cx="279" cy="128" r="2.5" fill="#1a1a1a" opacity=".3"/>
+  <circle cx="297" cy="128" r="2.5" fill="#1a1a1a" opacity=".3"/>
+  <circle cx="315" cy="128" r="2.5" fill="#1a1a1a" opacity=".45"/>
+  <circle cx="333" cy="128" r="2.5" fill="#1a1a1a" opacity=".3"/>
+  <circle cx="351" cy="128" r="2.5" fill="#1a1a1a" opacity=".45"/>
+  <circle cx="369" cy="128" r="2.5" fill="#1a1a1a" opacity=".3"/>
+  <circle cx="387" cy="128" r="2.5" fill="#1a1a1a" opacity=".3"/>
+  <!-- MAC table -->
+  <rect x="272" y="142" width="136" height="54" rx="4" fill="#1a1a1a" opacity=".04" stroke="#1a1a1a" stroke-width="0.5"/>
+  <text x="340" y="157" font-family="monospace" font-size="9" fill="#555555" text-anchor="middle" opacity=".7">MAC TABLE</text>
+  <text x="340" y="170" font-family="monospace" font-size="9" fill="#1a1a1a" text-anchor="middle" opacity=".5">aa:bb → :8080</text>
+  <text x="340" y="182" font-family="monospace" font-size="9" fill="#1a1a1a" text-anchor="middle" opacity=".5">cc:dd → :8081</text>
+  <text x="340" y="207" font-family="monospace" font-size="9" fill="#555555" text-anchor="middle" opacity=".6">UDP :8080</text>
+  <text x="340" y="230" font-family="sans-serif" font-size="13" fill="#1a1a1a" text-anchor="middle" opacity=".6" font-weight="500">VSwitch</text>
+
+  <!-- === PACKET FLOWS === -->
+  <line x1="178" y1="155" x2="256" y2="155" stroke="#1a1a1a" stroke-width="1" fill="none" opacity=".3" stroke-dasharray="6,4" mask="url(#imagine-text-gaps-etxqpc)"/>
+  <path d="M250 151L258 155L250 159" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-linejoin="round" opacity=".4"/>
+  <line x1="424" y1="155" x2="502" y2="155" stroke="#1a1a1a" stroke-width="1" fill="none" opacity=".3" stroke-dasharray="6,4" mask="url(#imagine-text-gaps-etxqpc)"/>
+  <path d="M496 151L504 155L496 159" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-linejoin="round" opacity=".4"/>
+
+  <!-- Packets -->
+  <rect x="194" y="146" width="34" height="16" rx="3" fill="none" stroke="#1a1a1a" stroke-width="0.8" opacity=".45"/>
+  <text x="211" y="158" font-family="monospace" font-size="8" fill="#1a1a1a" text-anchor="middle" opacity=".6">ETH</text>
+  <rect x="442" y="146" width="34" height="16" rx="3" fill="none" stroke="#1a1a1a" stroke-width="0.8" opacity=".45"/>
+  <text x="459" y="158" font-family="monospace" font-size="8" fill="#1a1a1a" text-anchor="middle" opacity=".6">ETH</text>
+
+  <text x="216" y="141" font-family="sans-serif" font-size="9" fill="#555555" text-anchor="middle" opacity=".6">UDP</text>
+  <text x="464" y="141" font-family="sans-serif" font-size="9" fill="#555555" text-anchor="middle" opacity=".6">UDP</text>
+
+  <!-- === TITLE === -->
+  <text x="340" y="42" font-family="sans-serif" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="500">PacketSwitch</text>
+  <text x="340" y="60" font-family="sans-serif" font-size="12" fill="#555555" text-anchor="middle" opacity=".8">C++17  ·  Layer-2 virtual switch  ·  TAP over UDP</text>
+</svg>
