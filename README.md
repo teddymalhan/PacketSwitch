@@ -1,13 +1,14 @@
-# PacketSwitch
+# PacketSwitch (Thread-safe Virtual Network Switch written in C++)
 
 [![CI](https://img.shields.io/badge/CI-Jenkins-blue)](Jenkinsfile)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 [![Standard Readme](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg)](https://github.com/RichardLitt/standard-readme)
 
-<p align="center">
-  <img src="packetswitch_banner_minimal.svg" alt="PacketSwitch — C++17 Layer-2 virtual switch over UDP" />
-</p>
+# Demo
+https://github.com/user-attachments/assets/72ed8775-c435-4837-953a-ee813c81396f
+
+
 
 A modern C++17 Layer-2 virtual switch that bridges TAP devices over UDP.
 
