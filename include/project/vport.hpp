@@ -1,7 +1,7 @@
 /**
  * @file vport.hpp
  * @brief Virtual Port for connecting TAP devices to VSwitch
- * 
+ *
  * VPort creates a virtual port that bridges a TAP device (connected to the
  * kernel's network stack) with a VSwitch via UDP. It runs two forwarder threads:
  * - TAP → VSwitch: Reads Ethernet frames from TAP, sends via UDP
@@ -11,15 +11,15 @@
 #ifndef PROJECT_VPORT_HPP_
 #define PROJECT_VPORT_HPP_
 
+#include <atomic>
+#include <string>
+#include <string_view>
+
 #include "project/ethernet_frame.hpp"
 #include "project/expected.hpp"
 #include "project/joining_thread.hpp"
 #include "project/tap_device.hpp"
 #include "project/udp_socket.hpp"
-
-#include <atomic>
-#include <string>
-#include <string_view>
 
 namespace project
 {
@@ -44,11 +44,11 @@ namespace project
 
   /**
    * @brief Virtual Port that connects a TAP device to a VSwitch
-   * 
+   *
    * VPort encapsulates a TAP device and UDP socket, running two forwarder
    * threads to relay Ethernet frames bidirectionally between the TAP device
    * and a remote VSwitch.
-   * 
+   *
    * Example usage:
    * @code
    * auto vport_result = VPort::create("tap0", "127.0.0.1", 8080);
@@ -56,18 +56,18 @@ namespace project
    *   std::cerr << "Failed to create VPort\n";
    *   return;
    * }
-   * 
+   *
    * VPort vport = std::move(*vport_result);
    * vport.start();
-   * 
+   *
    * // ... VPort runs in background ...
-   * 
+   *
    * vport.stop();  // Graceful shutdown
    * @endcode
    */
   class VPort
   {
-  private:
+   private:
     TapDevice tap_device_;
     UdpSocket udp_socket_;
     Endpoint vswitch_endpoint_;
@@ -82,19 +82,19 @@ namespace project
      */
     VPort(TapDevice tap_device, UdpSocket udp_socket, Endpoint vswitch_endpoint, std::string device_name);
 
-  public:
+   public:
     /**
      * @brief Create a VPort instance
-     * 
+     *
      * Creates a TAP device and UDP socket, ready to start forwarding.
-     * 
+     *
      * @param device_name TAP device name (e.g., "tap0")
      * @param vswitch_address VSwitch IP address
      * @param vswitch_port VSwitch port number
      * @return expected<VPort, VPortError> The created VPort or an error
      */
-    [[nodiscard]] static expected<VPort, VPortError> create(std::string_view device_name,
-                                                             std::string_view vswitch_address, uint16_t vswitch_port);
+    [[nodiscard]] static expected<VPort, VPortError>
+    create(std::string_view device_name, std::string_view vswitch_address, uint16_t vswitch_port);
 
     /**
      * @brief Move constructor
@@ -123,18 +123,18 @@ namespace project
 
     /**
      * @brief Start the forwarder threads
-     * 
+     *
      * Spawns two threads:
      * - TAP → VSwitch forwarder
      * - VSwitch → TAP forwarder
-     * 
+     *
      * @return expected<void, VPortError> Success or error
      */
     [[nodiscard]] expected<void, VPortError> start();
 
     /**
      * @brief Stop the forwarder threads
-     * 
+     *
      * Signals threads to stop and waits for them to complete.
      */
     void stop() noexcept;
@@ -166,10 +166,10 @@ namespace project
       return vswitch_endpoint_;
     }
 
-  private:
+   private:
     /**
      * @brief Forward frames from TAP device to VSwitch
-     * 
+     *
      * Runs in a loop: reads Ethernet frames from TAP device and sends them
      * to VSwitch via UDP.
      */
@@ -177,7 +177,7 @@ namespace project
 
     /**
      * @brief Forward frames from VSwitch to TAP device
-     * 
+     *
      * Runs in a loop: receives Ethernet frames from VSwitch via UDP and
      * writes them to TAP device.
      */
@@ -194,4 +194,3 @@ namespace project
 }  // namespace project
 
 #endif  // PROJECT_VPORT_HPP_
-

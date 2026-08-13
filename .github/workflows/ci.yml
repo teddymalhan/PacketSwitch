@@ -40,13 +40,6 @@ jobs:
               build_type: "Release"
             }
           - {
-              name: "Windows Latest MSVC",
-              os: windows-latest,
-              cc: "cl",
-              cxx: "cl",
-              build_type: "Release"
-            }
-          - {
               name: "Ubuntu Debug Build",
               os: ubuntu-latest,
               cc: "gcc",
@@ -82,12 +75,6 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install cmake ninja
-
-      - name: Install Windows dependencies
-        if: runner.os == 'Windows'
-        run: |
-          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
-          choco install ninja
 
       - name: Configure CMake
         run: |
@@ -210,8 +197,8 @@ jobs:
 
       - name: Check code formatting
         run: |
-          find include/ src/ test/ -name '*.hpp' -o -name '*.cpp' | \
-          xargs clang-format --dry-run --Werror
+          find include/ src/ tests/ -type f \( -name '*.hpp' -o -name '*.cpp' \) -print0 | \
+          xargs -0 clang-format --dry-run --Werror
 
   sanitizers:
     name: Address Sanitizer
@@ -249,4 +236,3 @@ jobs:
       - name: Run tests with ASan
         working-directory: ${{github.workspace}}/build
         run: ctest -C Debug --output-on-failure --verbose
-

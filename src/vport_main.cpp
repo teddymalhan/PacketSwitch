@@ -1,26 +1,26 @@
 /**
  * @file vport_main.cpp
  * @brief VPort application - Virtual Port for connecting to VSwitch
- * 
+ *
  * This application creates a TAP device and connects it to a remote VSwitch
  * via UDP, forwarding Ethernet frames bidirectionally.
- * 
+ *
  * Usage: vport <vswitch_ip> <vswitch_port> [tap_device_name]
  */
-
-#include "project/vport.hpp"
 
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 
+#include "project/vport.hpp"
+
 // Global VPort pointer for signal handler
 std::unique_ptr<project::VPort> g_vport;
 
 /**
  * @brief Signal handler for graceful shutdown
- * 
+ *
  * Handles SIGINT (Ctrl+C) and SIGTERM for clean shutdown.
  */
 void signal_handler(int signal)
@@ -111,8 +111,7 @@ int main(int argc, char* argv[])
       if (vport_result.error() == project::VPortError::TapDeviceCreationFailed)
       {
         std::cerr << "\nHint: Creating TAP devices requires root privileges.\n";
-        std::cerr << "      Try running with sudo: sudo " << argv[0] << " " << vswitch_ip << " " << vswitch_port
-                  << "\n";
+        std::cerr << "      Try running with sudo: sudo " << argv[0] << " " << vswitch_ip << " " << vswitch_port << "\n";
       }
 
       return EXIT_FAILURE;
@@ -160,4 +159,3 @@ int main(int argc, char* argv[])
   std::cout << "\nVPort shut down successfully.\n";
   return EXIT_SUCCESS;
 }
-

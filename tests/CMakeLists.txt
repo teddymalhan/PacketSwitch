@@ -11,6 +11,32 @@ project(
 
 verbose_message("Adding tests under ${CMAKE_PROJECT_NAME}Tests...")
 
+if(${CMAKE_PROJECT_NAME}_USE_GTEST)
+  find_package(GTest QUIET)
+
+  if(NOT GTest_FOUND)
+    include(FetchContent)
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+      googletest
+      URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+      URL_HASH SHA256=8ad598c73ad796e0d8280b082cebd82a630d73e73cd3c70057938a6501bba5d7
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(googletest)
+  endif()
+
+  if(TARGET GTest::gtest)
+    set(PROJECT_GTEST_LIBRARIES GTest::gtest GTest::gtest_main)
+  else()
+    set(PROJECT_GTEST_LIBRARIES GTest::GTest GTest::Main)
+  endif()
+
+  if(${CMAKE_PROJECT_NAME}_USE_GOOGLE_MOCK)
+    list(APPEND PROJECT_GTEST_LIBRARIES GTest::gmock GTest::gmock_main)
+  endif()
+endif()
+
 foreach(file ${test_sources})
   string(REGEX REPLACE "(.*/)([a-zA-Z0-9_ ]+)(\.cpp)" "\\2" test_name ${file}) 
   add_executable(${test_name}_Tests ${file})
@@ -43,18 +69,10 @@ foreach(file ${test_sources})
   endif()
 
   if(${CMAKE_PROJECT_NAME}_USE_GTEST)
-    find_package(GTest REQUIRED)
-
-    if(${CMAKE_PROJECT_NAME}_USE_GOOGLE_MOCK)
-      set(GOOGLE_MOCK_LIBRARIES GTest::gmock GTest::gmock_main)
-    endif()
-
     target_link_libraries(
       ${test_name}_Tests
       PUBLIC
-        GTest::GTest
-        GTest::Main
-        ${GOOGLE_MOCK_LIBRARIES}
+        ${PROJECT_GTEST_LIBRARIES}
         ${${CMAKE_PROJECT_NAME}_TEST_LIB}
     )
   elseif(${CMAKE_PROJECT_NAME}_USE_CATCH2)

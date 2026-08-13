@@ -21,7 +21,7 @@ TEST(JoiningThreadTest, DefaultConstruction)
 
 TEST(JoiningThreadTest, ConstructWithFunction)
 {
-  std::atomic<bool> executed{false};
+  std::atomic<bool> executed{ false };
 
   {
     joining_thread t([&executed]() { executed = true; });
@@ -33,7 +33,7 @@ TEST(JoiningThreadTest, ConstructWithFunction)
 
 TEST(JoiningThreadTest, ConstructWithFunctionAndArguments)
 {
-  std::atomic<int> result{0};
+  std::atomic<int> result{ 0 };
 
   {
     joining_thread t([](std::atomic<int>& res, int val) { res = val; }, std::ref(result), 42);
@@ -45,12 +45,14 @@ TEST(JoiningThreadTest, ConstructWithFunctionAndArguments)
 
 TEST(JoiningThreadTest, MoveConstruction)
 {
-  std::atomic<bool> executed{false};
+  std::atomic<bool> executed{ false };
 
-  joining_thread t1([&executed]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    executed = true;
-  });
+  joining_thread t1(
+      [&executed]()
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        executed = true;
+      });
 
   EXPECT_TRUE(t1.joinable());
 
@@ -63,18 +65,20 @@ TEST(JoiningThreadTest, MoveConstruction)
 
 TEST(JoiningThreadTest, MoveAssignment)
 {
-  std::atomic<int> counter{0};
+  std::atomic<int> counter{ 0 };
 
   joining_thread t1([&counter]() { counter++; });
 
   {
-    joining_thread t2([&counter]() {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      counter++;
-    });
+    joining_thread t2(
+        [&counter]()
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          counter++;
+        });
 
     t2 = std::move(t1);  // t2's original thread joins here
-  }                      // t1's thread (now in t2) joins here
+  }  // t1's thread (now in t2) joins here
 
   // Give threads time to complete
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -83,7 +87,7 @@ TEST(JoiningThreadTest, MoveAssignment)
 
 TEST(JoiningThreadTest, ExplicitJoin)
 {
-  std::atomic<bool> executed{false};
+  std::atomic<bool> executed{ false };
 
   joining_thread t([&executed]() { executed = true; });
 
@@ -95,14 +99,16 @@ TEST(JoiningThreadTest, ExplicitJoin)
 
 TEST(JoiningThreadTest, GetId)
 {
-  std::atomic<bool> running{true};
+  std::atomic<bool> running{ true };
 
-  joining_thread t([&running]() {
-    while (running)
-    {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-  });
+  joining_thread t(
+      [&running]()
+      {
+        while (running)
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+      });
 
   auto id = t.get_id();
   EXPECT_NE(id, std::thread::id{});
@@ -112,13 +118,15 @@ TEST(JoiningThreadTest, GetId)
 
 TEST(JoiningThreadTest, AutomaticJoinOnDestruction)
 {
-  std::atomic<int> value{0};
+  std::atomic<int> value{ 0 };
 
   {
-    joining_thread t([&value]() {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      value = 42;
-    });
+    joining_thread t(
+        [&value]()
+        {
+          std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          value = 42;
+        });
     // Thread is running here
   }  // Destructor automatically joins the thread
 
@@ -128,18 +136,22 @@ TEST(JoiningThreadTest, AutomaticJoinOnDestruction)
 
 TEST(JoiningThreadTest, Swap)
 {
-  std::atomic<int> val1{0};
-  std::atomic<int> val2{0};
+  std::atomic<int> val1{ 0 };
+  std::atomic<int> val2{ 0 };
 
-  joining_thread t1([&val1]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    val1 = 1;
-  });
+  joining_thread t1(
+      [&val1]()
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        val1 = 1;
+      });
 
-  joining_thread t2([&val2]() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    val2 = 2;
-  });
+  joining_thread t2(
+      [&val2]()
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        val2 = 2;
+      });
 
   auto id1 = t1.get_id();
   auto id2 = t2.get_id();
@@ -153,7 +165,7 @@ TEST(JoiningThreadTest, Swap)
 TEST(JoiningThreadTest, LambdaCapture)
 {
   int value = 100;
-  std::atomic<int> result{0};
+  std::atomic<int> result{ 0 };
 
   {
     joining_thread t([value, &result]() { result = value * 2; });
@@ -167,4 +179,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

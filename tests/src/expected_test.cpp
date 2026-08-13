@@ -59,11 +59,7 @@ TEST(ExpectedTest, ValueAccess)
 TEST(ExpectedTest, ValueAccessThrows)
 {
   expected<int, std::string> ex(unexpected<std::string>("error"));
-  EXPECT_THROW(
-      {
-        [[maybe_unused]] int val = ex.value();
-      },
-      bad_expected_access<std::string>);
+  EXPECT_THROW({ [[maybe_unused]] int val = ex.value(); }, bad_expected_access<std::string>);
 }
 
 TEST(ExpectedTest, ValueOr)
@@ -121,4 +117,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

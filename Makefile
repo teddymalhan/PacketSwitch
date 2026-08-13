@@ -1,4 +1,4 @@
-.PHONY: install coverage test docs help
+.PHONY: install coverage test demo demo-start demo-stop demo-status demo-windows docs help
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -35,6 +35,20 @@ test: ## run tests quickly with ctest
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -Dmodern-cpp-template_ENABLE_UNIT_TESTING=1 -DCMAKE_BUILD_TYPE="Release"
 	cmake --build build --config Release
 	cd build/ && ctest -C Release -VV
+
+demo: demo-windows ## open the full multi-window live demo
+
+demo-start: ## start the persistent demo stack
+	./tests/demo_stack.sh start
+
+demo-stop: ## stop and remove the demo stack
+	./tests/demo_stack.sh stop
+
+demo-status: ## show demo container status
+	./tests/demo_stack.sh status
+
+demo-windows: ## open VSwitch, VPort, and traffic windows in Otty
+	./tests/open_demo_terminals.sh
 
 coverage: ## check code coverage quickly GCC
 	rm -rf build/

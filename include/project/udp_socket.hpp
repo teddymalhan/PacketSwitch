@@ -1,20 +1,20 @@
 /**
  * @file udp_socket.hpp
  * @brief Modern C++ wrapper for UDP sockets
- * 
+ *
  * Provides RAII management of UDP sockets with type-safe endpoint handling.
  */
 
 #ifndef PROJECT_UDP_SOCKET_HPP_
 #define PROJECT_UDP_SOCKET_HPP_
 
-#include "project/expected.hpp"
-#include "project/sys_utils.hpp"
-
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "project/expected.hpp"
+#include "project/sys_utils.hpp"
 
 namespace project
 {
@@ -41,17 +41,17 @@ namespace project
 
   /**
    * @brief Represents a network endpoint (IP address + port)
-   * 
+   *
    * An endpoint is an address that can be used for UDP communication.
    * Internally stores a sockaddr_in structure for IPv4 addresses.
    */
   class Endpoint
   {
-  private:
+   private:
     std::string address_;
     uint16_t port_;
 
-  public:
+   public:
     /**
      * @brief Default constructor - creates an invalid endpoint
      */
@@ -125,13 +125,13 @@ namespace project
 
   /**
    * @brief RAII wrapper for UDP sockets
-   * 
+   *
    * Provides a modern C++ interface for UDP socket operations with
    * automatic resource management. The socket is automatically closed
    * when the object is destroyed.
-   * 
+   *
    * This class is move-only to prevent resource duplication.
-   * 
+   *
    * Example:
    * @code
    * // Create a UDP socket
@@ -141,12 +141,12 @@ namespace project
    *   return;
    * }
    * UdpSocket socket = std::move(*socket_result);
-   * 
+   *
    * // Bind to a port
    * if (auto bind_result = socket.bind("0.0.0.0", 8080); !bind_result) {
    *   // handle bind error
    * }
-   * 
+   *
    * // Send data
    * std::vector<uint8_t> data = {1, 2, 3, 4};
    * Endpoint dest("127.0.0.1", 9000);
@@ -155,11 +155,11 @@ namespace project
    */
   class UdpSocket
   {
-  private:
+   private:
     SocketHandle socket_;
     Endpoint local_endpoint_;
 
-  public:
+   public:
     /**
      * @brief Default constructor - creates an invalid socket
      */
@@ -198,7 +198,7 @@ namespace project
 
     /**
      * @brief Bind the socket to a local address and port
-     * 
+     *
      * @param address Local IP address (e.g., "0.0.0.0" for all interfaces)
      * @param port Local port number
      * @return expected<void, UdpError> Success or error
@@ -207,7 +207,7 @@ namespace project
 
     /**
      * @brief Send data to a remote endpoint
-     * 
+     *
      * @param data The data to send
      * @param endpoint The destination endpoint
      * @return expected<size_t, UdpError> Number of bytes sent or error
@@ -216,7 +216,7 @@ namespace project
 
     /**
      * @brief Send data to a remote endpoint
-     * 
+     *
      * @param data Pointer to data buffer
      * @param size Size of data buffer
      * @param endpoint The destination endpoint
@@ -226,15 +226,15 @@ namespace project
 
     /**
      * @brief Receive data from any remote endpoint
-     * 
-     * @return expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError> 
+     *
+     * @return expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError>
      *         Received data and sender endpoint, or error
      */
     [[nodiscard]] expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError> receive_from();
 
     /**
      * @brief Receive data from any remote endpoint with maximum size
-     * 
+     *
      * @param max_size Maximum number of bytes to receive
      * @return expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError>
      *         Received data and sender endpoint, or error
@@ -285,7 +285,7 @@ namespace project
       return is_valid();
     }
 
-  private:
+   private:
     /**
      * @brief Private constructor for create()
      */
@@ -297,4 +297,3 @@ namespace project
 }  // namespace project
 
 #endif  // PROJECT_UDP_SOCKET_HPP_
-

@@ -25,7 +25,7 @@ TEST(MacAddressTest, DefaultConstruction)
 
 TEST(MacAddressTest, ConstructFromArray)
 {
-  std::array<uint8_t, MAC_ADDRESS_SIZE> bytes = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
+  std::array<uint8_t, MAC_ADDRESS_SIZE> bytes = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 };
   MacAddress mac(bytes);
 
   EXPECT_EQ(mac.bytes(), bytes);
@@ -36,7 +36,7 @@ TEST(MacAddressTest, ConstructFromArray)
 
 TEST(MacAddressTest, ConstructFromPointer)
 {
-  uint8_t bytes[] = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+  uint8_t bytes[] = { 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff };
   MacAddress mac(bytes);
 
   EXPECT_EQ(mac.to_string(), "aa:bb:cc:dd:ee:ff");
@@ -69,7 +69,7 @@ TEST(MacAddressTest, FromStringWithDash)
 TEST(MacAddressTest, FromStringInvalid)
 {
   MacAddress mac1 = MacAddress::from_string("invalid");
-  MacAddress mac2 = MacAddress::from_string("00:11:22:33:44");     // Too short
+  MacAddress mac2 = MacAddress::from_string("00:11:22:33:44");        // Too short
   MacAddress mac3 = MacAddress::from_string("00:11:22:33:44:55:66");  // Too long
 
   EXPECT_TRUE(mac1.is_zero());
@@ -79,9 +79,9 @@ TEST(MacAddressTest, FromStringInvalid)
 
 TEST(MacAddressTest, Equality)
 {
-  MacAddress mac1({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac2({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac3({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff});
+  MacAddress mac1({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac2({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac3({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff });
 
   EXPECT_EQ(mac1, mac2);
   EXPECT_NE(mac1, mac3);
@@ -90,8 +90,8 @@ TEST(MacAddressTest, Equality)
 
 TEST(MacAddressTest, Comparison)
 {
-  MacAddress mac1({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac2({0x00, 0x11, 0x22, 0x33, 0x44, 0x56});
+  MacAddress mac1({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac2({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x56 });
 
   EXPECT_TRUE(mac1 < mac2);
   EXPECT_FALSE(mac2 < mac1);
@@ -99,7 +99,7 @@ TEST(MacAddressTest, Comparison)
 
 TEST(MacAddressTest, OutputStreamOperator)
 {
-  MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   std::ostringstream oss;
   oss << mac;
 
@@ -109,7 +109,7 @@ TEST(MacAddressTest, OutputStreamOperator)
 TEST(MacAddressTest, IsZero)
 {
   MacAddress zero;
-  MacAddress non_zero({0x00, 0x00, 0x00, 0x00, 0x00, 0x01});
+  MacAddress non_zero({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
 
   EXPECT_TRUE(zero.is_zero());
   EXPECT_FALSE(non_zero.is_zero());
@@ -118,7 +118,7 @@ TEST(MacAddressTest, IsZero)
 TEST(MacAddressTest, IsBroadcast)
 {
   MacAddress broadcast = MacAddress::broadcast();
-  MacAddress almost_broadcast({0xff, 0xff, 0xff, 0xff, 0xff, 0xfe});
+  MacAddress almost_broadcast({ 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe });
 
   EXPECT_TRUE(broadcast.is_broadcast());
   EXPECT_FALSE(almost_broadcast.is_broadcast());
@@ -126,7 +126,7 @@ TEST(MacAddressTest, IsBroadcast)
 
 TEST(MacAddressTest, DataPointer)
 {
-  MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   const uint8_t* data = mac.data();
 
   EXPECT_EQ(data[0], 0x00);
@@ -154,10 +154,10 @@ TEST(EthernetFrameTest, DefaultConstruction)
 
 TEST(EthernetFrameTest, ConstructWithParameters)
 {
-  MacAddress dst({0xff, 0xff, 0xff, 0xff, 0xff, 0xff});
-  MacAddress src({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress dst({ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
+  MacAddress src({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   uint16_t ethertype = EtherType::IPv4;
-  std::vector<uint8_t> payload = {0xde, 0xad, 0xbe, 0xef};
+  std::vector<uint8_t> payload = { 0xde, 0xad, 0xbe, 0xef };
 
   EthernetFrame frame(dst, src, ethertype, payload);
 
@@ -171,10 +171,10 @@ TEST(EthernetFrameTest, ConstructWithParameters)
 TEST(EthernetFrameTest, ParseValidFrame)
 {
   std::vector<uint8_t> raw_frame = {
-      0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // Destination MAC (broadcast)
-      0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Source MAC
-      0x08, 0x00,                          // EtherType (IPv4)
-      0xde, 0xad, 0xbe, 0xef               // Payload
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // Destination MAC (broadcast)
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Source MAC
+    0x08, 0x00,                          // EtherType (IPv4)
+    0xde, 0xad, 0xbe, 0xef               // Payload
   };
 
   EthernetFrame frame = EthernetFrame::parse(raw_frame);
@@ -192,9 +192,9 @@ TEST(EthernetFrameTest, ParseValidFrame)
 TEST(EthernetFrameTest, ParseHeaderOnly)
 {
   std::vector<uint8_t> raw_frame = {
-      0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Destination MAC
-      0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  // Source MAC
-      0x08, 0x06                           // EtherType (ARP)
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Destination MAC
+    0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  // Source MAC
+    0x08, 0x06                           // EtherType (ARP)
   };
 
   EthernetFrame frame = EthernetFrame::parse(raw_frame);
@@ -207,7 +207,7 @@ TEST(EthernetFrameTest, ParseHeaderOnly)
 
 TEST(EthernetFrameTest, ParseInvalidFrame)
 {
-  std::vector<uint8_t> short_frame = {0x00, 0x11, 0x22};  // Too short
+  std::vector<uint8_t> short_frame = { 0x00, 0x11, 0x22 };  // Too short
 
   EthernetFrame frame = EthernetFrame::parse(short_frame);
 
@@ -218,10 +218,10 @@ TEST(EthernetFrameTest, ParseInvalidFrame)
 
 TEST(EthernetFrameTest, Serialize)
 {
-  MacAddress dst({0xff, 0xff, 0xff, 0xff, 0xff, 0xff});
-  MacAddress src({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress dst({ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
+  MacAddress src({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   uint16_t ethertype = EtherType::IPv4;
-  std::vector<uint8_t> payload = {0xde, 0xad, 0xbe, 0xef};
+  std::vector<uint8_t> payload = { 0xde, 0xad, 0xbe, 0xef };
 
   EthernetFrame frame(dst, src, ethertype, payload);
   std::vector<uint8_t> serialized = frame.serialize();
@@ -248,10 +248,10 @@ TEST(EthernetFrameTest, Serialize)
 TEST(EthernetFrameTest, ParseAndSerializeRoundTrip)
 {
   std::vector<uint8_t> original = {
-      0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Destination MAC
-      0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  // Source MAC
-      0x86, 0xdd,                          // EtherType (IPv6)
-      0x12, 0x34, 0x56, 0x78               // Payload
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Destination MAC
+    0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  // Source MAC
+    0x86, 0xdd,                          // EtherType (IPv6)
+    0x12, 0x34, 0x56, 0x78               // Payload
   };
 
   EthernetFrame frame = EthernetFrame::parse(original);
@@ -264,9 +264,9 @@ TEST(EthernetFrameTest, Setters)
 {
   EthernetFrame frame;
 
-  MacAddress dst({0xff, 0xff, 0xff, 0xff, 0xff, 0xff});
-  MacAddress src({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  std::vector<uint8_t> payload = {0xaa, 0xbb};
+  MacAddress dst({ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
+  MacAddress src({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  std::vector<uint8_t> payload = { 0xaa, 0xbb };
 
   frame.set_dst_mac(dst);
   frame.set_src_mac(src);
@@ -282,7 +282,7 @@ TEST(EthernetFrameTest, Setters)
 TEST(EthernetFrameTest, IsBroadcast)
 {
   MacAddress broadcast = MacAddress::broadcast();
-  MacAddress unicast({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress unicast({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
 
   EthernetFrame broadcast_frame(broadcast, unicast, EtherType::IPv4);
   EthernetFrame unicast_frame(unicast, unicast, EtherType::IPv4);
@@ -300,8 +300,8 @@ TEST(EthernetFrameTest, EtherTypeConstants)
 
 TEST(EthernetFrameTest, EmptyPayload)
 {
-  MacAddress dst({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress src({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff});
+  MacAddress dst({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress src({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff });
 
   EthernetFrame frame(dst, src, EtherType::ARP);
 
@@ -317,4 +317,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

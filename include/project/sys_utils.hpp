@@ -1,7 +1,7 @@
 /**
  * @file sys_utils.hpp
  * @brief System utilities with RAII wrappers and exception handling
- * 
+ *
  * Provides modern C++ wrappers for system resources like file descriptors
  * and sockets, along with a custom exception hierarchy for error handling.
  */
@@ -20,12 +20,13 @@ namespace project
    */
   class SystemException : public std::runtime_error
   {
-  private:
+   private:
     int error_code_;
 
-  public:
+   public:
     explicit SystemException(const std::string& message, int error_code = 0)
-        : std::runtime_error(message), error_code_(error_code)
+        : std::runtime_error(message),
+          error_code_(error_code)
     {
     }
 
@@ -44,9 +45,8 @@ namespace project
    */
   class NetworkException : public SystemException
   {
-  public:
-    explicit NetworkException(const std::string& message, int error_code = 0)
-        : SystemException(message, error_code)
+   public:
+    explicit NetworkException(const std::string& message, int error_code = 0) : SystemException(message, error_code)
     {
     }
   };
@@ -56,19 +56,18 @@ namespace project
    */
   class FileException : public SystemException
   {
-  public:
-    explicit FileException(const std::string& message, int error_code = 0)
-        : SystemException(message, error_code)
+   public:
+    explicit FileException(const std::string& message, int error_code = 0) : SystemException(message, error_code)
     {
     }
   };
 
   /**
    * @brief RAII wrapper for POSIX file descriptors
-   * 
+   *
    * Automatically closes the file descriptor when the object is destroyed.
    * This class is move-only to prevent double-close errors.
-   * 
+   *
    * Example:
    * @code
    * FileDescriptor fd(open("/path/to/file", O_RDONLY));
@@ -80,10 +79,10 @@ namespace project
    */
   class FileDescriptor
   {
-  private:
+   private:
     int fd_;
 
-  public:
+   public:
     /**
      * @brief Default constructor - creates an invalid file descriptor
      */
@@ -138,7 +137,7 @@ namespace project
 
     /**
      * @brief Close the file descriptor
-     * 
+     *
      * Safe to call multiple times. After closing, the descriptor is set to -1.
      */
     void close() noexcept;
@@ -163,10 +162,10 @@ namespace project
 
     /**
      * @brief Release ownership of the file descriptor
-     * 
+     *
      * Returns the file descriptor and sets the internal value to -1.
      * The caller is responsible for closing the descriptor.
-     * 
+     *
      * @return The file descriptor value
      */
     [[nodiscard]] int release() noexcept
@@ -178,9 +177,9 @@ namespace project
 
     /**
      * @brief Reset to a new file descriptor
-     * 
+     *
      * Closes the current descriptor (if valid) and takes ownership of the new one.
-     * 
+     *
      * @param fd The new file descriptor to manage
      */
     void reset(int fd = -1) noexcept
@@ -200,16 +199,16 @@ namespace project
 
   /**
    * @brief RAII wrapper for socket file descriptors
-   * 
+   *
    * Similar to FileDescriptor but specifically for sockets.
    * Provides socket-specific operations and cleanup.
    */
   class SocketHandle
   {
-  private:
+   private:
     FileDescriptor fd_;
 
-  public:
+   public:
     /**
      * @brief Default constructor - creates an invalid socket
      */
@@ -304,4 +303,3 @@ namespace project
 }  // namespace project
 
 #endif  // PROJECT_SYS_UTILS_HPP_
-

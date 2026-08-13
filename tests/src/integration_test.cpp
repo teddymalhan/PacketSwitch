@@ -1,7 +1,7 @@
 /**
  * @file integration_test.cpp
  * @brief Integration tests for VPort ↔ VSwitch communication
- * 
+ *
  * These tests verify the complete system working together:
  * - VPort creates TAP device and connects to VSwitch
  * - VSwitch receives frames and learns MAC addresses
@@ -9,21 +9,21 @@
  * - Broadcast frames work correctly
  */
 
+#include <gtest/gtest.h>
+
+#include <thread>
+
 #include "project/ethernet_frame.hpp"
 #include "project/mac_table.hpp"
 #include "project/udp_socket.hpp"
 #include "project/vport.hpp"
 #include "project/vswitch.hpp"
 
-#include <gtest/gtest.h>
-
-#include <thread>
-
 using namespace project;
 
 // Helper function to create a simple test Ethernet frame
-std::vector<uint8_t> create_test_frame(MacAddress dst, MacAddress src, uint16_t ethertype,
-                                        const std::vector<uint8_t>& payload = {})
+std::vector<uint8_t>
+create_test_frame(MacAddress dst, MacAddress src, uint16_t ethertype, const std::vector<uint8_t>& payload = {})
 {
   EthernetFrame frame(dst, src, ethertype, payload);
   return frame.serialize();
@@ -64,8 +64,8 @@ TEST(IntegrationTest, MacTableEndpointsRetrieval)
 {
   MacTable mac_table;
 
-  MacAddress mac1({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac2({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff});
+  MacAddress mac1({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac2({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff });
 
   Endpoint ep1("192.168.1.1", 8080);
   Endpoint ep2("192.168.1.2", 9000);
@@ -85,10 +85,10 @@ TEST(IntegrationTest, MacTableEndpointsRetrieval)
 
 TEST(IntegrationTest, EthernetFrameSerializationRoundTrip)
 {
-  MacAddress dst({0xff, 0xff, 0xff, 0xff, 0xff, 0xff});
-  MacAddress src({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress dst({ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
+  MacAddress src({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
 
-  std::vector<uint8_t> payload = {0xde, 0xad, 0xbe, 0xef};
+  std::vector<uint8_t> payload = { 0xde, 0xad, 0xbe, 0xef };
 
   EthernetFrame original(dst, src, EtherType::IPv4, payload);
 
@@ -108,7 +108,7 @@ TEST(IntegrationTest, EthernetFrameSerializationRoundTrip)
 TEST(IntegrationTest, BroadcastMacAddress)
 {
   MacAddress broadcast = MacAddress::broadcast();
-  MacAddress unicast({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress unicast({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
 
   EXPECT_TRUE(broadcast.is_broadcast());
   EXPECT_FALSE(unicast.is_broadcast());
@@ -142,9 +142,9 @@ TEST(IntegrationTest, UdpSocketBindAndReceive)
 
 TEST(IntegrationTest, MacAddressEqualityAndHash)
 {
-  MacAddress mac1({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac2({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac3({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff});
+  MacAddress mac1({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac2({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac3({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff });
 
   EXPECT_EQ(mac1, mac2);
   EXPECT_NE(mac1, mac3);
@@ -168,4 +168,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

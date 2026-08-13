@@ -5,11 +5,12 @@
 
 #include "project/tap_device.hpp"
 
-#include <cstring>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
+#include <cstring>
 #include <vector>
 
 // Platform-specific includes
@@ -19,9 +20,9 @@
 #elif __APPLE__
 #include <net/if.h>
 #include <sys/kern_control.h>
+#include <sys/kern_event.h>
 #include <sys/socket.h>
 #include <sys/sys_domain.h>
-#include <sys/kern_event.h>
 
 // Define UTUN_OPT_IFNAME if not available (varies by macOS version)
 #ifndef UTUN_OPT_IFNAME
@@ -35,25 +36,17 @@ namespace project
   {
     switch (error)
     {
-      case TapError::DeviceOpenFailed:
-        return "Failed to open /dev/net/tun";
-      case TapError::IoctlFailed:
-        return "ioctl(TUNSETIFF) failed";
-      case TapError::ReadFailed:
-        return "Failed to read from TAP device";
-      case TapError::WriteFailed:
-        return "Failed to write to TAP device";
-      case TapError::InvalidDevice:
-        return "Invalid TAP device";
-      case TapError::PartialWrite:
-        return "Partial write to TAP device";
-      default:
-        return "Unknown TAP error";
+      case TapError::DeviceOpenFailed: return "Failed to open /dev/net/tun";
+      case TapError::IoctlFailed: return "ioctl(TUNSETIFF) failed";
+      case TapError::ReadFailed: return "Failed to read from TAP device";
+      case TapError::WriteFailed: return "Failed to write to TAP device";
+      case TapError::InvalidDevice: return "Invalid TAP device";
+      case TapError::PartialWrite: return "Partial write to TAP device";
+      default: return "Unknown TAP error";
     }
   }
 
-  TapDevice::TapDevice(FileDescriptor fd, std::string device_name)
-      : fd_(std::move(fd)), device_name_(std::move(device_name))
+  TapDevice::TapDevice(FileDescriptor fd, std::string device_name) : fd_(std::move(fd)), device_name_(std::move(device_name))
   {
   }
 
@@ -99,7 +92,7 @@ namespace project
     // macOS implementation using utun devices
     // Note: macOS requires third-party drivers for TAP devices
     // We'll use utun (TUN) as a fallback, or require tuntap installation
-    
+
     // Try to open a utun device (TUN, not TAP, but available natively)
     int fd = ::socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if (fd < 0)
@@ -110,11 +103,11 @@ namespace project
     // For macOS, we need tuntaposx installed for true TAP support
     // This is a simplified implementation that will fail gracefully
     // In production, you would install: brew install --cask tuntap
-    
+
     struct ctl_info ctl_info;
     std::memset(&ctl_info, 0, sizeof(ctl_info));
     std::strncpy(ctl_info.ctl_name, "com.apple.net.utun_control", sizeof(ctl_info.ctl_name));
-    
+
     if (::ioctl(fd, CTLIOCGINFO, &ctl_info) < 0)
     {
       ::close(fd);
@@ -204,4 +197,3 @@ namespace project
   }
 
 }  // namespace project
-

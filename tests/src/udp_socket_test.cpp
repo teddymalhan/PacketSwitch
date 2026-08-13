@@ -159,7 +159,7 @@ TEST(UdpSocketTest, BindInvalidAddress)
 TEST(UdpSocketTest, SendToInvalidSocket)
 {
   UdpSocket socket;
-  std::vector<uint8_t> data = {1, 2, 3};
+  std::vector<uint8_t> data = { 1, 2, 3 };
   Endpoint dest("127.0.0.1", 8080);
 
   auto result = socket.send_to(data, dest);
@@ -173,7 +173,7 @@ TEST(UdpSocketTest, SendToInvalidEndpoint)
   ASSERT_TRUE(result.has_value());
 
   UdpSocket& socket = *result;
-  std::vector<uint8_t> data = {1, 2, 3};
+  std::vector<uint8_t> data = { 1, 2, 3 };
   Endpoint invalid_endpoint;
 
   auto send_result = socket.send_to(data, invalid_endpoint);
@@ -197,9 +197,6 @@ TEST(UdpSocketTest, SendAndReceive)
   auto bind_result = receiver.bind("127.0.0.1", 0);
   ASSERT_TRUE(bind_result.has_value());
 
-  // Get the actual port assigned
-  uint16_t receiver_port = receiver.local_endpoint().port();
-  
   // Note: For ephemeral port (0), we need to get the actual assigned port
   // For this test, we'll use a fixed port instead
   auto receiver2_result = UdpSocket::create();
@@ -218,7 +215,7 @@ TEST(UdpSocketTest, SendAndReceive)
   ASSERT_TRUE(bind_result2.has_value());
 
   // Send data
-  std::vector<uint8_t> test_data = {0xde, 0xad, 0xbe, 0xef};
+  std::vector<uint8_t> test_data = { 0xde, 0xad, 0xbe, 0xef };
   Endpoint dest("127.0.0.1", test_port);
   auto send_result = sender.send_to(test_data, dest);
   ASSERT_TRUE(send_result.has_value());
@@ -253,7 +250,7 @@ TEST(UdpSocketTest, SendAndReceiveWithPointer)
   ASSERT_TRUE(bind_result.has_value());
 
   // Send using raw pointer
-  uint8_t test_data[] = {0x01, 0x02, 0x03, 0x04};
+  uint8_t test_data[] = { 0x01, 0x02, 0x03, 0x04 };
   Endpoint dest("127.0.0.1", test_port);
   auto send_result = sender.send_to(test_data, sizeof(test_data), dest);
   ASSERT_TRUE(send_result.has_value());
@@ -312,4 +309,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

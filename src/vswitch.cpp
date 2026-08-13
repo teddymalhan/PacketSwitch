@@ -13,16 +13,11 @@ namespace project
   {
     switch (error)
     {
-      case VSwitchError::SocketCreationFailed:
-        return "Failed to create socket";
-      case VSwitchError::BindFailed:
-        return "Failed to bind socket";
-      case VSwitchError::AlreadyRunning:
-        return "VSwitch is already running";
-      case VSwitchError::NotRunning:
-        return "VSwitch is not running";
-      default:
-        return "Unknown VSwitch error";
+      case VSwitchError::SocketCreationFailed: return "Failed to create socket";
+      case VSwitchError::BindFailed: return "Failed to bind socket";
+      case VSwitchError::AlreadyRunning: return "VSwitch is already running";
+      case VSwitchError::NotRunning: return "VSwitch is not running";
+      default: return "Unknown VSwitch error";
     }
   }
 
@@ -52,7 +47,10 @@ namespace project
   }
 
   VSwitch::VSwitch(VSwitch&& other) noexcept
-      : socket_(std::move(other.socket_)), mac_table_(std::move(other.mac_table_)), port_(other.port_), running_(other.running_.load())
+      : socket_(std::move(other.socket_)),
+        mac_table_(std::move(other.mac_table_)),
+        port_(other.port_),
+        running_(other.running_.load())
   {
   }
 
@@ -178,8 +176,7 @@ namespace project
     }
   }
 
-  void VSwitch::log_frame(const EthernetFrame&, const Endpoint&, std::string_view action,
-                          std::string_view details) const
+  void VSwitch::log_frame(const EthernetFrame&, const Endpoint&, std::string_view action, std::string_view details) const
   {
     std::cout << "  [" << action << "]";
     if (!details.empty())
@@ -190,4 +187,3 @@ namespace project
   }
 
 }  // namespace project
-

@@ -13,18 +13,12 @@ namespace project
   {
     switch (error)
     {
-      case VPortError::TapDeviceCreationFailed:
-        return "Failed to create TAP device";
-      case VPortError::SocketCreationFailed:
-        return "Failed to create UDP socket";
-      case VPortError::InvalidVSwitchEndpoint:
-        return "Invalid VSwitch endpoint";
-      case VPortError::AlreadyRunning:
-        return "VPort is already running";
-      case VPortError::NotRunning:
-        return "VPort is not running";
-      default:
-        return "Unknown VPort error";
+      case VPortError::TapDeviceCreationFailed: return "Failed to create TAP device";
+      case VPortError::SocketCreationFailed: return "Failed to create UDP socket";
+      case VPortError::InvalidVSwitchEndpoint: return "Invalid VSwitch endpoint";
+      case VPortError::AlreadyRunning: return "VPort is already running";
+      case VPortError::NotRunning: return "VPort is not running";
+      default: return "Unknown VPort error";
     }
   }
 
@@ -64,8 +58,8 @@ namespace project
     return *this;
   }
 
-  expected<VPort, VPortError> VPort::create(std::string_view device_name, std::string_view vswitch_address,
-                                             uint16_t vswitch_port)
+  expected<VPort, VPortError>
+  VPort::create(std::string_view device_name, std::string_view vswitch_address, uint16_t vswitch_port)
   {
     // Validate VSwitch endpoint
     if (vswitch_address.empty() || vswitch_port == 0)
@@ -95,8 +89,8 @@ namespace project
     std::cout << "[VPort] Created TAP device: " << actual_device_name << ", VSwitch: " << vswitch_endpoint << "\n";
 
     // Construct VPort and wrap in expected
-    VPort vport(std::move(*tap_result), std::move(*socket_result), std::move(vswitch_endpoint),
-                std::move(actual_device_name));
+    VPort vport(
+        std::move(*tap_result), std::move(*socket_result), std::move(vswitch_endpoint), std::move(actual_device_name));
 
     return expected<VPort, VPortError>(std::move(vport));
   }
@@ -228,4 +222,3 @@ namespace project
   }
 
 }  // namespace project
-

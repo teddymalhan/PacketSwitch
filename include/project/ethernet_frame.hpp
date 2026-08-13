@@ -1,7 +1,7 @@
 /**
  * @file ethernet_frame.hpp
  * @brief Ethernet frame parsing and MAC address handling
- * 
+ *
  * Provides classes for working with Layer 2 Ethernet frames and MAC addresses.
  */
 
@@ -29,10 +29,10 @@ namespace project
 
   /**
    * @brief Represents a MAC (Media Access Control) address
-   * 
+   *
    * A MAC address is a 6-byte hardware address used in Ethernet networking.
    * This class provides formatting, parsing, and comparison operations.
-   * 
+   *
    * Example:
    * @code
    * MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
@@ -41,14 +41,14 @@ namespace project
    */
   class MacAddress
   {
-  private:
+   private:
     std::array<uint8_t, MAC_ADDRESS_SIZE> bytes_;
 
-  public:
+   public:
     /**
      * @brief Default constructor - creates a zero MAC address
      */
-    MacAddress() noexcept : bytes_{0, 0, 0, 0, 0, 0}
+    MacAddress() noexcept : bytes_{ 0, 0, 0, 0, 0, 0 }
     {
     }
 
@@ -79,7 +79,7 @@ namespace project
      */
     [[nodiscard]] static MacAddress broadcast() noexcept
     {
-      return MacAddress({0xff, 0xff, 0xff, 0xff, 0xff, 0xff});
+      return MacAddress({ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
     }
 
     /**
@@ -150,24 +150,24 @@ namespace project
 
   /**
    * @brief Represents an Ethernet frame
-   * 
+   *
    * An Ethernet frame consists of:
    * - Destination MAC address (6 bytes)
    * - Source MAC address (6 bytes)
    * - EtherType (2 bytes)
    * - Payload (variable length)
-   * 
+   *
    * This class provides parsing and construction of Ethernet frames.
    */
   class EthernetFrame
   {
-  private:
+   private:
     MacAddress dst_mac_;
     MacAddress src_mac_;
     uint16_t ethertype_ = 0;
     std::vector<uint8_t> payload_;
 
-  public:
+   public:
     /**
      * @brief Default constructor
      */
@@ -316,4 +316,3 @@ namespace std
 }  // namespace std
 
 #endif  // PROJECT_ETHERNET_FRAME_HPP_
-

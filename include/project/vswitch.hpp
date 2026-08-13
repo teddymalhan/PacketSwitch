@@ -1,7 +1,7 @@
 /**
  * @file vswitch.hpp
  * @brief Virtual Switch for Layer 2 networking
- * 
+ *
  * The VSwitch is a learning switch that:
  * - Learns MAC addresses from incoming frames
  * - Forwards frames based on MAC address table
@@ -11,12 +11,12 @@
 #ifndef PROJECT_VSWITCH_HPP_
 #define PROJECT_VSWITCH_HPP_
 
+#include <atomic>
+#include <memory>
+
 #include "project/ethernet_frame.hpp"
 #include "project/mac_table.hpp"
 #include "project/udp_socket.hpp"
-
-#include <atomic>
-#include <memory>
 
 namespace project
 {
@@ -40,11 +40,11 @@ namespace project
 
   /**
    * @brief Virtual Switch - learning switch implementation
-   * 
+   *
    * VSwitch acts as a central switching fabric for VPN connections.
    * It receives Ethernet frames from VPorts, learns MAC addresses,
    * and forwards frames based on its MAC table.
-   * 
+   *
    * Behavior:
    * 1. When a frame arrives, learn source MAC → sender endpoint
    * 2. If destination MAC is known (in table):
@@ -53,35 +53,35 @@ namespace project
    *    - Forward frame to all known endpoints except source (broadcast)
    * 4. If destination MAC is unknown:
    *    - Discard frame (unknown unicast)
-   * 
+   *
    * Example:
    * @code
    * auto vswitch_result = VSwitch::create(8080);
    * if (!vswitch_result) {
    *   return;
    * }
-   * 
+   *
    * VSwitch& vswitch = *vswitch_result;
    * vswitch.start();
-   * 
+   *
    * // Switch is running...
-   * 
+   *
    * vswitch.stop();
    * @endcode
    */
   class VSwitch
   {
-  private:
+   private:
     UdpSocket socket_;
     MacTable mac_table_;
     uint16_t port_;
 
     std::atomic<bool> running_;
 
-  public:
+   public:
     /**
      * @brief Create a VSwitch instance
-     * 
+     *
      * @param port The UDP port to bind to (0 for ephemeral)
      * @return expected<VSwitch, VSwitchError> The created VSwitch or an error
      */
@@ -119,17 +119,17 @@ namespace project
 
     /**
      * @brief Start the VSwitch main processing loop
-     * 
+     *
      * Begins listening for incoming frames and processing them.
      * This call blocks until stop() is called.
-     * 
+     *
      * @return expected<void, VSwitchError> Success or error
      */
     [[nodiscard]] expected<void, VSwitchError> start();
 
     /**
      * @brief Stop the VSwitch
-     * 
+     *
      * Signals the processing loop to stop and returns.
      */
     void stop() noexcept;
@@ -170,7 +170,7 @@ namespace project
       return mac_table_.get_all_entries();
     }
 
-  private:
+   private:
     /**
      * @brief Private constructor for create()
      * @param socket UDP socket to bind to
@@ -180,11 +180,11 @@ namespace project
 
     /**
      * @brief Process a single Ethernet frame
-     * 
+     *
      * Implements the learning switch algorithm:
      * 1. Learn source MAC → sender endpoint
      * 2. Forward based on destination MAC
-     * 
+     *
      * @param frame_data The raw frame data
      * @param sender_endpoint The endpoint that sent the frame
      */
@@ -197,11 +197,13 @@ namespace project
      * @param action Description of the action taken (e.g., "Forwarded", "Discarded")
      * @param details Additional details about the action
      */
-    void log_frame(const EthernetFrame& frame, const Endpoint& sender_endpoint, std::string_view action,
-                   std::string_view details = "") const;
+    void log_frame(
+        const EthernetFrame& frame,
+        const Endpoint& sender_endpoint,
+        std::string_view action,
+        std::string_view details = "") const;
   };
 
 }  // namespace project
 
 #endif  // PROJECT_VSWITCH_HPP_
-

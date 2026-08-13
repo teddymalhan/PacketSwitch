@@ -1,7 +1,7 @@
 /**
  * @file expected.hpp
  * @brief A C++17 implementation of std::expected (similar to C++23)
- * 
+ *
  * This provides expected<T, E> for representing values or errors.
  * Follows the C++23 std::expected API but implemented for C++17.
  */
@@ -23,10 +23,10 @@ namespace project
   template<typename E>
   class bad_expected_access : public std::exception
   {
-  private:
+   private:
     E error_;
 
-  public:
+   public:
     explicit bad_expected_access(E error) : error_(std::move(error))
     {
     }
@@ -63,10 +63,10 @@ namespace project
   template<typename E>
   class unexpected
   {
-  private:
+   private:
     E error_;
 
-  public:
+   public:
     constexpr unexpected(const unexpected&) = default;
     constexpr unexpected(unexpected&&) = default;
 
@@ -101,20 +101,20 @@ namespace project
 
   /**
    * @brief A type that contains either a value or an error
-   * 
+   *
    * expected<T, E> is a vocabulary type that contains either a value of type T
    * or an error of type E. This is useful for error handling without exceptions.
-   * 
+   *
    * @tparam T The type of the expected value
    * @tparam E The type of the error
    */
   template<typename T, typename E>
   class expected
   {
-  private:
+   private:
     std::variant<T, E> data_;
 
-  public:
+   public:
     using value_type = T;
     using error_type = E;
     using unexpected_type = unexpected<E>;
@@ -308,10 +308,10 @@ namespace project
   template<typename E>
   class expected<void, E>
   {
-  private:
+   private:
     std::variant<std::monostate, E> data_;
 
-  public:
+   public:
     using value_type = void;
     using error_type = E;
     using unexpected_type = unexpected<E>;
@@ -388,4 +388,3 @@ namespace project
 }  // namespace project
 
 #endif  // PROJECT_EXPECTED_HPP_
-

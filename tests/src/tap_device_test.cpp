@@ -1,7 +1,7 @@
 /**
  * @file tap_device_test.cpp
  * @brief Unit tests for TAP device management
- * 
+ *
  * Note: Creating TAP devices requires root privileges. Most tests verify
  * the API and error handling without requiring actual device creation.
  */
@@ -9,7 +9,6 @@
 #include "project/tap_device.hpp"
 
 #include <gtest/gtest.h>
-
 #include <unistd.h>
 
 using namespace project;
@@ -132,7 +131,7 @@ TEST(TapDeviceTest, ReadFromInvalidDevice)
 TEST(TapDeviceTest, WriteToInvalidDevice)
 {
   TapDevice tap;
-  std::vector<uint8_t> frame = {0x01, 0x02, 0x03};
+  std::vector<uint8_t> frame = { 0x01, 0x02, 0x03 };
 
   auto result = tap.write_frame(frame);
 
@@ -143,7 +142,7 @@ TEST(TapDeviceTest, WriteToInvalidDevice)
 TEST(TapDeviceTest, WriteWithPointer)
 {
   TapDevice tap;
-  uint8_t data[] = {0x01, 0x02, 0x03};
+  uint8_t data[] = { 0x01, 0x02, 0x03 };
 
   auto result = tap.write_frame(data, sizeof(data));
 
@@ -199,10 +198,10 @@ TEST(TapDeviceTest, ReadWriteOperationsIfRoot)
 
   // Create a minimal Ethernet frame (14 byte header + data)
   std::vector<uint8_t> test_frame = {
-      0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // Destination MAC (broadcast)
-      0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Source MAC
-      0x08, 0x00,                          // EtherType (IPv4)
-      0xde, 0xad, 0xbe, 0xef               // Data
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // Destination MAC (broadcast)
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Source MAC
+    0x08, 0x00,                          // EtherType (IPv4)
+    0xde, 0xad, 0xbe, 0xef               // Data
   };
 
   // Write frame
@@ -225,4 +224,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

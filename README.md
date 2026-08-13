@@ -82,6 +82,33 @@ chmod +x tests/test_in_docker.sh
 
 The Docker path spins up VSwitch and two VPorts inside a single container, configures TAP devices, runs a connectivity test, and prints forwarding logs — no host configuration required.
 
+### Live demo
+
+For a recording-friendly demo with data visibly flowing between separate
+processes, run:
+
+```bash
+make demo
+```
+
+This starts a persistent Docker demo stack and opens four Otty windows:
+
+1. **VSwitch** — live MAC learning, broadcast, and unicast forwarding logs.
+2. **VPort 1** — frames entering and leaving endpoint `10.1.1.101`.
+3. **VPort 2** — frames entering and leaving endpoint `10.1.1.102`.
+4. **Live Traffic** — continuous bidirectional pings between both endpoints.
+
+The stack stays running when a terminal window closes. Stop and remove all
+demo resources after recording:
+
+```bash
+make demo-stop
+```
+
+Docker must be running. The containers own their TAP devices, so the host does
+not need `sudo` or network configuration. To operate the stack without opening
+windows, use `make demo-start`, `make demo-status`, and `make demo-stop`.
+
 ## Usage
 
 ### Running the switch

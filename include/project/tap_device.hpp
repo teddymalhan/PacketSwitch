@@ -1,7 +1,7 @@
 /**
  * @file tap_device.hpp
  * @brief Modern C++ wrapper for TAP (network tunnel) devices
- * 
+ *
  * Provides RAII management of TAP devices for Layer 2 networking.
  * TAP devices operate at the Ethernet frame level.
  */
@@ -9,14 +9,14 @@
 #ifndef PROJECT_TAP_DEVICE_HPP_
 #define PROJECT_TAP_DEVICE_HPP_
 
-#include "project/expected.hpp"
-#include "project/sys_utils.hpp"
-
 #include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "project/expected.hpp"
+#include "project/sys_utils.hpp"
 
 namespace project
 {
@@ -47,14 +47,14 @@ namespace project
 
   /**
    * @brief RAII wrapper for TAP (network tunnel) devices
-   * 
+   *
    * A TAP device is a virtual network interface that operates at Layer 2
    * (Ethernet frame level). This class provides modern C++ RAII management
    * of TAP devices with safe read/write operations.
-   * 
+   *
    * The device is automatically closed when the object is destroyed.
    * This class is move-only to prevent resource duplication.
-   * 
+   *
    * Example:
    * @code
    * auto tap_result = TapDevice::create("tap0");
@@ -63,7 +63,7 @@ namespace project
    *   return;
    * }
    * TapDevice tap = std::move(*tap_result);
-   * 
+   *
    * // Read an Ethernet frame
    * auto frame = tap.read_frame();
    * if (frame) {
@@ -73,7 +73,7 @@ namespace project
    */
   class TapDevice
   {
-  private:
+   private:
     FileDescriptor fd_;
     std::string device_name_;
 
@@ -82,13 +82,13 @@ namespace project
      */
     TapDevice(FileDescriptor fd, std::string device_name);
 
-  public:
+   public:
     /**
      * @brief Create a TAP device with the specified name
-     * 
+     *
      * Creates a TAP device. If the name is empty, the kernel assigns a name.
      * The device is configured with IFF_TAP | IFF_NO_PI flags.
-     * 
+     *
      * @param device_name Desired device name (e.g., "tap0"), or empty for auto-assignment
      * @return expected<TapDevice, TapError> The created device or an error
      */
@@ -126,18 +126,18 @@ namespace project
 
     /**
      * @brief Read an Ethernet frame from the TAP device
-     * 
+     *
      * Reads a complete Ethernet frame from the device. This is a blocking operation.
-     * 
+     *
      * @return expected<std::vector<uint8_t>, TapError> The frame data or an error
      */
     [[nodiscard]] expected<std::vector<uint8_t>, TapError> read_frame();
 
     /**
      * @brief Write an Ethernet frame to the TAP device
-     * 
+     *
      * Writes a complete Ethernet frame to the device.
-     * 
+     *
      * @param frame The frame data to write
      * @return expected<size_t, TapError> Number of bytes written or an error
      */
@@ -145,7 +145,7 @@ namespace project
 
     /**
      * @brief Write an Ethernet frame to the TAP device
-     * 
+     *
      * @param data Pointer to frame data
      * @param size Size of frame data
      * @return expected<size_t, TapError> Number of bytes written or an error
@@ -200,4 +200,3 @@ namespace project
 }  // namespace project
 
 #endif  // PROJECT_TAP_DEVICE_HPP_
-

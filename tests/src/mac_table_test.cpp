@@ -23,7 +23,7 @@ TEST(MacTableTest, InsertAndLookup)
 {
   MacTable table;
 
-  MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   Endpoint endpoint("192.168.1.100", 8080);
 
   // Insert
@@ -42,7 +42,7 @@ TEST(MacTableTest, UpdateExistingMac)
 {
   MacTable table;
 
-  MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   Endpoint endpoint1("192.168.1.100", 8080);
   Endpoint endpoint2("192.168.1.200", 9000);
 
@@ -65,7 +65,7 @@ TEST(MacTableTest, LookupNotFound)
 {
   MacTable table;
 
-  MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
 
   auto result = table.lookup(mac);
   EXPECT_FALSE(result.has_value());
@@ -75,10 +75,10 @@ TEST(MacTableTest, Contains)
 {
   MacTable table;
 
-  MacAddress mac1({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
-  MacAddress mac2({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff});
+  MacAddress mac1({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
+  MacAddress mac2({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff });
 
-  table.insert(mac1, {"192.168.1.1", 8080});
+  table.insert(mac1, { "192.168.1.1", 8080 });
 
   EXPECT_TRUE(table.contains(mac1));
   EXPECT_FALSE(table.contains(mac2));
@@ -88,7 +88,7 @@ TEST(MacTableTest, Remove)
 {
   MacTable table;
 
-  MacAddress mac({0x00, 0x11, 0x22, 0x33, 0x44, 0x55});
+  MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   Endpoint endpoint("192.168.1.100", 8080);
 
   // Insert
@@ -109,9 +109,9 @@ TEST(MacTableTest, GetAllEndpoints)
 {
   MacTable table;
 
-  table.insert(MacAddress({0x00, 0x11, 0x22, 0x33, 0x44, 0x55}), {"192.168.1.1", 8080});
-  table.insert(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x11}), {"192.168.1.2", 8080});
-  table.insert(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x22}), {"192.168.1.3", 9000});
+  table.insert(MacAddress({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 }), { "192.168.1.1", 8080 });
+  table.insert(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x11 }), { "192.168.1.2", 8080 });
+  table.insert(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x22 }), { "192.168.1.3", 9000 });
 
   auto endpoints = table.get_all_endpoints();
 
@@ -123,11 +123,11 @@ TEST(MacTableTest, GetAllEndpointsExcept)
 {
   MacTable table;
 
-  MacAddress exclude_mac({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x11});
+  MacAddress exclude_mac({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x11 });
 
-  table.insert(MacAddress({0x00, 0x11, 0x22, 0x33, 0x44, 0x55}), {"192.168.1.1", 8080});
-  table.insert(exclude_mac, {"192.168.1.2", 8080});
-  table.insert(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x22}), {"192.168.1.3", 9000});
+  table.insert(MacAddress({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 }), { "192.168.1.1", 8080 });
+  table.insert(exclude_mac, { "192.168.1.2", 8080 });
+  table.insert(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x22 }), { "192.168.1.3", 9000 });
 
   auto endpoints = table.get_all_endpoints_except(exclude_mac);
 
@@ -138,8 +138,8 @@ TEST(MacTableTest, Clear)
 {
   MacTable table;
 
-  table.insert(MacAddress({0x00, 0x11, 0x22, 0x33, 0x44, 0x55}), {"192.168.1.1", 8080});
-  table.insert(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}), {"192.168.1.2", 8080});
+  table.insert(MacAddress({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 }), { "192.168.1.1", 8080 });
+  table.insert(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff }), { "192.168.1.2", 8080 });
 
   EXPECT_EQ(table.size(), 2);
 
@@ -161,33 +161,37 @@ TEST(MacTableTest, ThreadSafety)
   // Writer threads
   for (int t = 0; t < num_threads; ++t)
   {
-    threads.emplace_back([&table, t]() {
-      for (int i = 0; i < 100; ++i)
-      {
-        std::array<uint8_t, MAC_ADDRESS_SIZE> bytes = {
-            static_cast<uint8_t>(t), 0x11, 0x22, 0x33, 0x44, static_cast<uint8_t>(i)};
-        MacAddress mac(bytes);
-        Endpoint endpoint("192.168.1." + std::to_string(t + 100), 8080 + i);
-        table.insert(mac, endpoint);
-      }
-    });
+    threads.emplace_back(
+        [&table, t]()
+        {
+          for (int i = 0; i < 100; ++i)
+          {
+            std::array<uint8_t, MAC_ADDRESS_SIZE> bytes = { static_cast<uint8_t>(t), 0x11, 0x22, 0x33, 0x44,
+                                                            static_cast<uint8_t>(i) };
+            MacAddress mac(bytes);
+            Endpoint endpoint("192.168.1." + std::to_string(t + 100), 8080 + i);
+            table.insert(mac, endpoint);
+          }
+        });
   }
 
   // Reader threads
   for (int t = 0; t < num_threads; ++t)
   {
-    threads.emplace_back([&table, t]() {
-      for (int i = 0; i < 100; ++i)
-      {
-        std::array<uint8_t, MAC_ADDRESS_SIZE> bytes = {
-            static_cast<uint8_t>(t), 0x11, 0x22, 0x33, 0x44, static_cast<uint8_t>(i)};
-        MacAddress mac(bytes);
-        [[maybe_unused]] auto result = table.lookup(mac);
+    threads.emplace_back(
+        [&table, t]()
+        {
+          for (int i = 0; i < 100; ++i)
+          {
+            std::array<uint8_t, MAC_ADDRESS_SIZE> bytes = { static_cast<uint8_t>(t), 0x11, 0x22, 0x33, 0x44,
+                                                            static_cast<uint8_t>(i) };
+            MacAddress mac(bytes);
+            [[maybe_unused]] auto result = table.lookup(mac);
 
-        // Try to get all endpoints
-        [[maybe_unused]] auto endpoints = table.get_all_endpoints();
-      }
-    });
+            // Try to get all endpoints
+            [[maybe_unused]] auto endpoints = table.get_all_endpoints();
+          }
+        });
   }
 
   // Wait for all threads
@@ -204,22 +208,22 @@ TEST(MacTableTest, GetAllEntries)
 {
   MacTable table;
 
-  table.insert(MacAddress({0x00, 0x11, 0x22, 0x33, 0x44, 0x55}), {"192.168.1.1", 8080});
-  table.insert(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}), {"192.168.1.2", 9000});
+  table.insert(MacAddress({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 }), { "192.168.1.1", 8080 });
+  table.insert(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff }), { "192.168.1.2", 9000 });
 
   auto entries = table.get_all_entries();
 
   EXPECT_EQ(entries.size(), 2);
-  EXPECT_TRUE(entries.find(MacAddress({0x00, 0x11, 0x22, 0x33, 0x44, 0x55})) != entries.end());
-  EXPECT_TRUE(entries.find(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff})) != entries.end());
+  EXPECT_TRUE(entries.find(MacAddress({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 })) != entries.end());
+  EXPECT_TRUE(entries.find(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff })) != entries.end());
 }
 
 TEST(MacTableTest, MoveSemantics)
 {
   MacTable table1;
 
-  table1.insert(MacAddress({0x00, 0x11, 0x22, 0x33, 0x44, 0x55}), {"192.168.1.1", 8080});
-  table1.insert(MacAddress({0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}), {"192.168.1.2", 9000});
+  table1.insert(MacAddress({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 }), { "192.168.1.1", 8080 });
+  table1.insert(MacAddress({ 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff }), { "192.168.1.2", 9000 });
 
   EXPECT_EQ(table1.size(), 2);
 
@@ -243,4 +247,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

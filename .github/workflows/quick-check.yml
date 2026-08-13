@@ -53,7 +53,5 @@ jobs:
 
       - name: Check formatting
         run: |
-          find include/ src/ test/ \( -name '*.hpp' -o -name '*.cpp' \) | \
-          xargs clang-format --dry-run --Werror || \
-          (echo "Code formatting issues found. Run 'make format' to fix." && exit 1)
-
+          find include/ src/ tests/ -type f \( -name '*.hpp' -o -name '*.cpp' \) -print0 | \
+          xargs -0 clang-format --dry-run --Werror

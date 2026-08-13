@@ -6,10 +6,11 @@
 #include "project/udp_socket.hpp"
 
 #include <arpa/inet.h>
-#include <cstring>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include <cstring>
 
 namespace project
 {
@@ -17,22 +18,14 @@ namespace project
   {
     switch (error)
     {
-      case UdpError::SocketCreationFailed:
-        return "Failed to create socket";
-      case UdpError::BindFailed:
-        return "Failed to bind socket";
-      case UdpError::SendFailed:
-        return "Failed to send data";
-      case UdpError::ReceiveFailed:
-        return "Failed to receive data";
-      case UdpError::InvalidEndpoint:
-        return "Invalid endpoint";
-      case UdpError::AddressResolutionFailed:
-        return "Failed to resolve address";
-      case UdpError::InvalidSocket:
-        return "Invalid socket";
-      default:
-        return "Unknown UDP error";
+      case UdpError::SocketCreationFailed: return "Failed to create socket";
+      case UdpError::BindFailed: return "Failed to bind socket";
+      case UdpError::SendFailed: return "Failed to send data";
+      case UdpError::ReceiveFailed: return "Failed to receive data";
+      case UdpError::InvalidEndpoint: return "Invalid endpoint";
+      case UdpError::AddressResolutionFailed: return "Failed to resolve address";
+      case UdpError::InvalidSocket: return "Invalid socket";
+      default: return "Unknown UDP error";
     }
   }
 
@@ -121,8 +114,7 @@ namespace project
     }
 
     // Send the data
-    ssize_t sent = ::sendto(socket_.get(), data, size, 0, reinterpret_cast<struct sockaddr*>(&dest_addr),
-                            sizeof(dest_addr));
+    ssize_t sent = ::sendto(socket_.get(), data, size, 0, reinterpret_cast<struct sockaddr*>(&dest_addr), sizeof(dest_addr));
 
     if (sent < 0)
     {
@@ -153,8 +145,8 @@ namespace project
     std::memset(&sender_addr, 0, sizeof(sender_addr));
 
     // Receive data
-    ssize_t received = ::recvfrom(socket_.get(), buffer.data(), buffer.size(), 0,
-                                  reinterpret_cast<struct sockaddr*>(&sender_addr), &sender_addr_len);
+    ssize_t received = ::recvfrom(
+        socket_.get(), buffer.data(), buffer.size(), 0, reinterpret_cast<struct sockaddr*>(&sender_addr), &sender_addr_len);
 
     if (received < 0)
     {
@@ -177,4 +169,3 @@ namespace project
   }
 
 }  // namespace project
-

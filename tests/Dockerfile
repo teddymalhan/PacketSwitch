@@ -1,34 +1,26 @@
-FROM alpine:latest
+FROM alpine:3.22
 
-# Install dependencies
 RUN apk add --no-cache \
+    bash \
     build-base \
+    coreutils \
     cmake \
-    git \
-    linux-headers \
     iproute2 \
-    tcpdump \
-    bash
+    iputils \
+    linux-headers
 
-# Set working directory
 WORKDIR /app
 
-# Copy source (exclude build directory)
 COPY CMakeLists.txt Makefile .clang-format .cursorrules ./
 COPY cmake/ ./cmake/
 COPY include/ ./include/
 COPY src/ ./src/
-COPY test/ ./test/
-COPY reference/ ./reference/
 
-# Build
-RUN mkdir -p build && \
-    cd build && \
-    rm -rf CMakeCache.txt CMakeFiles/ && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release \
-             -DProject_ENABLE_UNIT_TESTING=OFF && \
-    cmake --build . && \
-    ls -lh vport vswitch && \
-    echo "Build complete!"
+RUN cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DProject_ENABLE_UNIT_TESTING=OFF && \
+    cmake --build build --parallel && \
+    test -x build/vport && \
+    test -x build/vswitch
 
 CMD ["/bin/sh"]

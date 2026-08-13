@@ -5,9 +5,8 @@
 
 #include "project/sys_utils.hpp"
 
-#include <gtest/gtest.h>
-
 #include <fcntl.h>
+#include <gtest/gtest.h>
 #include <unistd.h>
 
 using namespace project;
@@ -259,4 +258,3 @@ int main(int argc, char** argv)
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
-

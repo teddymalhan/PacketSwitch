@@ -1,22 +1,22 @@
 /**
  * @file vswitch_main.cpp
  * @brief VSwitch application - Virtual Switch for Layer 2 networking
- * 
+ *
  * This application implements a learning switch that:
  * - Receives Ethernet frames from VPorts
  * - Learns MAC addresses from incoming frames
  * - Forwards frames based on MAC table
  * - Handles broadcast frames
- * 
+ *
  * Usage: vswitch <port>
  */
-
-#include "project/vswitch.hpp"
 
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+
+#include "project/vswitch.hpp"
 
 // Global VSwitch pointer for signal handler
 std::unique_ptr<project::VSwitch> g_vswitch;
@@ -148,4 +148,3 @@ int main(int argc, char* argv[])
   std::cout << "\nVSwitch shut down successfully.\n";
   return EXIT_SUCCESS;
 }
-
