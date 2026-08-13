@@ -1,18 +1,17 @@
-# PacketSwitch (Thread-safe Virtual Network Switch written in C++)
+# PacketSwitch
 
-[![CI](https://img.shields.io/badge/CI-Jenkins-blue)](Jenkinsfile)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
-[![Standard Readme](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg)](https://github.com/RichardLitt/standard-readme)
+<img width="1934" height="907" alt="Untitled-2026-08-13-0218" src="https://github.com/user-attachments/assets/0f61eb0d-bd69-4111-8d11-18adf71003a2" />
 
-# Demo
+## Demo
 https://github.com/user-attachments/assets/72ed8775-c435-4837-953a-ee813c81396f
 
+Thread-safe Virtual Network Switch written in C++, briding TAP devices over UDP
 
+PacketSwitch implements a learning Ethernet switch as two cooperating programs: 
+1. **VSwitch**, a forwarding server to connect devices to (like a router or a switch in real life), and 
+2. **VPort**, a client that attaches to the switch via a TAP interface. 
 
-A modern C++17 Layer-2 virtual switch that bridges TAP devices over UDP.
-
-PacketSwitch implements a learning Ethernet switch as two cooperating programs: **VSwitch**, a central forwarding server that dynamically learns MAC addresses, and **VPort**, a client that attaches a local TAP interface to the switch. Frames sent on one VPort's TAP device are forwarded over UDP to the correct VPort on the other side — or broadcast when the destination is unknown — reproducing the behavior of a physical switch in software.
+Frames sent from one VPort's TAP device are forwarded over UDP to the correct VPort on the other side, or broadcast when the destination is unknown, reproducing the behavior of a physical switch in software.
 
 The project prioritizes modern C++ idioms: RAII resource management, `std::shared_mutex` for concurrent MAC table reads, and a C++17 `expected<T,E>` type for explicit error handling without exceptions.
 
