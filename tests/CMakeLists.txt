@@ -37,6 +37,21 @@ if(${CMAKE_PROJECT_NAME}_USE_GTEST)
   endif()
 endif()
 
+if(${CMAKE_PROJECT_NAME}_BUILD_EXECUTABLE)
+  set(${CMAKE_PROJECT_NAME}_TEST_LIB ${CMAKE_PROJECT_NAME}_LIB)
+else()
+  set(${CMAKE_PROJECT_NAME}_TEST_LIB ${CMAKE_PROJECT_NAME})
+endif()
+
+if(${CMAKE_PROJECT_NAME}_ENABLE_CODE_COVERAGE)
+  target_compile_options(
+    ${${CMAKE_PROJECT_NAME}_TEST_LIB}
+    PUBLIC -O0 -g --coverage -fprofile-update=atomic
+  )
+  target_link_options(${${CMAKE_PROJECT_NAME}_TEST_LIB} PUBLIC --coverage)
+  verbose_message("Code coverage is enabled and provided with GCC.")
+endif()
+
 foreach(file ${test_sources})
   string(REGEX REPLACE "(.*/)([a-zA-Z0-9_ ]+)(\.cpp)" "\\2" test_name ${file}) 
   add_executable(${test_name}_Tests ${file})
@@ -48,25 +63,9 @@ foreach(file ${test_sources})
   target_compile_features(${test_name}_Tests PUBLIC cxx_std_17)
 
   #
-  # Setup code coverage if enabled
-  #
-
-  if (${CMAKE_PROJECT_NAME}_ENABLE_CODE_COVERAGE)
-    target_compile_options(${CMAKE_PROJECT_NAME} PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
-    target_link_options(${CMAKE_PROJECT_NAME} PUBLIC -fprofile-arcs -ftest-coverage)
-    verbose_message("Code coverage is enabled and provided with GCC.")
-  endif()
-
-  #
   # Load the desired unit testing framework
   #
   # Currently supported: GoogleTest (and GoogleMock), Catch2.
-
-  if(${CMAKE_PROJECT_NAME}_BUILD_EXECUTABLE)
-    set(${CMAKE_PROJECT_NAME}_TEST_LIB ${CMAKE_PROJECT_NAME}_LIB)
-  else()
-    set(${CMAKE_PROJECT_NAME}_TEST_LIB ${CMAKE_PROJECT_NAME})
-  endif()
 
   if(${CMAKE_PROJECT_NAME}_USE_GTEST)
     target_link_libraries(

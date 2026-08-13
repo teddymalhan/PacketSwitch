@@ -170,8 +170,11 @@ jobs:
       - name: Generate coverage report
         working-directory: ${{github.workspace}}/build
         run: |
-          lcov --capture --directory . --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*/test/*' '*/build/_deps/*' --output-file coverage.info
+          lcov --capture \
+            --directory CMakeFiles/Project.dir \
+            --rc geninfo_unexecuted_blocks=1 \
+            --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' --output-file coverage.info
           lcov --list coverage.info
 
       - name: Upload coverage to Codecov

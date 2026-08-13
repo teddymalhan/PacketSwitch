@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <ostream>
 
 namespace project
 {

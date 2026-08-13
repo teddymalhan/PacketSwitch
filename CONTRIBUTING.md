@@ -1,203 +1,134 @@
-# Contributing to [INSERT PROJECT NAME]
+# Contributing to PacketSwitch
 
-The [INSERT PROJECT NAME] team encourages community feedback and contributions.
-Thank you for your interest in making [INSERT PROJECT NAME] better! There are several
-ways you can get involved.
+Thank you for helping improve PacketSwitch. Bug reports, feature suggestions,
+documentation fixes, tests, and code changes are welcome.
 
-If you are looking for a good way to contribute to the project, please:
+## Before you start
 
-* have a look at the [available issue templates](https://github.com/filipdutescu/modern-cpp-template/issues/new/choose)
-and checkout the [examples of good first issues](https://github.com/filipdutescu/modern-cpp-template/contribute)
-(or [click here](https://github.com/filipdutescu/modern-cpp-template/labels/good%20first%20issue)).
+Search the [existing issues](https://github.com/teddymalhan/PacketSwitch/issues)
+before opening a new one. For a larger change, open an issue first so the
+approach can be discussed before implementation.
 
-* look through the [issues that need help](https://github.com/filipdutescu/modern-cpp-template/labels/help%20wanted).
+Good places to start are issues labeled
+[`good first issue`](https://github.com/teddymalhan/PacketSwitch/labels/good%20first%20issue)
+or [`help wanted`](https://github.com/teddymalhan/PacketSwitch/labels/help%20wanted).
+Leave a comment on the issue you intend to address to avoid duplicated work.
 
-* take a look at a [Pull Request template](PULL_REQUEST_TEMPLATE.md) to get yourself
-started.
+## Reporting a bug
 
-## Reporting issues and suggesting new features
+Use the [bug report template](https://github.com/teddymalhan/PacketSwitch/issues/new?template=bug_report.md).
+Include:
 
-If you find that the project is not working properly, please file a report using
-the [Bug Report template](https://github.com/filipdutescu/modern-cpp-template/issues/new?assignees=&labels=bug&template=bug_report.md&title=[BUG]).
-Should the template provided not suit your needs, feel free to make a
-[custom Bug Report](https://github.com/filipdutescu/modern-cpp-template/issues/new/choose),
-but please label it accordingly.
+- your operating system, compiler, and CMake versions;
+- the command you ran;
+- the expected and actual behavior;
+- the smallest reliable reproduction;
+- relevant logs or error output.
 
-We are happy to hear your ideas for how to further improve [INSERT PROJECT NAME],
-ensuring it suits your needs. Check the [Issues](https://github.com/filipdutescu/modern-cpp-template/issues)
-and see if others have submitted similar feedback. You can upvote existing feedback
-(using the thumbs up reaction/by commenting) or [submit a new suggestion](https://github.com/filipdutescu/modern-cpp-template/labels/feature).
+Do not include credentials, private network details, or other sensitive data.
 
-We always look at upvoted items in [Issues](https://github.com/filipdutescu/modern-cpp-template/issues)
-when we decide what to work on next. We read the comments and we look forward to
-hearing your input.
+## Suggesting a feature
 
-## Finding issues you can help with
+Use the [feature request template](https://github.com/teddymalhan/PacketSwitch/issues/new?template=feature_request.md).
+Describe the networking problem or use case, the proposed behavior, and any
+alternatives you considered.
 
-Looking for something to work on?
-Issues marked [`good first issue`](https://github.com/filipdutescu/modern-cpp-template/labels/good%20first%20issue)
-are a good place to start.
+## Development setup
 
-You can also check the [`help wanted`](https://github.com/filipdutescu/modern-cpp-template/labels/help%20wanted)
-tag to find other issues to help with. If you're interested in working on a fix,
-leave a comment to let everyone know and to help avoid duplicated effort from others.
+PacketSwitch requires CMake 3.15 or newer and a C++17 compiler. Linux provides
+native TAP support. macOS uses `utun`; tests that require Linux networking
+should be run through Docker.
 
-## Contributions we accept
-
-We highly appreciate any contributions that help us improve the end product, with
-a high emphasis being put on any bug fixes you can manage to create and direct
-improvements which address the top issues reported by Calculator users. Some general
-guidelines:
-
-### DOs
-
-* **DO** create one pull request per Issue, and ensure that the Issue is linked
-in the pull request. You can follow the [Pull Request Template](PULL_REQUEST_TEMPLATE.md)
-for this.
-
-* **DO** follow our [Coding and Style](#style-guidelines) guidelines, and keep code
-changes as small as possible.
-
-* **DO** include corresponding tests whenever possible.
-
-* **DO** check for additional occurrences of the same problem in other parts of the
-codebase before submitting your PR.
-
-* **DO** link the issue you are addressing in the pull request.
-
-* **DO** write a good description for your pull request. More detail is better.
-Describe *why* the change is being made and *why* you have chosen a particular solution.
-Describe any manual testing you performed to validate your change.
-
-### DO NOTs
-
-* **DO NOT** merge multiple changes into one PR unless they have the same root cause.
-* **DO NOT** merge directly into the master branch.
-
-> Submitting a pull request for an approved Issue is not a guarantee it will be approved.
-> The change must meet our high bar for code quality, architecture and performance.
-
-## Making changes to the code
-
-### Preparing your development environment
-
-To learn how to build the code and run tests, follow the instructions in the [README](README.md).
-
-### Style guidelines
-
-The code in this project uses several different coding styles, depending on the
-age and history of the code. Please attempt to match the style of surrounding
-code as much as possible. In new components, prefer the patterns described in the
-[C++ core guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines).
-
-### Code formatting
-
-***Run clang-format***
-
-Use the following commands from the project's root directory to run clang-format
-(must be installed on the host system).
-
-**1. Run the CMake target for `clang-format`:**
+Clone and configure a development build:
 
 ```bash
-cmake --build build --target clang-format
+git clone https://github.com/teddymalhan/PacketSwitch.git
+cd PacketSwitch
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DProject_ENABLE_UNIT_TESTING=ON
+cmake --build build --parallel
 ```
 
-**2. Using clang-format:**
+See the [README](README.md) for installation and usage instructions and
+[`tests/TESTING.md`](tests/TESTING.md) for the complete testing guide.
+
+## Making a change
+
+1. Create a focused branch from `main`.
+2. Keep the change limited to one issue or one root cause.
+3. Match the style and abstractions in the surrounding code.
+4. Add or update tests for changed behavior.
+5. Update user-facing documentation when commands or behavior change.
+6. Format and test the change before opening a pull request.
+
+Prefer modern C++17 and RAII. Avoid introducing a new dependency when the
+standard library or an existing project abstraction is sufficient. Follow the
+[C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+where they do not conflict with established project conventions.
+
+## Formatting
+
+The repository's `.clang-format` file is the source of truth. Format all project
+sources with:
 
 ```bash
-# !!! clang-format does not run recursively in subdirectories !!!
-# for each .cpp file modified
-clang-format -i *.cpp
-
-# for each .h file modified
-clang-format -i *.h
-
-# for each .hpp file modified
-clang-format -i *.hpp
+make format
 ```
 
-**3. Using TheLartians' Format.cmake:**
+To format only files you changed, run `clang-format -i` on each affected
+`.cpp` or `.hpp` file.
+
+## Testing
+
+Build and run the unit and integration tests:
 
 ```bash
-cmake -Htest -Bbuild/test
-
-# view changes
-cmake --build build/test --target format
-
-# apply changes
-cmake --build build/test --target fix-format
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DProject_ENABLE_UNIT_TESTING=ON
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ```
 
-See [Format.cmake](https://github.com/TheLartians/Format.cmake) for more options.
-
-### Testing
-
-Your change should include tests to verify new functionality wherever possible.
-Code should be structured so that it can be unit tested independently of the UI.
-Manual test cases should be used where automated testing is not feasible.
-
-### Git workflow
-
-The core principle of the project, when it comes to Git workflows is that the
-`master` branch should always be in a healthy state which is ready for release.
-Every commit on master should be deployable on push. To ensure this, pull request
-**must not** be made directly on master. **Each change** should either be made in
-the **development branch** (named a variation of development, i.e. `dev`) or in a
-separate branch, named as a short summary of the change.
-
-If your change is complex, please clean up the branch history before submitting a
-pull request. You can use [git rebase](https://git-scm.com/book/en/v2/Git-Branching-Rebasing)
-to group your changes into a small number of commits which we can review one at a
-time.
-
-When completing a pull request, we will generally squash your changes into a single
-commit. After confirming that the change works as intended, the branch *might* be
-deleted, in order to prevent branch polluting. Please let us know if your pull request
-needs to be merged as separate commits.
-
-### Continuous Integration
-
-For this project, CI is provided by [GitHub Actions](https://github.com/features/actions),
-with workflows found in the [`.github/workflows` folder](.github/workflows). Workflows
-are run automatically on every commit made on the master branch, unless told to skip
-for that particular commit.
-
-To skip CI runs on a particular commit, include either `[skip ci]` or `[ci skip]`
-in the commit message.
+For memory-safety checks, use AddressSanitizer:
 
 ```bash
-# an example of a commit message that would not trigger CI workflows
-git commit -m "my normal commit message [skip ci]"
-# or
-git commit -m "my normal commit message [ci skip]"
+cmake -S . -B build-asan \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DProject_ENABLE_UNIT_TESTING=ON \
+  -DProject_ENABLE_ASAN=ON
+cmake --build build-asan --parallel
+ctest --test-dir build-asan --output-on-failure
 ```
 
-## Review process
+For the Docker end-to-end scenario:
 
-After submitting a pull request, members of the team will review your code. We will
-assign the request to an appropriate reviewer (if applicable). Any member of the
-community may participate in the review, but at least one member of the project team
-will ultimately approve the request.
+```bash
+./tests/test_in_docker.sh
+```
 
-Often, multiple iterations or discussions will be needed to responding to feedback
-from reviewers. Try looking at [past pull requests](https://github.com/filipdutescu/modern-cpp-template/pulls?q=is%3Apr+is%3Aclosed)
-to see what the experience might be like.
+Run the checks relevant to your change. If a check cannot be run locally, state
+that explicitly in the pull request.
 
-## Contributor License Agreement
+## Pull requests
 
-Before we can review and accept a pull request from you, you'll need to sign a
-Contributor License Agreement (CLA). The CLA ensures that the community is free
-to use your contributions. Signing the CLA is a manual process, and you need to
-do it for each pull request made. This is done by checking the boxes in the
-[Pull Request Readiness Checklist of a Pull Request](PULL_REQUEST_TEMPLATE.md#Pull-Request-Readiness-Checklist).
+Open a pull request against `main` and use the
+[pull request template](.github/PULL_REQUEST_TEMPLATE.md). A pull request
+should:
 
-### IMPORTANT
+- link its issue, using `Fixes #123` when it should close that issue;
+- explain the problem and why the chosen solution is appropriate;
+- list the exact validation commands and results;
+- remain small enough to review as one coherent change;
+- pass the relevant GitHub Actions checks;
+- contain no unrelated formatting or refactoring.
 
-***Checking the aforementioned boxes means that you agree to provide your change
-and/or code FREE TO USE and SUBJECT TO CHANGES for the entire community!***
+Maintainers may request changes. Keep review responses and follow-up commits
+focused on the feedback. Pull requests are normally squash-merged after
+approval.
 
-You don't need to sign a CLA until you're ready to create a pull request. When your
-pull request is created, it is reviewed by a team member which, if the change is
-trivial (i.e. you just fixed a typo) will be labelled as `cla-not-required`.
-Otherwise, it's classified as `cla-required`, if not already signed.
+## License
+
+By contributing, you agree that your contribution is licensed under the
+project's [MIT License](LICENSE).

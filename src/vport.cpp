@@ -214,11 +214,8 @@ namespace project
 
   void VPort::log_frame(std::string_view direction, const EthernetFrame& frame) const
   {
-    std::cout << "[VPort] " << direction << ": "
-              << "dst=" << frame.dst_mac() << " "
-              << "src=" << frame.src_mac() << " "
-              << "type=" << std::hex << frame.ethertype() << std::dec << " "
-              << "size=" << frame.size() << "\n";
+    std::cout << "[VPort] " << direction << ": " << "dst=" << frame.dst_mac() << " " << "src=" << frame.src_mac() << " "
+              << "type=" << std::hex << frame.ethertype() << std::dec << " " << "size=" << frame.size() << "\n";
   }
 
 }  // namespace project

@@ -9,6 +9,7 @@
 #define PROJECT_UDP_SOCKET_HPP_
 
 #include <cstdint>
+#include <iosfwd>
 #include <string>
 #include <string_view>
 #include <vector>
