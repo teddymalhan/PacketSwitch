@@ -184,4 +184,48 @@ namespace
     EXPECT_EQ(result.packets[0].classification, project::PacketClassification::UnknownUnicast);
     EXPECT_EQ(result.packets[1].classification, project::PacketClassification::UnknownUnicast);
   }
+
+  TEST(CpuPacketAnalyzerTest, AggregatesValidIpv4PacketsByFiveTuple)
+  {
+    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const project::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    auto first = ipv4_frame(destination, source, 17, 8);
+    auto second = first;
+    auto different_flow = ipv4_frame(destination, source, 17, 8);
+    const size_t transport_offset = project::ETHERNET_HEADER_SIZE + 20;
+    first[transport_offset] = 0x1f;
+    first[transport_offset + 1] = 0x90;
+    first[transport_offset + 2] = 0;
+    first[transport_offset + 3] = 53;
+    first[transport_offset + 4] = 0;
+    first[transport_offset + 5] = 8;
+    second = first;
+    different_flow[transport_offset] = 0;
+    different_flow[transport_offset + 1] = 80;
+    different_flow[transport_offset + 2] = 0x01;
+    different_flow[transport_offset + 3] = 0xbb;
+    different_flow[transport_offset + 4] = 0;
+    different_flow[transport_offset + 5] = 8;
+    const std::array<project::PacketView, 3> packets = {
+      project::PacketView{ first.data(), first.size() },
+      project::PacketView{ second.data(), second.size() },
+      project::PacketView{ different_flow.data(), different_flow.size() },
+    };
+
+    project::CpuPacketAnalyzer analyzer;
+    const auto result = analyzer.analyze(packets.data(), packets.size());
+
+    ASSERT_EQ(result.flows.size(), 2U);
+    EXPECT_EQ(result.flows[0].key.source_port, 80);
+    EXPECT_EQ(result.flows[0].key.destination_port, 443);
+    EXPECT_EQ(result.flows[0].packet_count, 1U);
+    EXPECT_EQ(result.flows[0].byte_count, different_flow.size());
+    EXPECT_EQ(result.flows[1].key.source_port, 8080);
+    EXPECT_EQ(result.flows[1].key.destination_port, 53);
+    EXPECT_EQ(result.flows[1].packet_count, 2U);
+    EXPECT_EQ(result.flows[1].byte_count, first.size() + second.size());
+    EXPECT_NE(result.flows[0].flow_hash, result.flows[1].flow_hash);
+    EXPECT_EQ(result.packets[0].flow_hash, result.packets[1].flow_hash);
+    EXPECT_EQ(result.packets[0].flow_hash, result.flows[1].flow_hash);
+  }
 }

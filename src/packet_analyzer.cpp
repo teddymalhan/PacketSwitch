@@ -16,6 +16,68 @@ namespace project
     constexpr size_t TCP_MINIMUM_HEADER_SIZE = 20;
     constexpr size_t ICMP_MINIMUM_HEADER_SIZE = 4;
 
+    constexpr uint64_t FNV1A_OFFSET_BASIS = 14695981039346656037ULL;
+    constexpr uint64_t FNV1A_PRIME = 1099511628211ULL;
+
+    void hash_byte(uint64_t& hash, uint8_t byte) noexcept
+    {
+      hash ^= byte;
+      hash *= FNV1A_PRIME;
+    }
+
+    void hash_u16(uint64_t& hash, uint16_t value) noexcept
+    {
+      hash_byte(hash, static_cast<uint8_t>(value >> 8U));
+      hash_byte(hash, static_cast<uint8_t>(value));
+    }
+
+    void hash_u32(uint64_t& hash, uint32_t value) noexcept
+    {
+      hash_byte(hash, static_cast<uint8_t>(value >> 24U));
+      hash_byte(hash, static_cast<uint8_t>(value >> 16U));
+      hash_byte(hash, static_cast<uint8_t>(value >> 8U));
+      hash_byte(hash, static_cast<uint8_t>(value));
+    }
+
+    FlowKey make_flow_key(const PacketAnalysis& analysis) noexcept
+    {
+      return FlowKey{
+        analysis.source_ipv4, analysis.destination_ipv4, analysis.source_port, analysis.destination_port, analysis.protocol
+      };
+    }
+
+    uint64_t hash_flow_key(const FlowKey& key) noexcept
+    {
+      uint64_t hash = FNV1A_OFFSET_BASIS;
+      hash_u32(hash, key.source_ipv4);
+      hash_u32(hash, key.destination_ipv4);
+      hash_u16(hash, key.source_port);
+      hash_u16(hash, key.destination_port);
+      hash_byte(hash, key.protocol);
+      return hash;
+    }
+
+    bool flow_key_less(const FlowRecord& first, const FlowRecord& second) noexcept
+    {
+      if (first.key.source_ipv4 != second.key.source_ipv4)
+      {
+        return first.key.source_ipv4 < second.key.source_ipv4;
+      }
+      if (first.key.destination_ipv4 != second.key.destination_ipv4)
+      {
+        return first.key.destination_ipv4 < second.key.destination_ipv4;
+      }
+      if (first.key.source_port != second.key.source_port)
+      {
+        return first.key.source_port < second.key.source_port;
+      }
+      if (first.key.destination_port != second.key.destination_port)
+      {
+        return first.key.destination_port < second.key.destination_port;
+      }
+      return first.key.protocol < second.key.protocol;
+    }
+
     uint16_t read_network_u16(const uint8_t* bytes) noexcept
     {
       return static_cast<uint16_t>(static_cast<uint16_t>(bytes[0]) << 8U | bytes[1]);
@@ -98,6 +160,7 @@ namespace project
     }
 
     batch.packets.reserve(packet_count);
+    batch.flows.reserve(packet_count);
     for (size_t index = 0; index < packet_count; ++index)
     {
       const PacketView& packet = packets[index];
@@ -139,8 +202,31 @@ namespace project
         batch.known_unicast_packets += 1;
       }
       learned_macs_.insert(analysis.source_mac);
+      if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
+      {
+        const FlowKey key = make_flow_key(analysis);
+        analysis.flow_hash = hash_flow_key(key);
+        batch.flows.push_back(FlowRecord{ key, analysis.flow_hash, 1, packet.size });
+      }
       batch.packets.push_back(analysis);
     }
+    std::sort(batch.flows.begin(), batch.flows.end(), flow_key_less);
+    size_t output_index = 0;
+    for (size_t flow_index = 0; flow_index < batch.flows.size(); ++flow_index)
+    {
+      FlowRecord& flow = batch.flows[flow_index];
+      if (output_index == 0 || !(batch.flows[output_index - 1].key == flow.key))
+      {
+        batch.flows[output_index] = flow;
+        ++output_index;
+        continue;
+      }
+
+      FlowRecord& aggregate = batch.flows[output_index - 1];
+      aggregate.packet_count += flow.packet_count;
+      aggregate.byte_count += flow.byte_count;
+    }
+    batch.flows.resize(output_index);
     return batch;
   }
 

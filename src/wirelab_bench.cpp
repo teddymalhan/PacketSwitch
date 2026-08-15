@@ -25,7 +25,7 @@ namespace
   {
     std::cerr << "Usage: " << program
               << " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic]"
-                 " [--packets count] [--frame-size bytes] [--seed value]\n";
+                 " [--packets count] [--batch-size count] [--frame-size bytes] [--seed value]\n";
   }
 }
 
@@ -33,6 +33,7 @@ int main(int argc, char* argv[])
 {
   project::TrafficGeneratorConfig config;
   size_t packet_count = 100000;
+  size_t batch_size = 1;
 
   try
   {
@@ -48,6 +49,7 @@ int main(int argc, char* argv[])
       const std::string value = argv[index + 1];
       if (option == "--scenario") config.scenario = parse_scenario(value);
       else if (option == "--packets") packet_count = std::stoull(value);
+      else if (option == "--batch-size") batch_size = std::stoull(value);
       else if (option == "--frame-size") config.frame_size = std::stoull(value);
       else if (option == "--seed") config.seed = std::stoull(value);
       else
@@ -55,6 +57,11 @@ int main(int argc, char* argv[])
         print_usage(argv[0]);
         return EXIT_FAILURE;
       }
+    }
+
+    if (batch_size == 0)
+    {
+      throw std::invalid_argument("batch-size must be greater than zero");
     }
 
     project::DeterministicTrafficGenerator generator(config);
@@ -66,15 +73,22 @@ int main(int argc, char* argv[])
     uint64_t unknown_unicast_packets = 0;
     uint64_t known_unicast_packets = 0;
     std::vector<uint64_t> analysis_latency_ns;
-    analysis_latency_ns.reserve(packet_count);
+    analysis_latency_ns.reserve((packet_count + batch_size - 1) / batch_size);
 
     const auto started = std::chrono::steady_clock::now();
-    for (size_t index = 0; index < packet_count; ++index)
+    for (size_t generated_packets = 0; generated_packets < packet_count;)
     {
-      const std::vector<uint8_t> bytes = generator.next_frame();
-      const project::PacketView packet{ bytes.data(), bytes.size() };
+      const size_t current_batch_size = std::min(batch_size, packet_count - generated_packets);
+      const auto frames = generator.generate(current_batch_size);
+      std::vector<project::PacketView> packets;
+      packets.reserve(frames.size());
+      for (const auto& frame : frames)
+      {
+        packets.push_back(project::PacketView{ frame.data(), frame.size() });
+      }
+
       const auto analysis_started = std::chrono::steady_clock::now();
-      const project::AnalysisBatch result = analyzer.analyze(&packet, 1);
+      const project::AnalysisBatch result = analyzer.analyze(packets.data(), packets.size());
       const auto analysis_elapsed = std::chrono::steady_clock::now() - analysis_started;
       analysis_latency_ns.push_back(
           static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(analysis_elapsed).count()));
@@ -84,6 +98,7 @@ int main(int argc, char* argv[])
       broadcast_packets += result.broadcast_packets;
       unknown_unicast_packets += result.unknown_unicast_packets;
       known_unicast_packets += result.known_unicast_packets;
+      generated_packets += current_batch_size;
     }
     const auto elapsed = std::chrono::steady_clock::now() - started;
     const double elapsed_seconds = std::chrono::duration<double>(elapsed).count();
@@ -97,14 +112,15 @@ int main(int argc, char* argv[])
         received_packets == 0 ? 0.0 : static_cast<double>(malformed_packets) * 100.0 / received_packets;
 
     std::cout << std::fixed << std::setprecision(2);
-    std::cout << "backend=cpu packets=" << packet_count << " frame_size=" << config.frame_size << " seed=" << config.seed
+    std::cout << "backend=cpu packets=" << packet_count << " batch_size=" << batch_size
+              << " frame_size=" << config.frame_size << " seed=" << config.seed
               << " elapsed_seconds=" << elapsed_seconds
               << " packets_per_second=" << (elapsed_seconds == 0.0 ? 0.0 : received_packets / elapsed_seconds)
               << " goodput_bits_per_second=" << (elapsed_seconds == 0.0 ? 0.0 : received_bytes * 8.0 / elapsed_seconds)
               << " loss_percentage=" << loss_percentage
-              << " analysis_latency_p50_ns=" << percentile(50, 100)
-              << " analysis_latency_p95_ns=" << percentile(95, 100)
-              << " analysis_latency_p99_ns=" << percentile(99, 100)
+              << " batch_analysis_latency_p50_ns=" << percentile(50, 100)
+              << " batch_analysis_latency_p95_ns=" << percentile(95, 100)
+              << " batch_analysis_latency_p99_ns=" << percentile(99, 100)
               << " malformed_packets=" << malformed_packets
               << " broadcast_packets=" << broadcast_packets
               << " unknown_unicast_packets=" << unknown_unicast_packets

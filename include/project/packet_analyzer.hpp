@@ -32,6 +32,22 @@ namespace project
     MalformedTransport
   };
 
+  struct FlowKey
+  {
+    uint32_t source_ipv4 = 0;
+    uint32_t destination_ipv4 = 0;
+    uint16_t source_port = 0;
+    uint16_t destination_port = 0;
+    uint8_t protocol = 0;
+
+    [[nodiscard]] bool operator==(const FlowKey& other) const noexcept
+    {
+      return source_ipv4 == other.source_ipv4 && destination_ipv4 == other.destination_ipv4 &&
+             source_port == other.source_port && destination_port == other.destination_port &&
+             protocol == other.protocol;
+    }
+  };
+
   struct PacketAnalysis
   {
     MacAddress source_mac;
@@ -44,13 +60,23 @@ namespace project
     uint16_t frame_length = 0;
     uint8_t protocol = 0;
     uint8_t tcp_flags = 0;
+    uint64_t flow_hash = 0;
     PacketValidity validity = PacketValidity::MalformedEthernet;
     PacketClassification classification = PacketClassification::Malformed;
+  };
+
+  struct FlowRecord
+  {
+    FlowKey key;
+    uint64_t flow_hash = 0;
+    uint64_t packet_count = 0;
+    uint64_t byte_count = 0;
   };
 
   struct AnalysisBatch
   {
     std::vector<PacketAnalysis> packets;
+    std::vector<FlowRecord> flows;
     uint64_t received_packets = 0;
     uint64_t received_bytes = 0;
     uint64_t malformed_packets = 0;
