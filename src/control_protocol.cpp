@@ -320,6 +320,7 @@ namespace project
         }
         if (value == "load_topology") command = ControlCommand::LoadTopology;
         else if (value == "get_switch_state") command = ControlCommand::GetSwitchState;
+        else if (value == "get_active_faults") command = ControlCommand::GetActiveFaults;
         else if (value == "start_benchmark") command = ControlCommand::StartBenchmark;
         else if (value == "stop_run") command = ControlCommand::StopRun;
         else if (value == "set_port_fault") command = ControlCommand::SetPortFault;
@@ -538,6 +539,7 @@ namespace project
             return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.topology_path &&
                    !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
+          case ControlCommand::GetActiveFaults:
           case ControlCommand::StopRun: return false;
         }
         return false;
@@ -569,6 +571,7 @@ namespace project
           case ControlCommand::ClearLinkFault:
             return !parameters_.topology_path && !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
+          case ControlCommand::GetActiveFaults:
           case ControlCommand::StopRun: return false;
         }
         return false;
@@ -651,6 +654,7 @@ namespace project
     {
       case ControlCommand::LoadTopology: return "load_topology";
       case ControlCommand::GetSwitchState: return "get_switch_state";
+      case ControlCommand::GetActiveFaults: return "get_active_faults";
       case ControlCommand::StartBenchmark: return "start_benchmark";
       case ControlCommand::StopRun: return "stop_run";
       case ControlCommand::SetPortFault: return "set_port_fault";

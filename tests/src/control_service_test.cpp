@@ -125,11 +125,11 @@ namespace
         R"({"api_version":1,"request_id":"fault-1","command":"set_port_fault","topology_revision":1,"parameters":{"port_id":"client-a","latency_ms":2,"jitter_ms":1,"loss_basis_points":0,"duplication_basis_points":0,"bandwidth_bits_per_second":0,"blackhole":true,"isolated":false}})");
 
     ASSERT_TRUE(set.reply.accepted);
-    ASSERT_TRUE(set.fault_event.has_value());
+    ASSERT_EQ(set.fault_events.size(), 1U);
     EXPECT_EQ(set.reply.operation_id, "fault-set-1");
-    EXPECT_EQ(set.fault_event->first_endpoint, "client-a");
-    EXPECT_TRUE(set.fault_event->active);
-    EXPECT_TRUE(set.fault_event->configuration.blackhole);
+    EXPECT_EQ(set.fault_events[0].first_endpoint, "client-a");
+    EXPECT_TRUE(set.fault_events[0].active);
+    EXPECT_TRUE(set.fault_events[0].configuration.blackhole);
     ASSERT_TRUE(controller.active_faults().has_value());
     EXPECT_EQ(controller.active_faults()->size(), 1U);
 
@@ -137,10 +137,40 @@ namespace
         R"({"api_version":1,"request_id":"fault-2","command":"clear_port_fault","topology_revision":1,"parameters":{"port_id":"client-a"}})");
 
     ASSERT_TRUE(clear.reply.accepted);
-    ASSERT_TRUE(clear.fault_event.has_value());
+    ASSERT_EQ(clear.fault_events.size(), 1U);
     EXPECT_EQ(clear.reply.operation_id, "fault-cleared-2");
-    EXPECT_FALSE(clear.fault_event->active);
+    EXPECT_FALSE(clear.fault_events[0].active);
     ASSERT_TRUE(controller.active_faults().has_value());
     EXPECT_TRUE(controller.active_faults()->empty());
+  }
+
+  TEST(ControlServiceTest, ReturnsEveryActiveFaultWithOrderedStateEvents)
+  {
+    auto vswitch = make_switch();
+    project::TopologyController controller;
+    controller.load(make_topology());
+    project::ControlService service(vswitch, controller);
+
+    project::FaultConfiguration port_configuration;
+    port_configuration.blackhole = true;
+    ASSERT_TRUE(controller.set_port_fault("client-b", port_configuration).has_value());
+    project::FaultConfiguration link_configuration;
+    link_configuration.loss_basis_points = 500;
+    ASSERT_TRUE(controller.set_link_fault("client-a", "core-switch", link_configuration).has_value());
+
+    const auto result = service.dispatch(
+        R"({"api_version":1,"request_id":"faults-1","command":"get_active_faults","topology_revision":1})");
+
+    ASSERT_TRUE(result.reply.accepted);
+    EXPECT_EQ(result.reply.operation_id, "active-faults-1");
+    ASSERT_EQ(result.fault_events.size(), 2U);
+    EXPECT_EQ(result.fault_events[0].event_sequence, 1U);
+    EXPECT_EQ(result.fault_events[0].first_endpoint, "client-a");
+    EXPECT_EQ(result.fault_events[0].second_endpoint, "core-switch");
+    EXPECT_EQ(result.fault_events[0].configuration.loss_basis_points, 500U);
+    EXPECT_EQ(result.fault_events[1].event_sequence, 2U);
+    EXPECT_EQ(result.fault_events[1].first_endpoint, "client-b");
+    EXPECT_TRUE(result.fault_events[1].second_endpoint.empty());
+    EXPECT_TRUE(result.fault_events[1].configuration.blackhole);
   }
 }

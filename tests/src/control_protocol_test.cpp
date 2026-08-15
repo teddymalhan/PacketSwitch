@@ -40,6 +40,22 @@ namespace
     EXPECT_EQ(parsed->topology.path, "scenarios/security-lab.yaml");
   }
 
+  TEST(ControlProtocolTest, ParsesAndSerializesActiveFaultsCommand)
+  {
+    project::ControlRequest request;
+    request.request_id = "faults-42";
+    request.command = project::ControlCommand::GetActiveFaults;
+    request.topology_revision = 3;
+
+    const auto json = project::to_json(request);
+    EXPECT_EQ(json,
+              "{\"api_version\":1,\"request_id\":\"faults-42\",\"command\":\"get_active_faults\",\"topology_revision\":3}");
+
+    const auto parsed = project::control_request_from_json(json);
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->command, project::ControlCommand::GetActiveFaults);
+  }
+
   TEST(ControlProtocolTest, RejectsUnsupportedVersionAndInvalidBenchmark)
   {
     project::ControlRequest request;

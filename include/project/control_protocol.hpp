@@ -23,6 +23,7 @@ namespace project
   {
     LoadTopology,
     GetSwitchState,
+    GetActiveFaults,
     StartBenchmark,
     StopRun,
     SetPortFault,

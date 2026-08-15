@@ -19,19 +19,17 @@ namespace project
     const auto request = control_request_from_json(json);
     if (!request)
     {
-      return { reject({}, to_string(request.error())), std::nullopt, std::nullopt, std::nullopt };
+      return { reject({}, to_string(request.error())) };
     }
 
     const auto validation = validate(request.value());
     if (!validation)
     {
-      return { reject(request.value().request_id, to_string(validation.error())), std::nullopt, std::nullopt,
-               std::nullopt };
+      return { reject(request.value().request_id, to_string(validation.error())) };
     }
     if (request.value().topology_revision != current_topology_revision())
     {
-      return { reject(request.value().request_id, "stale topology revision"), std::nullopt, std::nullopt,
-               std::nullopt };
+      return { reject(request.value().request_id, "stale topology revision") };
     }
 
     if (request.value().command == ControlCommand::GetSwitchState)
@@ -45,28 +43,25 @@ namespace project
       reply.request_id = request.value().request_id;
       reply.accepted = true;
       reply.operation_id = "switch-state-" + std::to_string(metrics_event.event_sequence);
-      return { std::move(reply), std::move(metrics_event), std::nullopt, std::nullopt };
+      return { std::move(reply), std::move(metrics_event) };
     }
 
     if (request.value().command == ControlCommand::LoadTopology)
     {
       if (!topology_controller_)
       {
-        return { reject(request.value().request_id, "topology loading is unavailable"), std::nullopt, std::nullopt,
-                 std::nullopt };
+        return { reject(request.value().request_id, "topology loading is unavailable") };
       }
 
       const auto configuration = topology_configuration_from_yaml_file(request.value().topology.path);
       if (!configuration)
       {
-        return { reject(request.value().request_id, to_string(configuration.error())), std::nullopt, std::nullopt,
-                 std::nullopt };
+        return { reject(request.value().request_id, to_string(configuration.error())) };
       }
       const auto topology = Topology::create(configuration.value());
       if (!topology)
       {
-        return { reject(request.value().request_id, to_string(topology.error())), std::nullopt, std::nullopt,
-                 std::nullopt };
+        return { reject(request.value().request_id, to_string(topology.error())) };
       }
 
       auto& controller = topology_controller_->get();
@@ -83,20 +78,51 @@ namespace project
       reply.request_id = request.value().request_id;
       reply.accepted = true;
       reply.operation_id = "topology-loaded-" + std::to_string(topology_event.event_sequence);
-      return { std::move(reply), std::nullopt, std::nullopt, std::move(topology_event) };
+      return { std::move(reply), std::nullopt, {}, std::move(topology_event) };
     }
 
-    if (!topology_controller_ ||
-        (request.value().command != ControlCommand::SetPortFault &&
-         request.value().command != ControlCommand::ClearPortFault &&
-         request.value().command != ControlCommand::SetLinkFault &&
-         request.value().command != ControlCommand::ClearLinkFault))
+    if (request.value().command != ControlCommand::GetActiveFaults &&
+        request.value().command != ControlCommand::SetPortFault &&
+        request.value().command != ControlCommand::ClearPortFault &&
+        request.value().command != ControlCommand::SetLinkFault &&
+        request.value().command != ControlCommand::ClearLinkFault)
     {
-      return { reject(request.value().request_id, "command is not implemented"), std::nullopt, std::nullopt,
-               std::nullopt };
+      return { reject(request.value().request_id, "command is not implemented") };
+    }
+    if (!topology_controller_)
+    {
+      return { reject(request.value().request_id, "topology fault control is unavailable") };
     }
 
     auto& controller = topology_controller_->get();
+    if (request.value().command == ControlCommand::GetActiveFaults)
+    {
+      const auto faults = controller.active_faults();
+      if (!faults)
+      {
+        return { reject(request.value().request_id, to_string(faults.error())) };
+      }
+
+      ControlDispatch dispatch;
+      dispatch.reply.request_id = request.value().request_id;
+      dispatch.reply.accepted = true;
+      dispatch.reply.operation_id = "active-faults-" + std::to_string(next_event_sequence_);
+      dispatch.fault_events.reserve(faults->size());
+      for (const auto& active_fault : faults.value())
+      {
+        FaultStateEvent event;
+        event.event_sequence = next_event_sequence_++;
+        event.topology_revision = current_topology_revision();
+        event.first_endpoint = active_fault.first_endpoint;
+        event.second_endpoint = active_fault.second_endpoint;
+        event.configuration = active_fault.configuration;
+        event.active = true;
+        dispatch.fault_events.push_back(std::move(event));
+      }
+      return dispatch;
+    }
+
+
     const auto& fault = request.value().fault;
     bool active = false;
     std::optional<TopologyControllerError> fault_error;
@@ -119,26 +145,24 @@ namespace project
       case ControlCommand::ClearPortFault:
         if (!controller.clear_port_fault(fault.port_id))
         {
-          return { reject(request.value().request_id, "fault target has no active configuration"), std::nullopt,
-                   std::nullopt, std::nullopt };
+          return { reject(request.value().request_id, "fault target has no active configuration") };
         }
         break;
       case ControlCommand::ClearLinkFault:
         if (!controller.clear_link_fault(fault.first_endpoint, fault.second_endpoint))
         {
-          return { reject(request.value().request_id, "fault target has no active configuration"), std::nullopt,
-                   std::nullopt, std::nullopt };
+          return { reject(request.value().request_id, "fault target has no active configuration") };
         }
         break;
       case ControlCommand::LoadTopology:
       case ControlCommand::GetSwitchState:
+      case ControlCommand::GetActiveFaults:
       case ControlCommand::StartBenchmark:
       case ControlCommand::StopRun: break;
     }
     if (fault_error)
     {
-      return { reject(request.value().request_id, to_string(*fault_error)), std::nullopt, std::nullopt,
-               std::nullopt };
+      return { reject(request.value().request_id, to_string(*fault_error)) };
     }
 
     FaultStateEvent fault_event;
@@ -157,7 +181,7 @@ namespace project
     reply.accepted = true;
     reply.operation_id = std::string(active ? "fault-set-" : "fault-cleared-") +
                          std::to_string(fault_event.event_sequence);
-    return { std::move(reply), std::nullopt, std::move(fault_event), std::nullopt };
+    return { std::move(reply), std::nullopt, { std::move(fault_event) } };
   }
 
   uint64_t ControlService::topology_revision() const noexcept

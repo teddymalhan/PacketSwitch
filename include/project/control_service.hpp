@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
-
+#include <vector>
 #include "project/control_protocol.hpp"
 #include "project/topology_controller.hpp"
 #include "project/vswitch.hpp"
@@ -15,7 +15,7 @@ namespace project
   {
     ControlReply reply;
     std::optional<SwitchMetricsEvent> metrics_event;
-    std::optional<FaultStateEvent> fault_event;
+    std::vector<FaultStateEvent> fault_events;
     std::optional<TopologyStateEvent> topology_event;
   };
 
