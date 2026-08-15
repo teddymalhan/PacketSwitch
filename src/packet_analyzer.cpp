@@ -254,9 +254,33 @@ namespace project
     }
   }
 
-  template<typename PacketAt>
-  AnalysisBatch analyze_packets(size_t packet_count, PacketAt&& packet_at,
-                                std::unordered_set<MacAddress>& learned_macs)
+  namespace
+  {
+    PacketAnalysis parse_packet(const PacketView& packet) noexcept
+    {
+      PacketAnalysis analysis;
+      analysis.ingress_port = packet.ingress_port;
+      analysis.frame_length =
+          static_cast<uint16_t>(std::min(packet.size, static_cast<size_t>(std::numeric_limits<uint16_t>::max())));
+      if (packet.bytes == nullptr || packet.size < ETHERNET_HEADER_SIZE)
+      {
+        return analysis;
+      }
+
+      analysis.destination_mac = MacAddress(packet.bytes);
+      analysis.source_mac = MacAddress(packet.bytes + MAC_ADDRESS_SIZE);
+      analysis.ethertype = read_network_u16(packet.bytes + MAC_ADDRESS_SIZE * 2);
+      analysis.validity =
+          analysis.ethertype == EtherType::IPv4 ? parse_ipv4(packet, analysis) : PacketValidity::Valid;
+      if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
+      {
+        analysis.flow_hash = hash_flow_key(make_flow_key(analysis));
+      }
+      return analysis;
+    }
+  }
+
+  AnalysisBatch PacketAnalysisAggregator::aggregate(std::vector<PacketAnalysis> packets, const uint64_t* frame_lengths)
   {
     AnalysisBatch batch;
     for (size_t index = 0; index < batch.frame_size_histogram.size(); ++index)
@@ -267,64 +291,55 @@ namespace project
                                      ? std::numeric_limits<uint64_t>::max()
                                      : FRAME_SIZE_BUCKET_MINIMUMS[index + 1] - 1;
     }
-    if (packet_count == 0)
+    if (packets.empty())
     {
       return batch;
     }
 
-    batch.packets.reserve(packet_count);
-    batch.ethertype_histogram.reserve(packet_count);
-    batch.protocol_histogram.reserve(packet_count);
-    batch.destination_port_histogram.reserve(packet_count);
-    batch.flows.reserve(packet_count);
-    batch.source_mac_traffic.reserve(packet_count);
-    batch.destination_mac_traffic.reserve(packet_count);
-    batch.mac_traffic_matrix.reserve(packet_count);
-    for (size_t index = 0; index < packet_count; ++index)
+    batch.packets.reserve(packets.size());
+    batch.ethertype_histogram.reserve(packets.size());
+    batch.protocol_histogram.reserve(packets.size());
+    batch.destination_port_histogram.reserve(packets.size());
+    batch.flows.reserve(packets.size());
+    batch.source_mac_traffic.reserve(packets.size());
+    batch.destination_mac_traffic.reserve(packets.size());
+    batch.mac_traffic_matrix.reserve(packets.size());
+    for (size_t index = 0; index < packets.size(); ++index)
     {
-      const PacketView packet = packet_at(index);
-      PacketAnalysis analysis;
-      analysis.ingress_port = packet.ingress_port;
-      analysis.frame_length = static_cast<uint16_t>(std::min(packet.size, static_cast<size_t>(std::numeric_limits<uint16_t>::max())));
+      PacketAnalysis& analysis = packets[index];
+      const uint64_t frame_length = frame_lengths == nullptr ? analysis.frame_length : frame_lengths[index];
       batch.received_packets += 1;
-      batch.received_bytes += packet.size;
+      batch.received_bytes += frame_length;
       const auto frame_size_bucket =
-          static_cast<size_t>(std::upper_bound(
-                                  FRAME_SIZE_BUCKET_MINIMUMS.begin() + 1,
-                                  FRAME_SIZE_BUCKET_MINIMUMS.end(), packet.size) -
+          static_cast<size_t>(std::upper_bound(FRAME_SIZE_BUCKET_MINIMUMS.begin() + 1,
+                                               FRAME_SIZE_BUCKET_MINIMUMS.end(), frame_length) -
                               FRAME_SIZE_BUCKET_MINIMUMS.begin() - 1);
       PacketSizeHistogramBucket& size_bucket = batch.frame_size_histogram[frame_size_bucket];
       size_bucket.packet_count += 1;
-      size_bucket.byte_count += packet.size;
+      size_bucket.byte_count += frame_length;
 
-      if (packet.bytes == nullptr || packet.size < ETHERNET_HEADER_SIZE)
+      if (analysis.validity == PacketValidity::MalformedEthernet)
       {
         batch.malformed_packets += 1;
         batch.packets.push_back(analysis);
         continue;
       }
 
-      analysis.destination_mac = MacAddress(packet.bytes);
-      analysis.source_mac = MacAddress(packet.bytes + MAC_ADDRESS_SIZE);
-      analysis.ethertype = read_network_u16(packet.bytes + MAC_ADDRESS_SIZE * 2);
-      batch.ethertype_histogram.push_back(HistogramEntry{ analysis.ethertype, 1, packet.size });
-      batch.source_mac_traffic.push_back(MacTrafficRecord{ analysis.source_mac, 1, packet.size });
-      batch.destination_mac_traffic.push_back(MacTrafficRecord{ analysis.destination_mac, 1, packet.size });
+      batch.ethertype_histogram.push_back(HistogramEntry{ analysis.ethertype, 1, frame_length });
+      batch.source_mac_traffic.push_back(MacTrafficRecord{ analysis.source_mac, 1, frame_length });
+      batch.destination_mac_traffic.push_back(MacTrafficRecord{ analysis.destination_mac, 1, frame_length });
       batch.mac_traffic_matrix.push_back(
-          TrafficMatrixEntry{ analysis.source_mac, analysis.destination_mac, 1, packet.size });
-      analysis.validity =
-          analysis.ethertype == EtherType::IPv4 ? parse_ipv4(packet, analysis) : PacketValidity::Valid;
+          TrafficMatrixEntry{ analysis.source_mac, analysis.destination_mac, 1, frame_length });
       if (analysis.validity != PacketValidity::Valid)
       {
         batch.malformed_packets += 1;
       }
       if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
       {
-        batch.protocol_histogram.push_back(HistogramEntry{ analysis.protocol, 1, packet.size });
+        batch.protocol_histogram.push_back(HistogramEntry{ analysis.protocol, 1, frame_length });
         if (analysis.protocol == TCP_PROTOCOL || analysis.protocol == UDP_PROTOCOL)
         {
-          batch.destination_port_histogram.push_back(
-              HistogramEntry{ analysis.destination_port, 1, packet.size });
+          batch.destination_port_histogram.push_back(HistogramEntry{ analysis.destination_port, 1, frame_length });
         }
       }
 
@@ -333,7 +348,7 @@ namespace project
         analysis.classification = PacketClassification::Broadcast;
         batch.broadcast_packets += 1;
       }
-      else if (learned_macs.find(analysis.destination_mac) == learned_macs.end())
+      else if (learned_macs_.find(analysis.destination_mac) == learned_macs_.end())
       {
         analysis.classification = PacketClassification::UnknownUnicast;
         batch.unknown_unicast_packets += 1;
@@ -343,12 +358,10 @@ namespace project
         analysis.classification = PacketClassification::KnownUnicast;
         batch.known_unicast_packets += 1;
       }
-      learned_macs.insert(analysis.source_mac);
+      learned_macs_.insert(analysis.source_mac);
       if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
       {
-        const FlowKey key = make_flow_key(analysis);
-        analysis.flow_hash = hash_flow_key(key);
-        batch.flows.push_back(FlowRecord{ key, analysis.flow_hash, 1, packet.size });
+        batch.flows.push_back(FlowRecord{ make_flow_key(analysis), analysis.flow_hash, 1, frame_length });
       }
       batch.packets.push_back(analysis);
     }
@@ -381,19 +394,38 @@ namespace project
     return batch;
   }
 
+  void PacketAnalysisAggregator::reset() noexcept
+  {
+    learned_macs_.clear();
+  }
+
   AnalysisBatch CpuPacketAnalyzer::analyze(const PacketView* packets, size_t packet_count)
   {
-    return analyze_packets(packet_count, [packets](size_t index) { return packets[index]; }, learned_macs_);
+    std::vector<PacketAnalysis> analyses;
+    std::vector<uint64_t> frame_lengths;
+    analyses.reserve(packet_count);
+    frame_lengths.reserve(packet_count);
+    for (size_t index = 0; index < packet_count; ++index)
+    {
+      analyses.push_back(parse_packet(packets[index]));
+      frame_lengths.push_back(packets[index].size);
+    }
+    return aggregator_.aggregate(std::move(analyses), frame_lengths.data());
   }
 
   AnalysisBatch CpuPacketAnalyzer::analyze(const PacketBatch& batch)
   {
-    return analyze_packets(batch.packet_count(), [&batch](size_t index) { return batch.packet_view(index); },
-                           learned_macs_);
+    std::vector<PacketAnalysis> analyses;
+    analyses.reserve(batch.packet_count());
+    for (size_t index = 0; index < batch.packet_count(); ++index)
+    {
+      analyses.push_back(parse_packet(batch.packet_view(index)));
+    }
+    return aggregator_.aggregate(std::move(analyses));
   }
 
   void CpuPacketAnalyzer::reset() noexcept
   {
-    learned_macs_.clear();
+    aggregator_.reset();
   }
 }

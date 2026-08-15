@@ -137,6 +137,17 @@ namespace project
     [[nodiscard]] virtual AnalysisBatch analyze(const PacketView* packets, size_t packet_count) = 0;
   };
 
+  class PacketAnalysisAggregator final
+  {
+   public:
+    [[nodiscard]] AnalysisBatch aggregate(std::vector<PacketAnalysis> packets,
+                                          const uint64_t* frame_lengths = nullptr);
+    void reset() noexcept;
+
+   private:
+    std::unordered_set<MacAddress> learned_macs_;
+  };
+
   class CpuPacketAnalyzer final : public PacketAnalyzer
   {
    public:
@@ -145,7 +156,7 @@ namespace project
     void reset() noexcept;
 
    private:
-    std::unordered_set<MacAddress> learned_macs_;
+    PacketAnalysisAggregator aggregator_;
   };
 }
 

@@ -84,6 +84,106 @@ namespace
     }
   }
 
+  TEST(CudaPacketAnalyzerTest, MatchesCpuAggregatesAndOrderedForwardingClassifications)
+  {
+    if (!project::CudaPacketParser::is_available())
+    {
+      GTEST_SKIP() << "no compatible CUDA device is available";
+    }
+
+    const auto first = make_ipv4_udp_frame();
+    auto second = first;
+    second[0] = 6;
+    second[1] = 7;
+    second[2] = 8;
+    second[3] = 9;
+    second[4] = 10;
+    second[5] = 11;
+    const project::PacketView views[] = {
+      { first.data(), first.size(), 17 },
+      { second.data(), second.size(), 18 },
+      { first.data(), first.size(), 19 },
+    };
+    const auto batch = project::PacketBatch::create(views, 3);
+    ASSERT_TRUE(batch.has_value());
+
+    project::CpuPacketAnalyzer cpu;
+    project::CudaPacketAnalyzer cuda;
+    const auto cpu_result = cpu.analyze(*batch);
+    const auto cuda_result = cuda.analyze(*batch);
+
+    EXPECT_EQ(cuda_result.received_packets, cpu_result.received_packets);
+    EXPECT_EQ(cuda_result.received_bytes, cpu_result.received_bytes);
+    EXPECT_EQ(cuda_result.malformed_packets, cpu_result.malformed_packets);
+    EXPECT_EQ(cuda_result.broadcast_packets, cpu_result.broadcast_packets);
+    EXPECT_EQ(cuda_result.unknown_unicast_packets, cpu_result.unknown_unicast_packets);
+    EXPECT_EQ(cuda_result.known_unicast_packets, cpu_result.known_unicast_packets);
+    for (size_t index = 0; index < cuda_result.frame_size_histogram.size(); ++index)
+    {
+      EXPECT_EQ(cuda_result.frame_size_histogram[index].inclusive_minimum,
+                cpu_result.frame_size_histogram[index].inclusive_minimum);
+      EXPECT_EQ(cuda_result.frame_size_histogram[index].inclusive_maximum,
+                cpu_result.frame_size_histogram[index].inclusive_maximum);
+      EXPECT_EQ(cuda_result.frame_size_histogram[index].packet_count,
+                cpu_result.frame_size_histogram[index].packet_count);
+      EXPECT_EQ(cuda_result.frame_size_histogram[index].byte_count, cpu_result.frame_size_histogram[index].byte_count);
+    }
+    ASSERT_EQ(cuda_result.ethertype_histogram.size(), cpu_result.ethertype_histogram.size());
+    ASSERT_EQ(cuda_result.protocol_histogram.size(), cpu_result.protocol_histogram.size());
+    ASSERT_EQ(cuda_result.destination_port_histogram.size(), cpu_result.destination_port_histogram.size());
+    ASSERT_EQ(cuda_result.flows.size(), cpu_result.flows.size());
+    ASSERT_EQ(cuda_result.source_mac_traffic.size(), cpu_result.source_mac_traffic.size());
+    ASSERT_EQ(cuda_result.destination_mac_traffic.size(), cpu_result.destination_mac_traffic.size());
+    ASSERT_EQ(cuda_result.mac_traffic_matrix.size(), cpu_result.mac_traffic_matrix.size());
+    const auto expect_histogram_equal = [](const std::vector<project::HistogramEntry>& actual,
+                                           const std::vector<project::HistogramEntry>& expected) {
+      ASSERT_EQ(actual.size(), expected.size());
+      for (size_t index = 0; index < actual.size(); ++index)
+      {
+        EXPECT_EQ(actual[index].value, expected[index].value);
+        EXPECT_EQ(actual[index].packet_count, expected[index].packet_count);
+        EXPECT_EQ(actual[index].byte_count, expected[index].byte_count);
+      }
+    };
+    expect_histogram_equal(cuda_result.ethertype_histogram, cpu_result.ethertype_histogram);
+    expect_histogram_equal(cuda_result.protocol_histogram, cpu_result.protocol_histogram);
+    expect_histogram_equal(cuda_result.destination_port_histogram, cpu_result.destination_port_histogram);
+    for (size_t index = 0; index < cuda_result.source_mac_traffic.size(); ++index)
+    {
+      EXPECT_EQ(cuda_result.source_mac_traffic[index].mac, cpu_result.source_mac_traffic[index].mac);
+      EXPECT_EQ(cuda_result.source_mac_traffic[index].packet_count, cpu_result.source_mac_traffic[index].packet_count);
+      EXPECT_EQ(cuda_result.source_mac_traffic[index].byte_count, cpu_result.source_mac_traffic[index].byte_count);
+      EXPECT_EQ(cuda_result.destination_mac_traffic[index].mac, cpu_result.destination_mac_traffic[index].mac);
+      EXPECT_EQ(cuda_result.destination_mac_traffic[index].packet_count,
+                cpu_result.destination_mac_traffic[index].packet_count);
+      EXPECT_EQ(cuda_result.destination_mac_traffic[index].byte_count, cpu_result.destination_mac_traffic[index].byte_count);
+      EXPECT_EQ(cuda_result.mac_traffic_matrix[index].source_mac, cpu_result.mac_traffic_matrix[index].source_mac);
+      EXPECT_EQ(cuda_result.mac_traffic_matrix[index].destination_mac,
+                cpu_result.mac_traffic_matrix[index].destination_mac);
+      EXPECT_EQ(cuda_result.mac_traffic_matrix[index].packet_count,
+                cpu_result.mac_traffic_matrix[index].packet_count);
+      EXPECT_EQ(cuda_result.mac_traffic_matrix[index].byte_count, cpu_result.mac_traffic_matrix[index].byte_count);
+    }
+    for (size_t index = 0; index < cuda_result.flows.size(); ++index)
+    {
+      EXPECT_EQ(cuda_result.flows[index].flow_hash, cpu_result.flows[index].flow_hash);
+      EXPECT_EQ(cuda_result.flows[index].packet_count, cpu_result.flows[index].packet_count);
+      EXPECT_EQ(cuda_result.flows[index].byte_count, cpu_result.flows[index].byte_count);
+      EXPECT_EQ(cuda_result.flows[index].key.source_ipv4, cpu_result.flows[index].key.source_ipv4);
+      EXPECT_EQ(cuda_result.flows[index].key.destination_ipv4, cpu_result.flows[index].key.destination_ipv4);
+      EXPECT_EQ(cuda_result.flows[index].key.source_port, cpu_result.flows[index].key.source_port);
+      EXPECT_EQ(cuda_result.flows[index].key.destination_port, cpu_result.flows[index].key.destination_port);
+      EXPECT_EQ(cuda_result.flows[index].key.protocol, cpu_result.flows[index].key.protocol);
+    }
+    ASSERT_EQ(cuda_result.packets.size(), cpu_result.packets.size());
+    for (size_t index = 0; index < cuda_result.packets.size(); ++index)
+    {
+      EXPECT_EQ(cuda_result.packets[index].classification, cpu_result.packets[index].classification);
+      EXPECT_EQ(cuda_result.packets[index].validity, cpu_result.packets[index].validity);
+      EXPECT_EQ(cuda_result.packets[index].flow_hash, cpu_result.packets[index].flow_hash);
+    }
+  }
+
   TEST(CudaPacketParserTest, PreservesPacketOrderAtKernelBoundaryBatchSizes)
   {
     if (!project::CudaPacketParser::is_available())

@@ -335,4 +335,24 @@ namespace project
     }
     return analyses;
   }
+
+  AnalysisBatch CudaPacketAnalyzer::analyze(const PacketView* packets, size_t packet_count)
+  {
+    const auto batch = PacketBatch::create(packets, packet_count);
+    if (!batch)
+    {
+      throw std::invalid_argument(std::string("cannot create CUDA packet batch: ") + to_string(batch.error()));
+    }
+    return analyze(*batch);
+  }
+
+  AnalysisBatch CudaPacketAnalyzer::analyze(const PacketBatch& batch)
+  {
+    return aggregator_.aggregate(parser_.parse(batch));
+  }
+
+  void CudaPacketAnalyzer::reset() noexcept
+  {
+    aggregator_.reset();
+  }
 }
