@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "project/ethernet_frame.hpp"
+#include "project/packet_analyzer.hpp"
 #include "project/traffic_generator.hpp"
 
 namespace
@@ -27,11 +28,19 @@ namespace
     config.frame_size = 64;
 
     project::DeterministicTrafficGenerator generator(config);
-    const auto frame = project::EthernetFrame::parse(generator.next_frame());
+    const auto bytes = generator.next_frame();
+    const auto frame = project::EthernetFrame::parse(bytes);
+    const project::PacketView packet{ bytes.data(), bytes.size() };
+    project::CpuPacketAnalyzer analyzer;
+    const auto analysis = analyzer.analyze(&packet, 1);
 
     EXPECT_TRUE(frame.is_broadcast());
     EXPECT_EQ(frame.size(), config.frame_size);
     EXPECT_EQ(frame.ethertype(), project::EtherType::IPv4);
+    ASSERT_EQ(analysis.packets.size(), 1U);
+    EXPECT_EQ(analysis.malformed_packets, 0U);
+    EXPECT_EQ(analysis.packets[0].source_ipv4, 0x0a000000U);
+    EXPECT_EQ(analysis.packets[0].destination_ipv4, 0x0a000001U);
   }
 
   TEST(TrafficGeneratorTest, RejectsIncompleteEthernetFrame)

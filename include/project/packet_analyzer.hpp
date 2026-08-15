@@ -24,12 +24,27 @@ namespace project
     KnownUnicast
   };
 
+  enum class PacketValidity
+  {
+    Valid,
+    MalformedEthernet,
+    MalformedIpv4,
+    MalformedTransport
+  };
+
   struct PacketAnalysis
   {
     MacAddress source_mac;
     MacAddress destination_mac;
+    uint32_t source_ipv4 = 0;
+    uint32_t destination_ipv4 = 0;
+    uint16_t source_port = 0;
+    uint16_t destination_port = 0;
     uint16_t ethertype = 0;
     uint16_t frame_length = 0;
+    uint8_t protocol = 0;
+    uint8_t tcp_flags = 0;
+    PacketValidity validity = PacketValidity::MalformedEthernet;
     PacketClassification classification = PacketClassification::Malformed;
   };
 

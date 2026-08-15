@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <stdexcept>
 
 #include "project/ethernet_frame.hpp"
@@ -37,6 +38,31 @@ namespace project
                           static_cast<uint8_t>((value >> 16) & 0xff),
                           static_cast<uint8_t>((value >> 8) & 0xff),
                           static_cast<uint8_t>(value & 0xff) });
+    }
+
+    void populate_ipv4_header(std::vector<uint8_t>& payload, uint32_t source_host, uint32_t destination_host) noexcept
+    {
+      constexpr size_t IPV4_MINIMUM_HEADER_SIZE = 20;
+      if (payload.size() < IPV4_MINIMUM_HEADER_SIZE ||
+          payload.size() > std::numeric_limits<uint16_t>::max())
+      {
+        return;
+      }
+
+      payload[0] = 0x45;
+      const uint16_t total_size = static_cast<uint16_t>(payload.size());
+      payload[2] = static_cast<uint8_t>(total_size >> 8U);
+      payload[3] = static_cast<uint8_t>(total_size);
+      payload[8] = 64;
+      payload[9] = 0;
+      payload[12] = 10;
+      payload[13] = 0;
+      payload[14] = static_cast<uint8_t>(source_host >> 8U);
+      payload[15] = static_cast<uint8_t>(source_host);
+      payload[16] = 10;
+      payload[17] = 0;
+      payload[18] = static_cast<uint8_t>(destination_host >> 8U);
+      payload[19] = static_cast<uint8_t>(destination_host);
     }
   }
 
@@ -84,6 +110,7 @@ namespace project
     {
       byte = static_cast<uint8_t>(next_random(state_) >> 56);
     }
+    populate_ipv4_header(payload, source_host, destination_host);
 
     ++sequence_;
     return EthernetFrame(destination, host_mac(source_host), EtherType::IPv4, std::move(payload)).serialize();
