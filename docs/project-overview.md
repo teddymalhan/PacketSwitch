@@ -120,10 +120,10 @@ chmod +x tests/test_in_docker.sh
 ### 3. Run
 
 ```bash
-# Terminal 1: VSwitch
+
 ./build/vswitch 8080
 
-# Terminal 2: VPort
+
 sudo ./build/vport 127.0.0.1 8080
 ```
 

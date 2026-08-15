@@ -1,14 +1,14 @@
 if(${PROJECT_NAME}_ENABLE_CONAN)
-  #
-  # Setup Conan requires and options here:
-  #
+
+
+
 
   set(${PROJECT_NAME}_CONAN_REQUIRES "")
   set(${PROJECT_NAME}_CONAN_OPTIONS "")
 
-  #
-  # If `conan.cmake` (from https://github.com/conan-io/cmake-conan) does not exist, download it.
-  #
+
+
+
   if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
     message(
       STATUS
@@ -35,7 +35,7 @@ if(${PROJECT_NAME}_ENABLE_CONAN)
     OPTIONS
     ${${PROJECT_NAME}_CONAN_OPTIONS}
     BASIC_SETUP
-    CMAKE_TARGETS # Individual targets to link to
+    CMAKE_TARGETS
     BUILD
     missing
   )

@@ -1,11 +1,3 @@
-/**
- * @file expected.hpp
- * @brief A C++17 implementation of std::expected (similar to C++23)
- *
- * This provides expected<T, E> for representing values or errors.
- * Follows the C++23 std::expected API but implemented for C++17.
- */
-
 #ifndef PROJECT_EXPECTED_HPP_
 #define PROJECT_EXPECTED_HPP_
 
@@ -17,9 +9,6 @@
 
 namespace project
 {
-  /**
-   * @brief Exception thrown when accessing value of an expected containing an error
-   */
   template<typename E>
   class bad_expected_access : public std::exception
   {
@@ -47,19 +36,12 @@ namespace project
     }
   };
 
-  /**
-   * @brief Tag type for constructing the error part of expected
-   */
   struct unexpect_t
   {
     explicit unexpect_t() = default;
   };
 
   inline constexpr unexpect_t unexpect{};
-
-  /**
-   * @brief Wrapper for error values in expected
-   */
   template<typename E>
   class unexpected
   {
@@ -98,16 +80,6 @@ namespace project
 
   template<typename E>
   unexpected(E) -> unexpected<E>;
-
-  /**
-   * @brief A type that contains either a value or an error
-   *
-   * expected<T, E> is a vocabulary type that contains either a value of type T
-   * or an error of type E. This is useful for error handling without exceptions.
-   *
-   * @tparam T The type of the expected value
-   * @tparam E The type of the error
-   */
   template<typename T, typename E>
   class expected
   {
@@ -119,7 +91,7 @@ namespace project
     using error_type = E;
     using unexpected_type = unexpected<E>;
 
-    // Constructors
+    
     constexpr expected() : data_(T{})
     {
     }
@@ -167,7 +139,7 @@ namespace project
     {
     }
 
-    // Assignment
+    
     constexpr expected& operator=(const expected&) = default;
     constexpr expected& operator=(expected&&) = default;
 
@@ -192,7 +164,7 @@ namespace project
       return *this;
     }
 
-    // Observers
+    
     constexpr explicit operator bool() const noexcept
     {
       return has_value();
@@ -301,10 +273,6 @@ namespace project
       return has_value() ? std::move(std::get<0>(data_)) : static_cast<T>(std::forward<U>(default_value));
     }
   };
-
-  /**
-   * @brief Specialization for void value type
-   */
   template<typename E>
   class expected<void, E>
   {
@@ -385,6 +353,6 @@ namespace project
     }
   };
 
-}  // namespace project
+}  
 
-#endif  // PROJECT_EXPECTED_HPP_
+#endif  

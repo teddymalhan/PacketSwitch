@@ -73,10 +73,10 @@ Fast feedback loop for pull requests:
 
 **Before committing:**
 ```bash
-# Format your code
+
 make format
 
-# Run tests locally
+
 cd build && ctest -C Debug --output-on-failure
 ```
 
@@ -176,20 +176,20 @@ Settings → Branches → Add rule for `main`:
 Test locally before pushing:
 
 ```bash
-# 1. Clean build
+
 rm -rf build/
 
-# 2. Format code
+
 make format
 
-# 3. Build with tests
+
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DProject_ENABLE_UNIT_TESTING=ON
 cmake --build build
 
-# 4. Run tests
+
 cd build && ctest -C Release --output-on-failure --verbose
 
-# 5. Optional: Run with sanitizers
+
 cd ..
 cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug \
   -DProject_ENABLE_UNIT_TESTING=ON \
@@ -234,14 +234,14 @@ cd build-asan && ctest -C Debug --output-on-failure
 
 **Fix:**
 ```bash
-# Format all files
+
 make format
 
-# Or manually
+
 find include/ src/ test/ \( -name '*.hpp' -o -name '*.cpp' \) | \
   xargs clang-format -i
 
-# Commit formatting
+
 git add -A
 git commit -m "style: apply clang-format"
 ```

@@ -1,7 +1,7 @@
-/**
- * @file sys_utils_test.cpp
- * @brief Unit tests for system utilities
- */
+
+
+
+
 
 #include "project/sys_utils.hpp"
 
@@ -29,11 +29,11 @@ TEST(FileDescriptorTest, ConstructWithValidDescriptor)
     EXPECT_TRUE(fd.is_valid());
     EXPECT_EQ(fd.get(), pipe_fds[0]);
     EXPECT_TRUE(static_cast<bool>(fd));
-  }  // fd closes here
+  }  
 
-  // Try to close again to verify it was closed
-  EXPECT_EQ(::close(pipe_fds[0]), -1);  // Should fail because already closed
-  ::close(pipe_fds[1]);                 // Clean up the other end
+  
+  EXPECT_EQ(::close(pipe_fds[0]), -1);  
+  ::close(pipe_fds[1]);                 
 }
 
 TEST(FileDescriptorTest, MoveConstruction)
@@ -72,7 +72,7 @@ TEST(FileDescriptorTest, MoveAssignment)
   EXPECT_TRUE(fd2.is_valid());
   EXPECT_EQ(fd2.get(), original_fd1);
 
-  // pipe_fds2[0] should have been closed by the assignment
+  
   EXPECT_EQ(::close(pipe_fds2[0]), -1);
 
   ::close(pipe_fds1[1]);
@@ -91,7 +91,7 @@ TEST(FileDescriptorTest, ExplicitClose)
   EXPECT_FALSE(fd.is_valid());
   EXPECT_EQ(fd.get(), -1);
 
-  // Closing again should be safe
+  
   fd.close();
   EXPECT_FALSE(fd.is_valid());
 
@@ -110,7 +110,7 @@ TEST(FileDescriptorTest, Release)
   EXPECT_FALSE(fd.is_valid());
   EXPECT_EQ(fd.get(), -1);
 
-  // Now we're responsible for closing it
+  
   EXPECT_EQ(::close(released_fd), 0);
   ::close(pipe_fds[1]);
 }
@@ -128,7 +128,7 @@ TEST(FileDescriptorTest, Reset)
   fd.reset(pipe_fds2[0]);
   EXPECT_EQ(fd.get(), pipe_fds2[0]);
 
-  // pipe_fds1[0] should have been closed
+  
   EXPECT_EQ(::close(pipe_fds1[0]), -1);
 
   ::close(pipe_fds1[1]);
@@ -168,7 +168,7 @@ TEST(SocketHandleTest, ConstructWithValidSocket)
     EXPECT_TRUE(sock.is_valid());
     EXPECT_EQ(sock.get(), pipe_fds[0]);
     EXPECT_TRUE(static_cast<bool>(sock));
-  }  // sock closes here
+  }  
 
   EXPECT_EQ(::close(pipe_fds[0]), -1);
   ::close(pipe_fds[1]);

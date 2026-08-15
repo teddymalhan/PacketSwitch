@@ -1,7 +1,7 @@
 if(${PROJECT_NAME}_ENABLE_VCPKG)  
-  #
-  # If `vcpkg.cmake` (from https://github.com/microsoft/vcpkg) does not exist, download it.
-  #
+
+
+
   if(NOT EXISTS "${CMAKE_BINARY_DIR}/vcpkg.cmake")
     message(
     STATUS

@@ -1,8 +1,3 @@
-/**
- * @file vport.cpp
- * @brief Implementation of VPort (Virtual Port)
- */
-
 #include "project/vport.hpp"
 
 #include <iostream>
@@ -46,7 +41,7 @@ namespace project
   {
     if (this != &other)
     {
-      stop();  // Stop current threads if running
+      stop();  
       tap_device_ = std::move(other.tap_device_);
       udp_socket_ = std::move(other.udp_socket_);
       vswitch_endpoint_ = std::move(other.vswitch_endpoint_);
@@ -61,34 +56,34 @@ namespace project
   expected<VPort, VPortError>
   VPort::create(std::string_view device_name, std::string_view vswitch_address, uint16_t vswitch_port)
   {
-    // Validate VSwitch endpoint
+    
     if (vswitch_address.empty() || vswitch_port == 0)
     {
       return unexpected(VPortError::InvalidVSwitchEndpoint);
     }
 
-    // Create TAP device
+    
     auto tap_result = TapDevice::create(device_name);
     if (!tap_result)
     {
       return unexpected(VPortError::TapDeviceCreationFailed);
     }
 
-    // Create UDP socket
+    
     auto socket_result = UdpSocket::create();
     if (!socket_result)
     {
       return unexpected(VPortError::SocketCreationFailed);
     }
 
-    // Create VSwitch endpoint
+    
     Endpoint vswitch_endpoint(std::string(vswitch_address), vswitch_port);
 
     std::string actual_device_name = tap_result->device_name();
 
     std::cout << "[VPort] Created TAP device: " << actual_device_name << ", VSwitch: " << vswitch_endpoint << "\n";
 
-    // Construct VPort and wrap in expected
+    
     VPort vport(
         std::move(*tap_result), std::move(*socket_result), std::move(vswitch_endpoint), std::move(actual_device_name));
 
@@ -109,10 +104,10 @@ namespace project
 
     running_.store(true);
 
-    // Start TAP → VSwitch forwarder thread
+    
     tap_to_switch_thread_ = joining_thread([this]() { forward_tap_to_switch(); });
 
-    // Start VSwitch → TAP forwarder thread
+    
     switch_to_tap_thread_ = joining_thread([this]() { forward_switch_to_tap(); });
 
     std::cout << "[VPort] Started forwarder threads\n";
@@ -131,10 +126,6 @@ namespace project
 
     running_.store(false);
 
-    // Threads will exit their loops and be joined automatically by joining_thread destructor
-    // Note: In a production system, we might want to close the TAP device and socket
-    // to interrupt blocking read/recv calls
-
     std::cout << "[VPort] Stopped\n";
   }
 
@@ -144,22 +135,18 @@ namespace project
 
     while (running_.load())
     {
-      // Read Ethernet frame from TAP device
       auto frame_result = tap_device_.read_frame();
 
       if (!frame_result)
       {
-        // Log error and continue (could be a temporary issue)
         std::cerr << "[VPort] TAP read error: " << to_string(frame_result.error()) << "\n";
         continue;
       }
 
       const auto& frame_data = *frame_result;
 
-      // Parse the Ethernet frame for logging
       auto frame = EthernetFrame::parse(frame_data);
 
-      // Send frame to VSwitch via UDP
       auto send_result = udp_socket_.send_to(frame_data, vswitch_endpoint_);
 
       if (!send_result)
@@ -168,7 +155,6 @@ namespace project
         continue;
       }
 
-      // Log the frame
       log_frame("Sent to VSwitch", frame);
     }
 
@@ -181,22 +167,18 @@ namespace project
 
     while (running_.load())
     {
-      // Receive Ethernet frame from VSwitch
       auto recv_result = udp_socket_.receive_from(ETHER_MAX_LEN);
 
       if (!recv_result)
       {
-        // Log error and continue
         std::cerr << "[VPort] UDP receive error: " << to_string(recv_result.error()) << "\n";
         continue;
       }
 
       auto& [frame_data, sender_endpoint] = *recv_result;
 
-      // Parse the Ethernet frame for logging
       auto frame = EthernetFrame::parse(frame_data);
 
-      // Write frame to TAP device
       auto write_result = tap_device_.write_frame(frame_data);
 
       if (!write_result)
@@ -205,7 +187,6 @@ namespace project
         continue;
       }
 
-      // Log the frame
       log_frame("Forward to TAP device", frame);
     }
 
@@ -218,4 +199,4 @@ namespace project
               << "type=" << std::hex << frame.ethertype() << std::dec << " " << "size=" << frame.size() << "\n";
   }
 
-}  // namespace project
+}  

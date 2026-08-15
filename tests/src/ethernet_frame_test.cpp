@@ -1,7 +1,7 @@
-/**
- * @file ethernet_frame_test.cpp
- * @brief Unit tests for Ethernet frame parsing and MAC address handling
- */
+
+
+
+
 
 #include "project/ethernet_frame.hpp"
 
@@ -11,9 +11,9 @@
 
 using namespace project;
 
-// ============================================================================
-// MacAddress Tests
-// ============================================================================
+
+
+
 
 TEST(MacAddressTest, DefaultConstruction)
 {
@@ -69,8 +69,8 @@ TEST(MacAddressTest, FromStringWithDash)
 TEST(MacAddressTest, FromStringInvalid)
 {
   MacAddress mac1 = MacAddress::from_string("invalid");
-  MacAddress mac2 = MacAddress::from_string("00:11:22:33:44");        // Too short
-  MacAddress mac3 = MacAddress::from_string("00:11:22:33:44:55:66");  // Too long
+  MacAddress mac2 = MacAddress::from_string("00:11:22:33:44");        
+  MacAddress mac3 = MacAddress::from_string("00:11:22:33:44:55:66");  
 
   EXPECT_TRUE(mac1.is_zero());
   EXPECT_TRUE(mac2.is_zero());
@@ -137,9 +137,9 @@ TEST(MacAddressTest, DataPointer)
   EXPECT_EQ(data[5], 0x55);
 }
 
-// ============================================================================
-// EthernetFrame Tests
-// ============================================================================
+
+
+
 
 TEST(EthernetFrameTest, DefaultConstruction)
 {
@@ -171,10 +171,10 @@ TEST(EthernetFrameTest, ConstructWithParameters)
 TEST(EthernetFrameTest, ParseValidFrame)
 {
   std::vector<uint8_t> raw_frame = {
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // Destination MAC (broadcast)
-    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Source MAC
-    0x08, 0x00,                          // EtherType (IPv4)
-    0xde, 0xad, 0xbe, 0xef               // Payload
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  
+    0x08, 0x00,                          
+    0xde, 0xad, 0xbe, 0xef               
   };
 
   EthernetFrame frame = EthernetFrame::parse(raw_frame);
@@ -192,9 +192,9 @@ TEST(EthernetFrameTest, ParseValidFrame)
 TEST(EthernetFrameTest, ParseHeaderOnly)
 {
   std::vector<uint8_t> raw_frame = {
-    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Destination MAC
-    0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  // Source MAC
-    0x08, 0x06                           // EtherType (ARP)
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  
+    0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  
+    0x08, 0x06                           
   };
 
   EthernetFrame frame = EthernetFrame::parse(raw_frame);
@@ -207,7 +207,7 @@ TEST(EthernetFrameTest, ParseHeaderOnly)
 
 TEST(EthernetFrameTest, ParseInvalidFrame)
 {
-  std::vector<uint8_t> short_frame = { 0x00, 0x11, 0x22 };  // Too short
+  std::vector<uint8_t> short_frame = { 0x00, 0x11, 0x22 };  
 
   EthernetFrame frame = EthernetFrame::parse(short_frame);
 
@@ -228,19 +228,19 @@ TEST(EthernetFrameTest, Serialize)
 
   EXPECT_EQ(serialized.size(), ETHERNET_HEADER_SIZE + 4);
 
-  // Verify destination MAC
+  
   EXPECT_EQ(serialized[0], 0xff);
   EXPECT_EQ(serialized[5], 0xff);
 
-  // Verify source MAC
+  
   EXPECT_EQ(serialized[6], 0x00);
   EXPECT_EQ(serialized[11], 0x55);
 
-  // Verify EtherType (big endian)
+  
   EXPECT_EQ(serialized[12], 0x08);
   EXPECT_EQ(serialized[13], 0x00);
 
-  // Verify payload
+  
   EXPECT_EQ(serialized[14], 0xde);
   EXPECT_EQ(serialized[17], 0xef);
 }
@@ -248,10 +248,10 @@ TEST(EthernetFrameTest, Serialize)
 TEST(EthernetFrameTest, ParseAndSerializeRoundTrip)
 {
   std::vector<uint8_t> original = {
-    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  // Destination MAC
-    0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  // Source MAC
-    0x86, 0xdd,                          // EtherType (IPv6)
-    0x12, 0x34, 0x56, 0x78               // Payload
+    0x00, 0x11, 0x22, 0x33, 0x44, 0x55,  
+    0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,  
+    0x86, 0xdd,                          
+    0x12, 0x34, 0x56, 0x78               
   };
 
   EthernetFrame frame = EthernetFrame::parse(original);

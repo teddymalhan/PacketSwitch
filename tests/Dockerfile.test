@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-# Install dependencies
+
 RUN apk add --no-cache \
     g++ \
     cmake \
@@ -10,16 +10,16 @@ RUN apk add --no-cache \
     net-tools \
     tcpdump
 
-# Copy project files
+
 COPY . /app
 WORKDIR /app
 
-# Build the project
+
 RUN mkdir -p build-test && \
     cd build-test && \
     cmake .. -DCMAKE_BUILD_TYPE=Debug -DProject_ENABLE_UNIT_TESTING=ON -DProject_USE_GTEST=ON && \
     cmake --build .
 
-# Default command
+
 CMD ["/bin/sh"]
 

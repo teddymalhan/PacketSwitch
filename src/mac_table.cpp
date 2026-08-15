@@ -1,8 +1,3 @@
-/**
- * @file mac_table.cpp
- * @brief Implementation of MAC address learning table
- */
-
 #include "project/mac_table.hpp"
 
 #include <algorithm>
@@ -11,8 +6,6 @@ namespace project
 {
   MacTable::MacTable(MacTable&& other) noexcept : table_(std::move(other.table_))
   {
-    // Move mutex is not possible, so we just move the table
-    // The moved-from object will have an empty table
     other.table_.clear();
   }
 
@@ -101,4 +94,4 @@ namespace project
     return endpoints;
   }
 
-}  // namespace project
+}

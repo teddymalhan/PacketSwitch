@@ -1,13 +1,13 @@
-/**
- * @file integration_test.cpp
- * @brief Integration tests for VPort ↔ VSwitch communication
- *
- * These tests verify the complete system working together:
- * - VPort creates TAP device and connects to VSwitch
- * - VSwitch receives frames and learns MAC addresses
- * - Frames are forwarded between VPorts via VSwitch
- * - Broadcast frames work correctly
- */
+
+
+
+
+
+
+
+
+
+
 
 #include <gtest/gtest.h>
 
@@ -21,7 +21,7 @@
 
 using namespace project;
 
-// Helper function to create a simple test Ethernet frame
+
 std::vector<uint8_t>
 create_test_frame(MacAddress dst, MacAddress src, uint16_t ethertype, const std::vector<uint8_t>& payload = {})
 {
@@ -31,7 +31,7 @@ create_test_frame(MacAddress dst, MacAddress src, uint16_t ethertype, const std:
 
 TEST(IntegrationTest, VSwitchBasicOperation)
 {
-  // Create VSwitch on port 0 (ephemeral)
+  
   auto vswitch_result = VSwitch::create(0);
   ASSERT_TRUE(vswitch_result.has_value());
 
@@ -40,24 +40,24 @@ TEST(IntegrationTest, VSwitchBasicOperation)
   uint16_t port = vswitch.port();
   std::cout << "VSwitch created on port " << port << "\n";
 
-  // Check initial state
+  
   EXPECT_EQ(vswitch.learned_macs(), 0);
   EXPECT_FALSE(vswitch.is_running());
 }
 
 TEST(IntegrationTest, VSwitchMacLearning)
 {
-  // Test that VSwitch can be created
+  
   auto vswitch_result = VSwitch::create(0);
   ASSERT_TRUE(vswitch_result.has_value());
 
   VSwitch vswitch = std::move(*vswitch_result);
 
-  // VSwitch starts with 0 learned MACs
+  
   EXPECT_EQ(vswitch.learned_macs(), 0);
 
-  // Note: process_frame is private, so we can't test it directly.
-  // Full integration test would require VSwitch::start() and actual UDP frames.
+  
+  
 }
 
 TEST(IntegrationTest, MacTableEndpointsRetrieval)
@@ -73,11 +73,11 @@ TEST(IntegrationTest, MacTableEndpointsRetrieval)
   mac_table.insert(mac1, ep1);
   mac_table.insert(mac2, ep2);
 
-  // Get all endpoints
+  
   auto all_eps = mac_table.get_all_endpoints();
   EXPECT_EQ(all_eps.size(), 2);
 
-  // Get all except one
+  
   auto eps_except = mac_table.get_all_endpoints_except(mac1);
   EXPECT_EQ(eps_except.size(), 1);
   EXPECT_EQ(eps_except[0], ep2);
@@ -92,13 +92,13 @@ TEST(IntegrationTest, EthernetFrameSerializationRoundTrip)
 
   EthernetFrame original(dst, src, EtherType::IPv4, payload);
 
-  // Serialize
+  
   std::vector<uint8_t> serialized = original.serialize();
 
-  // Parse back
+  
   EthernetFrame parsed = EthernetFrame::parse(serialized);
 
-  // Verify
+  
   EXPECT_EQ(parsed.dst_mac(), dst);
   EXPECT_EQ(parsed.src_mac(), src);
   EXPECT_EQ(parsed.ethertype(), EtherType::IPv4);
@@ -113,16 +113,16 @@ TEST(IntegrationTest, BroadcastMacAddress)
   EXPECT_TRUE(broadcast.is_broadcast());
   EXPECT_FALSE(unicast.is_broadcast());
 
-  // Create frame with broadcast destination
+  
   std::vector<uint8_t> frame_data = create_test_frame(broadcast, unicast, EtherType::ARP);
 
   EthernetFrame frame = EthernetFrame::parse(frame_data);
   EXPECT_TRUE(frame.is_broadcast());
 }
 
-// Note: These tests verify individual components work together.
-// Full end-to-end tests with actual TAP devices would require root privileges
-// and are better suited for manual testing or CI with proper setup.
+
+
+
 
 TEST(IntegrationTest, UdpSocketBindAndReceive)
 {
@@ -131,13 +131,13 @@ TEST(IntegrationTest, UdpSocketBindAndReceive)
 
   UdpSocket socket = std::move(*socket_result);
 
-  // Bind to port 0 (ephemeral)
+  
   auto bind_result = socket.bind("127.0.0.1", 0);
   EXPECT_TRUE(bind_result.has_value());
 
   EXPECT_TRUE(socket.is_valid());
-  // Note: local_endpoint() returns the requested endpoint, not the actual bound port
-  // which we can't easily determine without additional system calls
+  
+  
 }
 
 TEST(IntegrationTest, MacAddressEqualityAndHash)
@@ -149,7 +149,7 @@ TEST(IntegrationTest, MacAddressEqualityAndHash)
   EXPECT_EQ(mac1, mac2);
   EXPECT_NE(mac1, mac3);
 
-  // Test hash function
+  
   std::hash<MacAddress> hasher;
   EXPECT_EQ(hasher(mac1), hasher(mac2));
   EXPECT_NE(hasher(mac1), hasher(mac3));

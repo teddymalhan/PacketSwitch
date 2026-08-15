@@ -33,10 +33,10 @@ This directory contains all testing-related files and documentation for the VPN 
 ### Using the Test Script
 
 ```bash
-# Make executable
+
 chmod +x test_in_docker.sh
 
-# Run it
+
 ./test_in_docker.sh
 ```
 
@@ -103,16 +103,16 @@ tests/
 ### Stress Testing
 
 ```bash
-# Scale test (multiple VPorts)
+
 ./tests/stress_scale_test.sh
 
-# Throughput test (high packet rate)
+
 ./tests/stress_throughput_test.sh
 
-# Duration test (long-running stability)
+
 ./tests/stress_duration_test.sh
 
-# Comprehensive test (all scenarios)
+
 ./tests/stress_comprehensive.sh
 ```
 

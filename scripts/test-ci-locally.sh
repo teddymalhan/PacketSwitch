@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Local CI Test Script
-# Simulates CI pipeline checks before pushing to GitHub
 
-set -e  # Exit on error
 
-# Colors for output
+
+set -e
+
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Project root directory
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
@@ -21,34 +21,34 @@ echo -e "${BLUE}        Local CI Validation Script${NC}"
 echo -e "${BLUE}==================================================${NC}"
 echo ""
 
-# Function to print step header
+
 print_step() {
     echo ""
     echo -e "${BLUE}▶ $1${NC}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
-# Function to print success
+
 print_success() {
     echo -e "${GREEN}✓ $1${NC}"
 }
 
-# Function to print error
+
 print_error() {
     echo -e "${RED}✗ $1${NC}"
 }
 
-# Function to print warning
+
 print_warning() {
     echo -e "${YELLOW}⚠ $1${NC}"
 }
 
-# Track overall status
+
 FAILED=0
 
-# ============================================================
-# Step 1: Code Formatting Check
-# ============================================================
+
+
+
 print_step "Step 1: Checking Code Formatting"
 
 if command -v clang-format &> /dev/null; then
@@ -64,19 +64,19 @@ else
     print_warning "clang-format not found, skipping formatting check"
 fi
 
-# ============================================================
-# Step 2: Build Project
-# ============================================================
+
+
+
 print_step "Step 2: Building Project (Release)"
 
-# Clean build directory
+
 BUILD_DIR="build-ci-test"
 if [ -d "$BUILD_DIR" ]; then
     print_warning "Removing existing $BUILD_DIR directory"
     rm -rf "$BUILD_DIR"
 fi
 
-# Configure
+
 echo "Configuring CMake..."
 if cmake -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -90,7 +90,7 @@ else
     exit 1
 fi
 
-# Build
+
 echo "Building project..."
 if cmake --build "$BUILD_DIR" --config Release 2>&1; then
     print_success "Build successful"
@@ -100,9 +100,9 @@ else
     exit 1
 fi
 
-# ============================================================
-# Step 3: Run Tests
-# ============================================================
+
+
+
 print_step "Step 3: Running Unit Tests"
 
 cd "$BUILD_DIR"
@@ -114,9 +114,9 @@ else
 fi
 cd "$PROJECT_ROOT"
 
-# ============================================================
-# Step 4: Optional - Static Analysis (if clang-tidy available)
-# ============================================================
+
+
+
 if command -v clang-tidy &> /dev/null; then
     print_step "Step 4: Running Static Analysis (Clang-Tidy)"
     
@@ -138,7 +138,7 @@ if command -v clang-tidy &> /dev/null; then
             print_success "Static analysis passed"
         else
             print_warning "Static analysis found issues (review output above)"
-            # Don't fail on static analysis warnings
+
         fi
     else
         print_warning "Static analysis configuration failed"
@@ -147,9 +147,9 @@ else
     print_warning "clang-tidy not found, skipping static analysis"
 fi
 
-# ============================================================
-# Step 5: Optional - Address Sanitizer (if available)
-# ============================================================
+
+
+
 if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
     print_step "Step 5: Running Tests with Address Sanitizer"
     
@@ -185,18 +185,18 @@ if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
     fi
 fi
 
-# ============================================================
-# Cleanup
-# ============================================================
+
+
+
 print_step "Cleanup"
 
 echo "Removing temporary build directories..."
 rm -rf "$BUILD_DIR" "$BUILD_DIR_TIDY" "$BUILD_DIR_ASAN"
 print_success "Cleanup complete"
 
-# ============================================================
-# Summary
-# ============================================================
+
+
+
 echo ""
 echo -e "${BLUE}==================================================${NC}"
 if [ $FAILED -eq 0 ]; then

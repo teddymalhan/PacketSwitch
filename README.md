@@ -65,11 +65,11 @@ Binaries are placed at `build/vswitch` and `build/vport`.
 ### Build with Make
 
 ```bash
-make          # Release build
-make test     # Build and run unit tests
-make format   # Format with clang-format
-make docs     # Generate Doxygen HTML
-make install  # Install to ~/.local
+make
+make test
+make format
+make docs
+make install
 ```
 
 ### Docker (recommended for first-time testing)
@@ -116,13 +116,13 @@ windows, use `make demo-start`, `make demo-status`, and `make demo-stop`.
 Open three terminals. VPort requires root to create TAP devices.
 
 ```bash
-# Terminal 1 — start VSwitch on port 8080
+
 ./build/vswitch 8080
 
-# Terminal 2 — attach first VPort
+
 sudo ./build/vport 127.0.0.1 8080
 
-# Terminal 3 — attach second VPort
+
 sudo ./build/vport 127.0.0.1 8080
 ```
 
@@ -131,11 +131,11 @@ sudo ./build/vport 127.0.0.1 8080
 After each VPort starts it prints the name of the TAP device it created (e.g. `tap0`, `tap1`). Assign IP addresses and bring the interfaces up:
 
 ```bash
-# On the machine running VPort 1
+
 sudo ip addr add 10.1.1.101/24 dev tap0
 sudo ip link set tap0 up
 
-# On the machine running VPort 2
+
 sudo ip addr add 10.1.1.102/24 dev tap1
 sudo ip link set tap1 up
 ```
@@ -196,7 +196,7 @@ ctest
 ### Code coverage
 
 ```bash
-make coverage   # Generates HTML report in build/coverage/
+make coverage
 ```
 
 ### End-to-end (Docker)

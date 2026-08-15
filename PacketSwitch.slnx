@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+    <File Path="CMakeLists.txt" />
+  </Folder>
+  <Project Path="PacketSwitch.vcxproj" Id="3c17b8d4-25d3-4dfc-96e9-bf35968d6b3c" />
+</Solution>

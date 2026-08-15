@@ -1,7 +1,7 @@
-/**
- * @file joining_thread_test.cpp
- * @brief Unit tests for joining_thread RAII wrapper
- */
+
+
+
+
 
 #include "project/joining_thread.hpp"
 
@@ -26,7 +26,7 @@ TEST(JoiningThreadTest, ConstructWithFunction)
   {
     joining_thread t([&executed]() { executed = true; });
     EXPECT_TRUE(t.joinable());
-  }  // Thread joins automatically here
+  }  
 
   EXPECT_TRUE(executed);
 }
@@ -38,7 +38,7 @@ TEST(JoiningThreadTest, ConstructWithFunctionAndArguments)
   {
     joining_thread t([](std::atomic<int>& res, int val) { res = val; }, std::ref(result), 42);
     EXPECT_TRUE(t.joinable());
-  }  // Thread joins automatically here
+  }  
 
   EXPECT_EQ(result, 42);
 }
@@ -60,7 +60,7 @@ TEST(JoiningThreadTest, MoveConstruction)
   EXPECT_FALSE(t1.joinable());
   EXPECT_TRUE(t2.joinable());
 
-  // t2 will join when it goes out of scope
+  
 }
 
 TEST(JoiningThreadTest, MoveAssignment)
@@ -77,10 +77,10 @@ TEST(JoiningThreadTest, MoveAssignment)
           counter++;
         });
 
-    t2 = std::move(t1);  // t2's original thread joins here
-  }  // t1's thread (now in t2) joins here
+    t2 = std::move(t1);  
+  }  
 
-  // Give threads time to complete
+  
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
   EXPECT_EQ(counter, 2);
 }
@@ -127,10 +127,10 @@ TEST(JoiningThreadTest, AutomaticJoinOnDestruction)
           std::this_thread::sleep_for(std::chrono::milliseconds(10));
           value = 42;
         });
-    // Thread is running here
-  }  // Destructor automatically joins the thread
+    
+  }  
 
-  // If join didn't happen, value might still be 0
+  
   EXPECT_EQ(value, 42);
 }
 

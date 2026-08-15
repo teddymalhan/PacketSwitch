@@ -1,5 +1,5 @@
 #!/bin/bash
-# Docker test script for VPort ↔ VSwitch system
+
 
 set -e
 
@@ -14,7 +14,7 @@ echo "========================================="
 echo "Running Docker test..."
 echo "========================================="
 
-# Run the container with TAP support and privileged mode
+
 docker run --rm --privileged \
     vpn-alpine sh -c '
 echo "=== Testing VPort and VSwitch ==="

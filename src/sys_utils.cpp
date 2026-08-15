@@ -1,8 +1,3 @@
-/**
- * @file sys_utils.cpp
- * @brief Implementation of system utilities
- */
-
 #include "project/sys_utils.hpp"
 
 #include <unistd.h>
@@ -23,4 +18,4 @@ namespace project
     }
   }
 
-}  // namespace project
+}  

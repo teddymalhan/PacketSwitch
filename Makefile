@@ -13,14 +13,26 @@ webbrowser.open("file://" + pathname2url(os.path.abspath(sys.argv[1])))
 endef
 export BROWSER_PYSCRIPT
 
-define PRINT_HELP_PYSCRIPT
-import re, sys
+define MAKE_HELP_ENTRIES
+test|run tests quickly with ctest
+demo|open the full multi-window live demo
+demo-start|start the persistent demo stack
+demo-stop|stop and remove the demo stack
+demo-status|show demo container status
+demo-windows|open VSwitch, VPort, and traffic windows in Otty
+coverage|check code coverage quickly GCC
+docs|generate Doxygen HTML documentation, including API docs
+install|install the package to the `INSTALL_LOCATION`
+format|format the project sources
+endef
+export MAKE_HELP_ENTRIES
 
-for line in sys.stdin:
-	match = re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', line)
-	if match:
-		target, help = match.groups()
-		print("%-20s %s" % (target, help))
+define PRINT_HELP_PYSCRIPT
+import os
+
+for entry in os.environ["MAKE_HELP_ENTRIES"].splitlines():
+	target, help = entry.split("|", 1)
+	print("%-20s %s" % (target, help))
 endef
 export PRINT_HELP_PYSCRIPT
 
@@ -30,34 +42,34 @@ INSTALL_LOCATION := ~/.local
 help:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
 
-test: ## run tests quickly with ctest
+test:
 	rm -rf build/
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -Dmodern-cpp-template_ENABLE_UNIT_TESTING=1 -DCMAKE_BUILD_TYPE="Release"
 	cmake --build build --config Release
 	cd build/ && ctest -C Release -VV
 
-demo: demo-windows ## open the full multi-window live demo
+demo: demo-windows
 
-demo-start: ## start the persistent demo stack
+demo-start:
 	./tests/demo_stack.sh start
 
-demo-stop: ## stop and remove the demo stack
+demo-stop:
 	./tests/demo_stack.sh stop
 
-demo-status: ## show demo container status
+demo-status:
 	./tests/demo_stack.sh status
 
-demo-windows: ## open VSwitch, VPort, and traffic windows in Otty
+demo-windows:
 	./tests/open_demo_terminals.sh
 
-coverage: ## check code coverage quickly GCC
+coverage:
 	rm -rf build/
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -Dmodern-cpp-template_ENABLE_CODE_COVERAGE=1
 	cmake --build build --config Release
 	cd build/ && ctest -C Release -VV
 	cd .. && (bash -c "find . -type f -name '*.gcno' -exec gcov -pb {} +" || true)
 
-docs: ## generate Doxygen HTML documentation, including API docs
+docs:
 	rm -rf docs/
 	rm -rf build/
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION) -DProject_ENABLE_DOXYGEN=1
@@ -65,13 +77,13 @@ docs: ## generate Doxygen HTML documentation, including API docs
 	cmake --build build --target doxygen-docs
 	$(BROWSER) docs/html/index.html
 
-install: ## install the package to the `INSTALL_LOCATION`
+install:
 	rm -rf build/
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION)
 	cmake --build build --config Release
 	cmake --build build --target install --config Release
 
-format: ## format the project sources
+format:
 	rm -rf build/
 	cmake -Bbuild -DCMAKE_INSTALL_PREFIX=$(INSTALL_LOCATION)
 	cmake --build build --target clang-format

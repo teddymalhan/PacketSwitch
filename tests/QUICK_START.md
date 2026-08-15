@@ -53,7 +53,7 @@ Note: You'll see a TAP device created (e.g., `utun6`)
 
 **Terminal 3:**
 ```bash
-# Get the TAP device name from Terminal 2
+
 sudo ifconfig utun6 inet 10.1.1.101 netmask 255.255.255.0
 sudo ifconfig utun6 up
 ```
@@ -61,7 +61,7 @@ sudo ifconfig utun6 up
 ### Step 5: Test
 
 ```bash
-# Ping something on the network
+
 ping 10.1.1.102
 ```
 

@@ -1,12 +1,12 @@
-/**
- * @file vport_main.cpp
- * @brief VPort application - Virtual Port for connecting to VSwitch
- *
- * This application creates a TAP device and connects it to a remote VSwitch
- * via UDP, forwarding Ethernet frames bidirectionally.
- *
- * Usage: vport <vswitch_ip> <vswitch_port> [tap_device_name]
- */
+
+
+
+
+
+
+
+
+
 
 #include <csignal>
 #include <cstdlib>
@@ -15,14 +15,14 @@
 
 #include "project/vport.hpp"
 
-// Global VPort pointer for signal handler
+
 std::unique_ptr<project::VPort> g_vport;
 
-/**
- * @brief Signal handler for graceful shutdown
- *
- * Handles SIGINT (Ctrl+C) and SIGTERM for clean shutdown.
- */
+
+
+
+
+
 void signal_handler(int signal)
 {
   std::cout << "\n[VPort] Received signal " << signal << ", shutting down...\n";
@@ -34,18 +34,18 @@ void signal_handler(int signal)
   std::exit(0);
 }
 
-/**
- * @brief Setup signal handlers for graceful shutdown
- */
+
+
+
 void setup_signal_handlers()
 {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 }
 
-/**
- * @brief Print usage information
- */
+
+
+
 void print_usage(const char* program_name)
 {
   std::cerr << "Usage: " << program_name << " <vswitch_ip> <vswitch_port> [tap_device_name]\n";
@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 {
   std::cout << "=== VPort - Virtual Port for VSwitch ===\n\n";
 
-  // Parse command-line arguments
+  
   if (argc < 3 || argc > 4)
   {
     print_usage(argv[0]);
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
   const char* vswitch_port_str = argv[2];
   const char* tap_device_name = (argc == 4) ? argv[3] : "";
 
-  // Parse port number
+  
   char* endptr;
   long port_long = std::strtol(vswitch_port_str, &endptr, 10);
 
@@ -97,10 +97,10 @@ int main(int argc, char* argv[])
 
   try
   {
-    // Setup signal handlers for graceful shutdown
+    
     setup_signal_handlers();
 
-    // Create VPort instance
+    
     std::cout << "Creating VPort...\n";
     auto vport_result = project::VPort::create(tap_device_name, vswitch_ip, vswitch_port);
 
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
       return EXIT_FAILURE;
     }
 
-    // Move VPort to global pointer for signal handler
+    
     g_vport = std::make_unique<project::VPort>(std::move(*vport_result));
 
     std::cout << "\nVPort created successfully!\n";
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
     std::cout << "  VSwitch: " << g_vport->vswitch_endpoint() << "\n";
     std::cout << "\n";
 
-    // Start forwarder threads
+    
     std::cout << "Starting forwarder threads...\n";
     auto start_result = g_vport->start();
 
@@ -138,8 +138,8 @@ int main(int argc, char* argv[])
     std::cout << "\nVPort is running! Press Ctrl+C to stop.\n";
     std::cout << "===========================================\n\n";
 
-    // Keep the main thread alive
-    // The forwarder threads are running in the background
+    
+    
     while (g_vport && g_vport->is_running())
     {
       std::this_thread::sleep_for(std::chrono::seconds(1));

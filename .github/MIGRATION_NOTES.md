@@ -90,7 +90,7 @@ mv release.yml release.yml.old
 ### Old Workflows (ubuntu.yml, etc.)
 
 ```yaml
-- uses: actions/checkout@v2  # Older version
+- uses: actions/checkout@v2
 - Triggers only on: master
 - Manual GoogleTest installation
 - Separate file per platform
@@ -100,7 +100,7 @@ mv release.yml release.yml.old
 ### New Workflows (ci.yml)
 
 ```yaml
-- uses: actions/checkout@v4  # Latest version
+- uses: actions/checkout@v4
 - Triggers on: main, master, develop
 - Automatic dependency fetching
 - Matrix strategy for all platforms
@@ -177,11 +177,11 @@ git commit -m "Restore old Ubuntu workflow temporarily"
 After verifying new CI works (1-2 successful runs):
 
 ```bash
-# Remove old workflows
+
 cd .github/workflows/
 rm -f macos.yml ubuntu.yml windows.yml release.yml
 
-# Commit changes
+
 cd ../..
 git add .github/workflows/
 git commit -m "ci: remove legacy workflow files, now using ci.yml"

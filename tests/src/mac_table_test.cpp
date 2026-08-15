@@ -1,7 +1,7 @@
-/**
- * @file mac_table_test.cpp
- * @brief Unit tests for MAC address table
- */
+
+
+
+
 
 #include "project/mac_table.hpp"
 
@@ -26,13 +26,13 @@ TEST(MacTableTest, InsertAndLookup)
   MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   Endpoint endpoint("192.168.1.100", 8080);
 
-  // Insert
+  
   bool is_new = table.insert(mac, endpoint);
   EXPECT_TRUE(is_new);
   EXPECT_EQ(table.size(), 1);
   EXPECT_FALSE(table.empty());
 
-  // Lookup
+  
   auto result = table.lookup(mac);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(*result, endpoint);
@@ -46,15 +46,15 @@ TEST(MacTableTest, UpdateExistingMac)
   Endpoint endpoint1("192.168.1.100", 8080);
   Endpoint endpoint2("192.168.1.200", 9000);
 
-  // Insert first endpoint
+  
   bool is_new1 = table.insert(mac, endpoint1);
   EXPECT_TRUE(is_new1);
 
-  // Update with second endpoint
+  
   bool is_new2 = table.insert(mac, endpoint2);
-  EXPECT_FALSE(is_new2);  // Not a new entry, it was updated
+  EXPECT_FALSE(is_new2);  
 
-  // Lookup should return updated endpoint
+  
   auto result = table.lookup(mac);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(*result, endpoint2);
@@ -91,16 +91,16 @@ TEST(MacTableTest, Remove)
   MacAddress mac({ 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 });
   Endpoint endpoint("192.168.1.100", 8080);
 
-  // Insert
+  
   table.insert(mac, endpoint);
   EXPECT_EQ(table.size(), 1);
 
-  // Remove existing
+  
   bool removed = table.remove(mac);
   EXPECT_TRUE(removed);
   EXPECT_EQ(table.size(), 0);
 
-  // Try to remove again
+  
   bool removed_again = table.remove(mac);
   EXPECT_FALSE(removed_again);
 }
@@ -158,7 +158,7 @@ TEST(MacTableTest, ThreadSafety)
 
   std::vector<std::thread> threads;
 
-  // Writer threads
+  
   for (int t = 0; t < num_threads; ++t)
   {
     threads.emplace_back(
@@ -175,7 +175,7 @@ TEST(MacTableTest, ThreadSafety)
         });
   }
 
-  // Reader threads
+  
   for (int t = 0; t < num_threads; ++t)
   {
     threads.emplace_back(
@@ -188,19 +188,19 @@ TEST(MacTableTest, ThreadSafety)
             MacAddress mac(bytes);
             [[maybe_unused]] auto result = table.lookup(mac);
 
-            // Try to get all endpoints
+            
             [[maybe_unused]] auto endpoints = table.get_all_endpoints();
           }
         });
   }
 
-  // Wait for all threads
+  
   for (auto& thread : threads)
   {
     thread.join();
   }
 
-  // All writer threads should have added entries
+  
   EXPECT_EQ(table.size(), num_threads * iterations_per_thread);
 }
 
@@ -227,14 +227,14 @@ TEST(MacTableTest, MoveSemantics)
 
   EXPECT_EQ(table1.size(), 2);
 
-  // Move construct
+  
   MacTable table2(std::move(table1));
 
   EXPECT_EQ(table1.size(), 0);
   EXPECT_TRUE(table1.empty());
   EXPECT_EQ(table2.size(), 2);
 
-  // Move assign
+  
   MacTable table3;
   table3 = std::move(table2);
 

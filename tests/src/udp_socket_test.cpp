@@ -1,7 +1,7 @@
-/**
- * @file udp_socket_test.cpp
- * @brief Unit tests for UDP socket wrapper
- */
+
+
+
+
 
 #include "project/udp_socket.hpp"
 
@@ -12,9 +12,9 @@
 
 using namespace project;
 
-// ============================================================================
-// Endpoint Tests
-// ============================================================================
+
+
+
 
 TEST(EndpointTest, DefaultConstruction)
 {
@@ -71,9 +71,9 @@ TEST(EndpointTest, IsValid)
   EXPECT_FALSE(invalid_both.is_valid());
 }
 
-// ============================================================================
-// UdpSocket Tests
-// ============================================================================
+
+
+
 
 TEST(UdpSocketTest, DefaultConstruction)
 {
@@ -135,12 +135,12 @@ TEST(UdpSocketTest, Bind)
 
   UdpSocket& socket = *result;
 
-  // Bind to loopback with ephemeral port
+  
   auto bind_result = socket.bind("127.0.0.1", 0);
   EXPECT_TRUE(bind_result.has_value());
 
   EXPECT_EQ(socket.local_endpoint().address(), "127.0.0.1");
-  EXPECT_EQ(socket.local_endpoint().port(), 0);  // We requested port 0 (ephemeral)
+  EXPECT_EQ(socket.local_endpoint().port(), 0);  
 }
 
 TEST(UdpSocketTest, BindInvalidAddress)
@@ -150,7 +150,7 @@ TEST(UdpSocketTest, BindInvalidAddress)
 
   UdpSocket& socket = *result;
 
-  // Try to bind to invalid address
+  
   auto bind_result = socket.bind("invalid.address", 8080);
   EXPECT_FALSE(bind_result.has_value());
   EXPECT_EQ(bind_result.error(), UdpError::AddressResolutionFailed);
@@ -183,45 +183,45 @@ TEST(UdpSocketTest, SendToInvalidEndpoint)
 
 TEST(UdpSocketTest, SendAndReceive)
 {
-  // Create sender socket
+  
   auto sender_result = UdpSocket::create();
   ASSERT_TRUE(sender_result.has_value());
   UdpSocket sender = std::move(*sender_result);
 
-  // Create receiver socket and bind to a specific port
+  
   auto receiver_result = UdpSocket::create();
   ASSERT_TRUE(receiver_result.has_value());
   UdpSocket receiver = std::move(*receiver_result);
 
-  // Bind receiver to loopback on port 0 (ephemeral port)
+  
   auto bind_result = receiver.bind("127.0.0.1", 0);
   ASSERT_TRUE(bind_result.has_value());
 
-  // Note: For ephemeral port (0), we need to get the actual assigned port
-  // For this test, we'll use a fixed port instead
+  
+  
   auto receiver2_result = UdpSocket::create();
   ASSERT_TRUE(receiver2_result.has_value());
   UdpSocket receiver2 = std::move(*receiver2_result);
 
-  // Try to bind to a specific high port (to avoid conflicts)
+  
   uint16_t test_port = 19999;
   auto bind_result2 = receiver2.bind("127.0.0.1", test_port);
   if (!bind_result2.has_value())
   {
-    // Port might be in use, try another one
+    
     test_port = 20000;
     bind_result2 = receiver2.bind("127.0.0.1", test_port);
   }
   ASSERT_TRUE(bind_result2.has_value());
 
-  // Send data
+  
   std::vector<uint8_t> test_data = { 0xde, 0xad, 0xbe, 0xef };
   Endpoint dest("127.0.0.1", test_port);
   auto send_result = sender.send_to(test_data, dest);
   ASSERT_TRUE(send_result.has_value());
   EXPECT_EQ(*send_result, test_data.size());
 
-  // Receive data
+  
   auto recv_result = receiver2.receive_from(1024);
   ASSERT_TRUE(recv_result.has_value());
 
@@ -249,14 +249,14 @@ TEST(UdpSocketTest, SendAndReceiveWithPointer)
   }
   ASSERT_TRUE(bind_result.has_value());
 
-  // Send using raw pointer
+  
   uint8_t test_data[] = { 0x01, 0x02, 0x03, 0x04 };
   Endpoint dest("127.0.0.1", test_port);
   auto send_result = sender.send_to(test_data, sizeof(test_data), dest);
   ASSERT_TRUE(send_result.has_value());
   EXPECT_EQ(*send_result, sizeof(test_data));
 
-  // Receive
+  
   auto recv_result = receiver.receive_from(1024);
   ASSERT_TRUE(recv_result.has_value());
 
@@ -288,7 +288,7 @@ TEST(UdpSocketTest, ExplicitClose)
   EXPECT_FALSE(socket.is_valid());
   EXPECT_FALSE(socket.local_endpoint().is_valid());
 
-  // Closing again should be safe
+  
   socket.close();
   EXPECT_FALSE(socket.is_valid());
 }

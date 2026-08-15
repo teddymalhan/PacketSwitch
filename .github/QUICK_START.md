@@ -44,43 +44,43 @@ git push origin main
 ### Before Every Commit
 
 ```bash
-# 1. Format your code
+
 make format
 
-# 2. Run tests locally
+
 cd build && ctest -C Debug -VV
 
-# 3. (Optional) Run full local CI simulation
+
 ./scripts/test-ci-locally.sh
 ```
 
 ### Creating a Pull Request
 
 ```bash
-# 1. Create feature branch
+
 git checkout -b feature/my-feature
 
-# 2. Make changes and commit
+
 git add .
 git commit -m "feat: add new feature"
 
-# 3. Push to GitHub
+
 git push origin feature/my-feature
 
-# 4. Create PR on GitHub
-# Quick Check will run automatically (~3 minutes)
 
-# 5. Wait for checks to pass
-# Request review once green ✓
+
+
+
+
 ```
 
 ### If CI Fails
 
 ```bash
-# 1. Check which job failed on GitHub Actions tab
-# 2. Read the error logs
-# 3. Fix locally
-# 4. Push fix - CI reruns automatically
+
+
+
+
 ```
 
 ## 🔧 Common Commands
@@ -88,7 +88,7 @@ git push origin feature/my-feature
 ### Format Code
 ```bash
 make format
-# or
+
 cmake --build build --target clang-format
 ```
 

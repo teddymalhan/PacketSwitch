@@ -87,8 +87,8 @@ jobs:
         cd build
         ctest -C "$env:BUILD_TYPE" -VV
 
-    # for a release not containing directly the source code, replace the files archived
-    # with the actual files needed (i.e. *.lib/*.a and *.h(pp))
+
+
 
     - name: generate archive (Windows)
       if: ${{ runner.os == 'Windows' }}
@@ -131,12 +131,12 @@ jobs:
       id: create_release
       uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
         release_name: Release ${{ steps.version.outputs.name }}
-        # if needed, you can set the release body here
-        #body: "Release notes"
+
+
         draft: false
         prerelease: false
 

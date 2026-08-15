@@ -1,15 +1,15 @@
-/**
- * @file vswitch_main.cpp
- * @brief VSwitch application - Virtual Switch for Layer 2 networking
- *
- * This application implements a learning switch that:
- * - Receives Ethernet frames from VPorts
- * - Learns MAC addresses from incoming frames
- * - Forwards frames based on MAC table
- * - Handles broadcast frames
- *
- * Usage: vswitch <port>
- */
+
+
+
+
+
+
+
+
+
+
+
+
 
 #include <csignal>
 #include <cstdlib>
@@ -18,12 +18,12 @@
 
 #include "project/vswitch.hpp"
 
-// Global VSwitch pointer for signal handler
+
 std::unique_ptr<project::VSwitch> g_vswitch;
 
-/**
- * @brief Signal handler for graceful shutdown
- */
+
+
+
 void signal_handler(int signal)
 {
   std::cout << "\n[VSwitch] Received signal " << signal << ", shutting down...\n";
@@ -35,18 +35,18 @@ void signal_handler(int signal)
   std::exit(0);
 }
 
-/**
- * @brief Setup signal handlers for graceful shutdown
- */
+
+
+
 void setup_signal_handlers()
 {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 }
 
-/**
- * @brief Print usage information
- */
+
+
+
 void print_usage(const char* program_name)
 {
   std::cerr << "Usage: " << program_name << " <port>\n";
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 {
   std::cout << "=== VSwitch - Virtual Switch for Layer 2 Networking ===\n\n";
 
-  // Parse command-line arguments
+  
   if (argc != 2)
   {
     print_usage(argv[0]);
@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
 
   const char* port_str = argv[1];
 
-  // Parse port number
+  
   char* endptr;
   long port_long = std::strtol(port_str, &endptr, 10);
 
@@ -97,10 +97,10 @@ int main(int argc, char* argv[])
 
   try
   {
-    // Setup signal handlers for graceful shutdown
+    
     setup_signal_handlers();
 
-    // Create VSwitch instance
+    
     std::cout << "Creating VSwitch...\n";
     auto vswitch_result = project::VSwitch::create(port);
 
@@ -117,14 +117,14 @@ int main(int argc, char* argv[])
       return EXIT_FAILURE;
     }
 
-    // Move VSwitch to global pointer for signal handler
+    
     g_vswitch = std::make_unique<project::VSwitch>(std::move(*vswitch_result));
 
     std::cout << "\nVSwitch created successfully!\n";
     std::cout << "  Port: " << g_vswitch->port() << "\n";
     std::cout << "\n";
 
-    // Start processing
+    
     std::cout << "Starting frame processing...\n";
     auto start_result = g_vswitch->start();
 

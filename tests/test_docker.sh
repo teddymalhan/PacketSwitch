@@ -1,5 +1,5 @@
 #!/bin/bash
-# Docker test script for VPort ↔ VSwitch
+
 
 set -e
 

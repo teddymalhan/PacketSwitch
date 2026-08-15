@@ -1,8 +1,3 @@
-/**
- * @file vswitch.cpp
- * @brief Implementation of Virtual Switch
- */
-
 #include "project/vswitch.hpp"
 
 #include <iostream>
@@ -23,7 +18,6 @@ namespace project
 
   expected<VSwitch, VSwitchError> VSwitch::create(uint16_t port)
   {
-    // Create UDP socket
     auto socket_result = UdpSocket::create();
     if (!socket_result)
     {
@@ -32,7 +26,6 @@ namespace project
 
     UdpSocket socket = std::move(*socket_result);
 
-    // Bind to the specified port
     auto bind_result = socket.bind("0.0.0.0", port);
     if (!bind_result)
     {
@@ -86,18 +79,15 @@ namespace project
 
     while (running_.load())
     {
-      // Receive Ethernet frame from VPort
       auto recv_result = socket_.receive_from();
 
       if (!recv_result)
       {
-        // Log error and continue (could be a temporary issue)
         continue;
       }
 
       auto& [frame_data, sender_endpoint] = *recv_result;
 
-      // Process the frame (learn MAC, forward if applicable)
       process_frame(frame_data, sender_endpoint);
     }
 
@@ -120,29 +110,23 @@ namespace project
 
   void VSwitch::process_frame(const std::vector<uint8_t>& frame_data, const Endpoint& sender_endpoint)
   {
-    // Parse Ethernet frame
     auto frame = EthernetFrame::parse(frame_data);
 
-    // Log received frame
     std::cout << "[VSwitch] Received frame from " << sender_endpoint << ": dst=" << frame.dst_mac()
               << " src=" << frame.src_mac() << " size=" << frame_data.size() << "\n";
 
-    // 1. Learn source MAC → sender endpoint mapping
     bool is_new = mac_table_.insert(frame.src_mac(), sender_endpoint);
     if (is_new)
     {
       std::cout << "  [Learn] " << frame.src_mac() << " → " << sender_endpoint << "\n";
     }
 
-    // 2. Forward based on destination MAC
     const auto& dst_mac = frame.dst_mac();
 
-    // Check if destination is known
     auto dst_endpoint = mac_table_.lookup(dst_mac);
 
     if (dst_endpoint.has_value())
     {
-      // Unicast forward
       auto send_result = socket_.send_to(frame_data, *dst_endpoint);
       if (send_result)
       {
@@ -151,7 +135,6 @@ namespace project
     }
     else if (dst_mac.is_broadcast())
     {
-      // Broadcast to all known endpoints except source
       auto all_endpoints = mac_table_.get_all_endpoints_except(frame.src_mac());
 
       int sent_count = 0;
@@ -171,7 +154,6 @@ namespace project
     }
     else
     {
-      // Unknown unicast - discard
       log_frame(frame, sender_endpoint, "Discarded", "unknown MAC address");
     }
   }
@@ -186,4 +168,4 @@ namespace project
     std::cout << "\n";
   }
 
-}  // namespace project
+}  

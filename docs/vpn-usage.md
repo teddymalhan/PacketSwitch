@@ -31,17 +31,17 @@ This project implements a Layer 2 virtual private network (VPN) using modern C++
 ## Building
 
 ```bash
-# Configure
+
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-# Build
+
 cmake --build build
 
-# Build with tests
+
 cmake -B build -DCMAKE_BUILD_TYPE=Debug -DProject_ENABLE_UNIT_TESTING=ON
 cmake --build build
 
-# Run tests
+
 cd build && ctest -C Debug -VV
 ```
 
@@ -58,7 +58,7 @@ The VSwitch will bind to port 8080 and start listening for VPort connections.
 ### Start VPort
 
 ```bash
-# Requires root/sudo for TAP device creation
+
 sudo ./build/vport <VSWITCH_IP> <PORT> [TAP_DEVICE_NAME]
 ```
 
@@ -72,11 +72,11 @@ sudo ./build/vport 192.168.1.100 8080 tap0
 After VPort creates the TAP device:
 
 ```bash
-# Linux
+
 sudo ip addr add 10.1.1.101/24 dev tap0
 sudo ip link set tap0 up
 
-# macOS (utun interface)
+
 sudo ifconfig utun6 inet 10.1.1.101 netmask 255.255.255.0
 sudo ifconfig utun6 up
 ```
@@ -93,22 +93,22 @@ sudo ifconfig utun6 up
 2. **Terminal 2**: Start VPort 1
    ```bash
    sudo ./build/vport 127.0.0.1 8080
-   # Note the TAP device name (e.g., utun6, tap0)
+
    ```
 
 3. **Terminal 3**: Start VPort 2
    ```bash
    sudo ./build/vport 127.0.0.1 8080
-   # Note the TAP device name
+
    ```
 
 4. **Terminal 4**: Configure interfaces
    ```bash
-   # Get device names from VPort output
+
    sudo ip addr add 10.1.1.101/24 dev tap0
    sudo ip addr add 10.1.1.102/24 dev tap1
    
-   # Bring interfaces up
+
    sudo ip link set tap0 up
    sudo ip link set tap1 up
    ```
@@ -158,9 +158,9 @@ You should see:
 
 **Solution**: Choose a different port or check what's using the port:
 ```bash
-# Linux
+
 lsof -i :8080
-# macOS
+
 lsof -i :8080
 ```
 

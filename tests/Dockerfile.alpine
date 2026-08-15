@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-# Install build dependencies
+
 RUN apk add --no-cache \
     build-base \
     cmake \
@@ -9,6 +9,6 @@ RUN apk add --no-cache \
     bash \
     iproute2
 
-# Copy source code
+
 WORKDIR /app
 

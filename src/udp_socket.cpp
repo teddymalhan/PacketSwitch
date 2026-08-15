@@ -1,8 +1,3 @@
-/**
- * @file udp_socket.cpp
- * @brief Implementation of UDP socket wrapper
- */
-
 #include "project/udp_socket.hpp"
 
 #include <arpa/inet.h>
@@ -30,8 +25,7 @@ namespace project
     }
   }
 
-  // Endpoint implementation
-
+  
   std::string Endpoint::to_string() const
   {
     return address_ + ":" + std::to_string(port_);
@@ -43,7 +37,6 @@ namespace project
     return os;
   }
 
-  // UdpSocket implementation
 
   expected<UdpSocket, UdpError> UdpSocket::create()
   {
@@ -68,19 +61,19 @@ namespace project
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
 
-    // Convert address string to binary format
+    
     if (inet_pton(AF_INET, address.data(), &addr.sin_addr) != 1)
     {
       return unexpected(UdpError::AddressResolutionFailed);
     }
 
-    // Bind the socket
+    
     if (::bind(socket_.get(), reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0)
     {
       return unexpected(UdpError::BindFailed);
     }
 
-    // Store the local endpoint
+    
     local_endpoint_ = Endpoint(std::string(address), port);
 
     return expected<void, UdpError>();
@@ -103,7 +96,7 @@ namespace project
       return unexpected(UdpError::InvalidEndpoint);
     }
 
-    // Setup destination address
+    
     struct sockaddr_in dest_addr;
     std::memset(&dest_addr, 0, sizeof(dest_addr));
     dest_addr.sin_family = AF_INET;
@@ -114,7 +107,7 @@ namespace project
       return unexpected(UdpError::AddressResolutionFailed);
     }
 
-    // Send the data
+    
     ssize_t sent = ::sendto(socket_.get(), data, size, 0, reinterpret_cast<struct sockaddr*>(&dest_addr), sizeof(dest_addr));
 
     if (sent < 0)
@@ -127,7 +120,7 @@ namespace project
 
   expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError> UdpSocket::receive_from()
   {
-    // Default maximum UDP datagram size
+    
     constexpr size_t DEFAULT_MAX_SIZE = 65536;
     return receive_from(DEFAULT_MAX_SIZE);
   }
@@ -145,7 +138,7 @@ namespace project
     socklen_t sender_addr_len = sizeof(sender_addr);
     std::memset(&sender_addr, 0, sizeof(sender_addr));
 
-    // Receive data
+    
     ssize_t received = ::recvfrom(
         socket_.get(), buffer.data(), buffer.size(), 0, reinterpret_cast<struct sockaddr*>(&sender_addr), &sender_addr_len);
 
@@ -154,10 +147,10 @@ namespace project
       return unexpected(UdpError::ReceiveFailed);
     }
 
-    // Resize buffer to actual received size
+    
     buffer.resize(static_cast<size_t>(received));
 
-    // Extract sender endpoint
+    
     char sender_ip[INET_ADDRSTRLEN];
     if (inet_ntop(AF_INET, &sender_addr.sin_addr, sender_ip, INET_ADDRSTRLEN) == nullptr)
     {
@@ -169,4 +162,4 @@ namespace project
     return std::make_pair(std::move(buffer), sender_endpoint);
   }
 
-}  // namespace project
+}  

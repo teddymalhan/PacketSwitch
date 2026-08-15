@@ -105,11 +105,11 @@ sudo ./vport 127.0.0.1 8080 tap1
 ### Step 4: Configure TAP Devices (Terminal 4)
 
 ```bash
-# Configure first VPort
+
 sudo ifconfig utun6 inet 10.1.1.101 netmask 255.255.255.0
 sudo ifconfig utun6 up
 
-# Configure second VPort
+
 sudo ifconfig utun7 inet 10.1.1.102 netmask 255.255.255.0
 sudo ifconfig utun7 up
 ```
@@ -117,10 +117,10 @@ sudo ifconfig utun7 up
 ### Step 5: Test Connectivity
 
 ```bash
-# Ping from VPort 1 to VPort 2
+
 ping 10.1.1.102
 
-# Or from VPort 2 to VPort 1
+
 ping 10.1.1.101
 ```
 
@@ -226,28 +226,28 @@ docker run -it --rm \
 #### Configure and Test (Terminal 4)
 
 ```bash
-# Configure TAP devices
+
 docker exec vport1-test ip addr add 10.1.1.101/24 dev tap0
 docker exec vport1-test ip link set tap0 up
 
 docker exec vport2-test ip addr add 10.1.1.102/24 dev tap1
 docker exec vport2-test ip link set tap1 up
 
-# Ping
+
 docker exec vport1-test ping -c 3 10.1.1.102
 ```
 
 #### View Logs
 
 ```bash
-# VSwitch logs
+
 docker logs vswitch-test
 
-# VPort logs
+
 docker logs vport1-test
 docker logs vport2-test
 
-# Follow logs in real-time
+
 docker logs -f vswitch-test
 ```
 
@@ -268,10 +268,10 @@ Full system test with packet capture and verification.
 Monitor traffic on TAP devices:
 
 ```bash
-# macOS
+
 sudo tcpdump -i utun6
 
-# Linux
+
 sudo tcpdump -i tap0
 ```
 
@@ -282,32 +282,32 @@ sudo tcpdump -i tap0
 Send pings between VPorts:
 
 ```bash
-# From VPort 1
+
 ping -c 10 10.1.1.102
 
-# Verify in VSwitch logs:
-# Should see [Learn] entries
-# Should see [Forwarded] entries
+
+
+
 ```
 
 #### 2. Broadcast Test
 
 ```bash
-# Ping broadcast address
+
 ping -b 10.1.1.255
 
-# Verify in VSwitch logs:
-# Should see [Broadcasted] entries
+
+
 ```
 
 #### 3. MAC Learning Test
 
 ```bash
-# Generate traffic from multiple VPorts
-# Check VSwitch MAC table:
 
-docker exec vswitch-test cat /proc/net/arp  # Linux
-# or check VSwitch logs for [Learn] entries
+
+
+docker exec vswitch-test cat /proc/net/arp
+
 ```
 
 ### Load Testing
@@ -315,10 +315,10 @@ docker exec vswitch-test cat /proc/net/arp  # Linux
 Generate high traffic:
 
 ```bash
-# High-rate ping
-ping -i 0.1 10.1.1.102  # 10 pings per second
 
-# Continuous traffic
+ping -i 0.1 10.1.1.102
+
+
 while true; do
     ping -c 1 10.1.1.102
     sleep 0.1
@@ -329,7 +329,7 @@ Monitor CPU and memory:
 
 ```bash
 top
-htop  # if available
+htop
 ```
 
 ---
@@ -389,13 +389,13 @@ export VPN_DEBUG=1
 ### Check TAP Devices
 
 ```bash
-# macOS
+
 ifconfig | grep utun
 
-# Linux
+
 ip link show | grep tap
 
-# Docker
+
 docker exec vport1-test ip link show
 ```
 
@@ -404,13 +404,13 @@ docker exec vport1-test ip link show
 Capture packets:
 
 ```bash
-# macOS
+
 sudo tcpdump -i any -n host 10.1.1.0/24
 
-# Linux
+
 sudo tcpdump -i any -n host 10.1.1.0/24
 
-# Docker
+
 docker exec vport1-test tcpdump -i tap0 -n
 ```
 
@@ -429,13 +429,13 @@ docker exec vport1-test tcpdump -i tap0 -n
 
 **Solution**:
 ```bash
-# Check what's using the port
+
 lsof -i :8080
 
-# Or
+
 netstat -an | grep 8080
 
-# Choose a different port
+
 ./vswitch 9000
 ```
 

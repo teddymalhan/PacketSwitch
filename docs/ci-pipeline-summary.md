@@ -117,27 +117,27 @@ Comprehensive documentation suite:
 
 ### Before Committing
 ```bash
-# 1. Format code
+
 make format
 
-# 2. Run tests
+
 cd build && ctest -C Debug -VV
 
-# 3. Optional: Full CI simulation
+
 ./scripts/test-ci-locally.sh
 ```
 
 ### Creating PRs
 ```bash
-# 1. Create and push feature branch
+
 git checkout -b feature/my-feature
 git push origin feature/my-feature
 
-# 2. Create PR on GitHub
-# Quick Check runs automatically
 
-# 3. Wait for green checkmarks ✓
-# Request review
+
+
+
+
 ```
 
 ## 📖 Documentation Guide
@@ -158,23 +158,23 @@ git push origin feature/my-feature
 ## 🔧 Useful Commands
 
 ```bash
-# Format code
+
 make format
 
-# Run tests locally
+
 cd build && ctest -C Release -VV
 
-# Build with static analysis
+
 cmake -B build -DProject_ENABLE_CLANG_TIDY=ON
 cmake --build build
 
-# Generate coverage report
+
 make coverage
 
-# Simulate CI locally
+
 ./scripts/test-ci-locally.sh
 
-# Skip CI for a commit
+
 git commit -m "docs: update [skip ci]"
 ```
 
@@ -294,19 +294,19 @@ Any Fail? → ✗ Fix Required
 ## ⚡ Quick Reference Card
 
 ```bash
-# Before commit
-make format                     # Format code
-cd build && ctest -VV           # Run tests
 
-# Local CI check
-./scripts/test-ci-locally.sh    # Full simulation
+make format
+cd build && ctest -VV
 
-# View CI status
-GitHub → Actions tab            # All runs
-PR page → Bottom                # Check status
 
-# Skip CI
-git commit -m "msg [skip ci]"   # Skip workflow
+./scripts/test-ci-locally.sh
+
+
+GitHub → Actions tab
+PR page → Bottom
+
+
+git commit -m "msg [skip ci]"
 ```
 
 ## 🎊 You're All Set!
