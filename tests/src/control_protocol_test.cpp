@@ -1,3 +1,5 @@
+#include <chrono>
+
 #include <gtest/gtest.h>
 
 #include "project/control_protocol.hpp"
@@ -54,6 +56,17 @@ namespace
     EXPECT_NE(json.find("\"event_sequence\":9"), std::string::npos);
     EXPECT_NE(json.find("\"received_packets\":10"), std::string::npos);
     EXPECT_NE(json.find("\"dropped_packets\":2"), std::string::npos);
+
+    project::FaultStateEvent fault_event;
+    fault_event.event_sequence = 10;
+    fault_event.topology_revision = 4;
+    fault_event.first_endpoint = "client-a";
+    fault_event.configuration.blackhole = true;
+    fault_event.active = true;
+    const auto fault_json = project::to_json(fault_event);
+    EXPECT_NE(fault_json.find("\"event\":\"fault_state_changed\""), std::string::npos);
+    EXPECT_NE(fault_json.find("\"first_endpoint\":\"client-a\""), std::string::npos);
+    EXPECT_NE(fault_json.find("\"blackhole\":true"), std::string::npos);
   }
 
   TEST(ControlProtocolTest, ParsesVersionedBenchmarkRequest)
@@ -98,5 +111,27 @@ namespace
       R"({"api_version":1,"request_id":"request","command":"get_switch_state","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":1,"duration_seconds":1,"seed":1}})");
     ASSERT_FALSE(unexpected_parameters.has_value());
     EXPECT_EQ(unexpected_parameters.error(), project::ControlParseError::InvalidField);
+  }
+  TEST(ControlProtocolTest, ParsesAndSerializesFaultCommands)
+  {
+    const auto parsed = project::control_request_from_json(
+        R"({"parameters":{"isolated":false,"port_id":"client-a","bandwidth_bits_per_second":1000000,"blackhole":false,"loss_basis_points":5,"latency_ms":3,"duplication_basis_points":7,"jitter_ms":1},"topology_revision":2,"command":"set_port_fault","request_id":"fault-1","api_version":1})");
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->command, project::ControlCommand::SetPortFault);
+    EXPECT_EQ(parsed->fault.port_id, "client-a");
+    EXPECT_EQ(parsed->fault.configuration.latency, std::chrono::milliseconds(3));
+    EXPECT_EQ(parsed->fault.configuration.jitter, std::chrono::milliseconds(1));
+    EXPECT_EQ(parsed->fault.configuration.loss_basis_points, 5U);
+    EXPECT_EQ(parsed->fault.configuration.duplication_basis_points, 7U);
+    EXPECT_EQ(parsed->fault.configuration.bandwidth_bits_per_second, 1000000U);
+    EXPECT_EQ(
+        project::to_json(parsed.value()),
+        R"({"api_version":1,"request_id":"fault-1","command":"set_port_fault","topology_revision":2,"parameters":{"port_id":"client-a","latency_ms":3,"jitter_ms":1,"loss_basis_points":5,"duplication_basis_points":7,"bandwidth_bits_per_second":1000000,"blackhole":false,"isolated":false}})");
+
+    const auto incomplete = project::control_request_from_json(
+        R"({"api_version":1,"request_id":"fault-2","command":"set_port_fault","topology_revision":2,"parameters":{"port_id":"client-a"}})");
+    ASSERT_FALSE(incomplete.has_value());
+    EXPECT_EQ(incomplete.error(), project::ControlParseError::MissingRequiredField);
   }
 }

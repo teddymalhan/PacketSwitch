@@ -1,3 +1,6 @@
+#include <chrono>
+#include <utility>
+
 #include <gtest/gtest.h>
 
 #include "project/control_service.hpp"
@@ -9,6 +12,20 @@ namespace
     auto created = project::VSwitch::create(0, project::VSwitchLogLevel::Frame);
     EXPECT_TRUE(created.has_value());
     return std::move(created.value());
+  }
+
+  project::Topology make_topology()
+  {
+    project::TopologyConfiguration configuration;
+    configuration.name = "security-lab";
+    configuration.nodes = { { "client-a", project::TopologyNodeType::Host },
+                            { "client-b", project::TopologyNodeType::Host },
+                            { "core-switch", project::TopologyNodeType::Switch } };
+    configuration.links = { { "client-a", "core-switch", std::chrono::milliseconds(1) },
+                            { "client-b", "core-switch", std::chrono::milliseconds(1) } };
+    auto topology = project::Topology::create(std::move(configuration));
+    EXPECT_TRUE(topology.has_value());
+    return std::move(topology.value());
   }
 
   TEST(ControlServiceTest, ReturnsAcknowledgementAndMetricsSnapshot)
@@ -56,5 +73,34 @@ namespace
     EXPECT_FALSE(result.reply.accepted);
     EXPECT_EQ(result.reply.error, "command is not implemented");
     EXPECT_FALSE(result.metrics_event.has_value());
+  }
+  TEST(ControlServiceTest, AppliesFaultCommandsAndPublishesStateChanges)
+  {
+    auto vswitch = make_switch();
+    project::TopologyController controller;
+    controller.load(make_topology());
+    project::ControlService service(vswitch, controller);
+
+    const auto set = service.dispatch(
+        R"({"api_version":1,"request_id":"fault-1","command":"set_port_fault","topology_revision":1,"parameters":{"port_id":"client-a","latency_ms":2,"jitter_ms":1,"loss_basis_points":0,"duplication_basis_points":0,"bandwidth_bits_per_second":0,"blackhole":true,"isolated":false}})");
+
+    ASSERT_TRUE(set.reply.accepted);
+    ASSERT_TRUE(set.fault_event.has_value());
+    EXPECT_EQ(set.reply.operation_id, "fault-set-1");
+    EXPECT_EQ(set.fault_event->first_endpoint, "client-a");
+    EXPECT_TRUE(set.fault_event->active);
+    EXPECT_TRUE(set.fault_event->configuration.blackhole);
+    ASSERT_TRUE(controller.active_faults().has_value());
+    EXPECT_EQ(controller.active_faults()->size(), 1U);
+
+    const auto clear = service.dispatch(
+        R"({"api_version":1,"request_id":"fault-2","command":"clear_port_fault","topology_revision":1,"parameters":{"port_id":"client-a"}})");
+
+    ASSERT_TRUE(clear.reply.accepted);
+    ASSERT_TRUE(clear.fault_event.has_value());
+    EXPECT_EQ(clear.reply.operation_id, "fault-cleared-2");
+    EXPECT_FALSE(clear.fault_event->active);
+    ASSERT_TRUE(controller.active_faults().has_value());
+    EXPECT_TRUE(controller.active_faults()->empty());
   }
 }

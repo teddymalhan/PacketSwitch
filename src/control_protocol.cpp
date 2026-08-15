@@ -1,5 +1,6 @@
 #include "project/control_protocol.hpp"
 
+#include <chrono>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -61,7 +62,7 @@ namespace project
           }
           else if (key == "parameters" && !has_parameters)
           {
-            has_parameters = read_benchmark(request.benchmark);
+            has_parameters = read_parameters(request);
           }
           else
           {
@@ -109,13 +110,20 @@ namespace project
         {
           return unexpected(ControlParseError::MissingRequiredField);
         }
-        if (request.command == ControlCommand::StartBenchmark && !has_parameters)
+        const bool requires_parameters = request.command == ControlCommand::StartBenchmark ||
+                                         request.command == ControlCommand::SetPortFault ||
+                                         request.command == ControlCommand::ClearPortFault ||
+                                         request.command == ControlCommand::SetLinkFault ||
+                                         request.command == ControlCommand::ClearLinkFault;
+        if (!has_parameters && requires_parameters)
         {
           return unexpected(ControlParseError::MissingRequiredField);
         }
-        if (request.command != ControlCommand::StartBenchmark && has_parameters)
+        if (has_parameters && !parameters_valid_for(request.command))
         {
-          return unexpected(ControlParseError::InvalidField);
+          return unexpected(
+              parameters_missing_required_for(request.command) ? ControlParseError::MissingRequiredField
+                                                              : ControlParseError::InvalidField);
         }
         return request;
       }
@@ -312,6 +320,10 @@ namespace project
         if (value == "get_switch_state") command = ControlCommand::GetSwitchState;
         else if (value == "start_benchmark") command = ControlCommand::StartBenchmark;
         else if (value == "stop_run") command = ControlCommand::StopRun;
+        else if (value == "set_port_fault") command = ControlCommand::SetPortFault;
+        else if (value == "clear_port_fault") command = ControlCommand::ClearPortFault;
+        else if (value == "set_link_fault") command = ControlCommand::SetLinkFault;
+        else if (value == "clear_link_fault") command = ControlCommand::ClearLinkFault;
         else
         {
           error_ = ControlParseError::InvalidField;
@@ -337,13 +349,40 @@ namespace project
         return true;
       }
 
-      bool read_benchmark(BenchmarkParameters& benchmark)
+      bool read_bool(bool& output) noexcept
       {
-        bool has_scenario = false;
-        bool has_backend = false;
-        bool has_batch_size = false;
-        bool has_duration = false;
-        bool has_seed = false;
+        skip_whitespace();
+        if (input_.substr(position_, 4) == "true")
+        {
+          position_ += 4;
+          output = true;
+          return true;
+        }
+        if (input_.substr(position_, 5) == "false")
+        {
+          position_ += 5;
+          output = false;
+          return true;
+        }
+        error_ = ControlParseError::InvalidField;
+        return false;
+      }
+
+      bool read_milliseconds(std::chrono::nanoseconds& output) noexcept
+      {
+        uint64_t milliseconds = 0;
+        if (!read_uint(milliseconds) ||
+            milliseconds > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+        {
+          error_ = ControlParseError::InvalidField;
+          return false;
+        }
+        output = std::chrono::milliseconds(milliseconds);
+        return true;
+      }
+
+      bool read_parameters(ControlRequest& request)
+      {
         if (!consume('{'))
         {
           return false;
@@ -351,8 +390,7 @@ namespace project
         skip_whitespace();
         if (consume('}'))
         {
-          error_ = ControlParseError::MissingRequiredField;
-          return false;
+          return true;
         }
 
         while (true)
@@ -362,39 +400,185 @@ namespace project
           {
             return false;
           }
-          if (key == "scenario" && !has_scenario) has_scenario = read_string(benchmark.scenario);
-          else if (key == "backend" && !has_backend) has_backend = read_backend(benchmark.backend);
-          else if (key == "batch_size" && !has_batch_size) has_batch_size = read_uint(benchmark.batch_size);
-          else if (key == "duration_seconds" && !has_duration) has_duration = read_uint(benchmark.duration_seconds);
-          else if (key == "seed" && !has_seed) has_seed = read_uint(benchmark.seed);
+          bool read = false;
+          if (key == "scenario" && !parameters_.scenario)
+          {
+            parameters_.scenario = true;
+            read = read_string(request.benchmark.scenario);
+          }
+          else if (key == "backend" && !parameters_.backend)
+          {
+            parameters_.backend = true;
+            read = read_backend(request.benchmark.backend);
+          }
+          else if (key == "batch_size" && !parameters_.batch_size)
+          {
+            parameters_.batch_size = true;
+            read = read_uint(request.benchmark.batch_size);
+          }
+          else if (key == "duration_seconds" && !parameters_.duration_seconds)
+          {
+            parameters_.duration_seconds = true;
+            read = read_uint(request.benchmark.duration_seconds);
+          }
+          else if (key == "seed" && !parameters_.seed)
+          {
+            parameters_.seed = true;
+            read = read_uint(request.benchmark.seed);
+          }
+          else if (key == "port_id" && !parameters_.port_id)
+          {
+            parameters_.port_id = true;
+            read = read_string(request.fault.port_id);
+          }
+          else if (key == "first_endpoint" && !parameters_.first_endpoint)
+          {
+            parameters_.first_endpoint = true;
+            read = read_string(request.fault.first_endpoint);
+          }
+          else if (key == "second_endpoint" && !parameters_.second_endpoint)
+          {
+            parameters_.second_endpoint = true;
+            read = read_string(request.fault.second_endpoint);
+          }
+          else if (key == "latency_ms" && !parameters_.latency)
+          {
+            parameters_.latency = true;
+            read = read_milliseconds(request.fault.configuration.latency);
+          }
+          else if (key == "jitter_ms" && !parameters_.jitter)
+          {
+            parameters_.jitter = true;
+            read = read_milliseconds(request.fault.configuration.jitter);
+          }
+          else if (key == "loss_basis_points" && !parameters_.loss)
+          {
+            parameters_.loss = true;
+            read = read_uint(request.fault.configuration.loss_basis_points);
+          }
+          else if (key == "duplication_basis_points" && !parameters_.duplication)
+          {
+            parameters_.duplication = true;
+            read = read_uint(request.fault.configuration.duplication_basis_points);
+          }
+          else if (key == "bandwidth_bits_per_second" && !parameters_.bandwidth)
+          {
+            parameters_.bandwidth = true;
+            read = read_uint(request.fault.configuration.bandwidth_bits_per_second);
+          }
+          else if (key == "blackhole" && !parameters_.blackhole)
+          {
+            parameters_.blackhole = true;
+            read = read_bool(request.fault.configuration.blackhole);
+          }
+          else if (key == "isolated" && !parameters_.isolated)
+          {
+            parameters_.isolated = true;
+            read = read_bool(request.fault.configuration.isolated);
+          }
           else
           {
             error_ = ControlParseError::InvalidField;
             return false;
           }
-          if (!has_scenario && key == "scenario") return false;
-          if (!has_backend && key == "backend") return false;
-          if (!has_batch_size && key == "batch_size") return false;
-          if (!has_duration && key == "duration_seconds") return false;
-          if (!has_seed && key == "seed") return false;
-
+          if (!read)
+          {
+            return false;
+          }
           skip_whitespace();
           if (consume('}'))
           {
-            break;
+            return true;
           }
           if (!consume(','))
           {
             return false;
           }
         }
-        if (!has_scenario || !has_backend || !has_batch_size || !has_duration || !has_seed)
-        {
-          error_ = ControlParseError::MissingRequiredField;
-          return false;
-        }
-        return true;
       }
+
+      bool parameters_valid_for(ControlCommand command) const noexcept
+      {
+        const bool benchmark = parameters_.scenario && parameters_.backend && parameters_.batch_size &&
+                               parameters_.duration_seconds && parameters_.seed;
+        const bool fault = parameters_.latency && parameters_.jitter && parameters_.loss &&
+                           parameters_.duplication && parameters_.bandwidth && parameters_.blackhole &&
+                           parameters_.isolated;
+        const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
+                                   parameters_.duration_seconds || parameters_.seed;
+        const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss ||
+                               parameters_.duplication || parameters_.bandwidth || parameters_.blackhole ||
+                               parameters_.isolated;
+        switch (command)
+        {
+          case ControlCommand::StartBenchmark:
+            return benchmark && !parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
+                   !has_fault;
+          case ControlCommand::SetPortFault:
+            return parameters_.port_id && fault && !parameters_.first_endpoint && !parameters_.second_endpoint &&
+                   !has_benchmark;
+          case ControlCommand::ClearPortFault:
+            return parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
+                   !has_benchmark && !has_fault;
+          case ControlCommand::SetLinkFault:
+            return parameters_.first_endpoint && parameters_.second_endpoint && fault && !parameters_.port_id &&
+                   !has_benchmark;
+          case ControlCommand::ClearLinkFault:
+            return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.port_id &&
+                   !has_benchmark && !has_fault;
+          case ControlCommand::GetSwitchState:
+          case ControlCommand::StopRun: return false;
+        }
+        return false;
+      }
+
+      bool parameters_missing_required_for(ControlCommand command) const noexcept
+      {
+        const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
+                                   parameters_.duration_seconds || parameters_.seed;
+        const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss ||
+                               parameters_.duplication || parameters_.bandwidth || parameters_.blackhole ||
+                               parameters_.isolated;
+        switch (command)
+        {
+          case ControlCommand::StartBenchmark:
+            return !parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
+                   !has_fault;
+          case ControlCommand::SetPortFault:
+            return parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
+                   !has_benchmark;
+          case ControlCommand::ClearPortFault:
+            return !has_benchmark && !has_fault && !parameters_.first_endpoint && !parameters_.second_endpoint;
+          case ControlCommand::SetLinkFault:
+            return !parameters_.port_id && !has_benchmark;
+          case ControlCommand::ClearLinkFault:
+            return !parameters_.port_id && !has_benchmark && !has_fault;
+          case ControlCommand::GetSwitchState:
+          case ControlCommand::StopRun: return false;
+        }
+        return false;
+      }
+
+      struct ParameterFields
+      {
+        bool scenario = false;
+        bool backend = false;
+        bool batch_size = false;
+        bool duration_seconds = false;
+        bool seed = false;
+        bool port_id = false;
+        bool first_endpoint = false;
+        bool second_endpoint = false;
+        bool latency = false;
+        bool jitter = false;
+        bool loss = false;
+        bool duplication = false;
+        bool bandwidth = false;
+        bool blackhole = false;
+        bool isolated = false;
+      };
+
+      ParameterFields parameters_;
 
       std::string_view input_;
       size_t position_ = 0;
@@ -452,6 +636,10 @@ namespace project
       case ControlCommand::GetSwitchState: return "get_switch_state";
       case ControlCommand::StartBenchmark: return "start_benchmark";
       case ControlCommand::StopRun: return "stop_run";
+      case ControlCommand::SetPortFault: return "set_port_fault";
+      case ControlCommand::ClearPortFault: return "clear_port_fault";
+      case ControlCommand::SetLinkFault: return "set_link_fault";
+      case ControlCommand::ClearLinkFault: return "clear_link_fault";
     }
     return "unknown";
   }
@@ -514,6 +702,36 @@ namespace project
              << ",\"duration_seconds\":" << request.benchmark.duration_seconds << ",\"seed\":" << request.benchmark.seed
              << '}';
     }
+    else if (request.command == ControlCommand::SetPortFault || request.command == ControlCommand::SetLinkFault)
+    {
+      const auto& fault = request.fault;
+      result << ",\"parameters\":{";
+      if (request.command == ControlCommand::SetPortFault)
+      {
+        result << "\"port_id\":" << json_string(fault.port_id);
+      }
+      else
+      {
+        result << "\"first_endpoint\":" << json_string(fault.first_endpoint)
+               << ",\"second_endpoint\":" << json_string(fault.second_endpoint);
+      }
+      result << ",\"latency_ms\":" << std::chrono::duration_cast<std::chrono::milliseconds>(fault.configuration.latency).count()
+             << ",\"jitter_ms\":" << std::chrono::duration_cast<std::chrono::milliseconds>(fault.configuration.jitter).count()
+             << ",\"loss_basis_points\":" << fault.configuration.loss_basis_points
+             << ",\"duplication_basis_points\":" << fault.configuration.duplication_basis_points
+             << ",\"bandwidth_bits_per_second\":" << fault.configuration.bandwidth_bits_per_second
+             << ",\"blackhole\":" << (fault.configuration.blackhole ? "true" : "false")
+             << ",\"isolated\":" << (fault.configuration.isolated ? "true" : "false") << '}';
+    }
+    else if (request.command == ControlCommand::ClearPortFault)
+    {
+      result << ",\"parameters\":{\"port_id\":" << json_string(request.fault.port_id) << '}';
+    }
+    else if (request.command == ControlCommand::ClearLinkFault)
+    {
+      result << ",\"parameters\":{\"first_endpoint\":" << json_string(request.fault.first_endpoint)
+             << ",\"second_endpoint\":" << json_string(request.fault.second_endpoint) << '}';
+    }
     result << '}';
     return result.str();
   }
@@ -548,6 +766,32 @@ namespace project
            << ",\"dropped_packets\":" << metrics.dropped_packets
            << ",\"malformed_packets\":" << metrics.malformed_packets << ",\"learned_macs\":" << metrics.learned_macs
            << "}}";
+    return result.str();
+  }
+  std::string to_json(const FaultStateEvent& event)
+  {
+    const auto& configuration = event.configuration;
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"fault_state_changed\""
+           << ",\"active\":" << (event.active ? "true" : "false")
+           << ",\"first_endpoint\":" << json_string(event.first_endpoint);
+    if (!event.second_endpoint.empty())
+    {
+      result << ",\"second_endpoint\":" << json_string(event.second_endpoint);
+    }
+    if (event.active)
+    {
+      result << ",\"configuration\":{\"latency_ms\":"
+             << std::chrono::duration_cast<std::chrono::milliseconds>(configuration.latency).count()
+             << ",\"jitter_ms\":" << std::chrono::duration_cast<std::chrono::milliseconds>(configuration.jitter).count()
+             << ",\"loss_basis_points\":" << configuration.loss_basis_points
+             << ",\"duplication_basis_points\":" << configuration.duplication_basis_points
+             << ",\"bandwidth_bits_per_second\":" << configuration.bandwidth_bits_per_second
+             << ",\"blackhole\":" << (configuration.blackhole ? "true" : "false")
+             << ",\"isolated\":" << (configuration.isolated ? "true" : "false") << '}';
+    }
+    result << '}';
     return result.str();
   }
 }

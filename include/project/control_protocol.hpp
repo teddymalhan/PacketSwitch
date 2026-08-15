@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-#include "project/expected.hpp"
+#include "project/fault_engine.hpp"
 #include "project/switch_metrics.hpp"
 
 namespace project
@@ -22,7 +22,11 @@ namespace project
   {
     GetSwitchState,
     StartBenchmark,
-    StopRun
+    StopRun,
+    SetPortFault,
+    ClearPortFault,
+    SetLinkFault,
+    ClearLinkFault
   };
 
   enum class ControlValidationError
@@ -48,6 +52,14 @@ namespace project
     uint64_t seed = 1;
   };
 
+  struct FaultParameters
+  {
+    std::string port_id;
+    std::string first_endpoint;
+    std::string second_endpoint;
+    FaultConfiguration configuration;
+  };
+
   struct ControlRequest
   {
     uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
@@ -55,6 +67,7 @@ namespace project
     ControlCommand command = ControlCommand::GetSwitchState;
     uint64_t topology_revision = 0;
     BenchmarkParameters benchmark;
+    FaultParameters fault;
   };
 
   struct ControlReply
@@ -74,6 +87,17 @@ namespace project
     SwitchMetricsSnapshot metrics;
   };
 
+  struct FaultStateEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    std::string first_endpoint;
+    std::string second_endpoint;
+    FaultConfiguration configuration;
+    bool active = false;
+  };
+
   [[nodiscard]] const char* to_string(AnalyzerBackend backend) noexcept;
   [[nodiscard]] const char* to_string(ControlCommand command) noexcept;
   [[nodiscard]] const char* to_string(ControlValidationError error) noexcept;
@@ -83,6 +107,7 @@ namespace project
   [[nodiscard]] std::string to_json(const ControlRequest& request);
   [[nodiscard]] std::string to_json(const ControlReply& reply);
   [[nodiscard]] std::string to_json(const SwitchMetricsEvent& event);
+  [[nodiscard]] std::string to_json(const FaultStateEvent& event);
 }
 
 #endif
