@@ -5,7 +5,9 @@
 #include <string>
 #include <string_view>
 
+#include "project/anomaly_detector.hpp"
 #include "project/fault_engine.hpp"
+#include "project/policy_engine.hpp"
 #include "project/switch_metrics.hpp"
 #include "project/topology.hpp"
 
@@ -117,6 +119,22 @@ namespace project
     std::vector<TopologyLink> links;
   };
 
+  struct AnomalyDetectedEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    AnomalyEvent anomaly;
+  };
+
+  struct PolicyActionEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    PolicyDecision decision;
+  };
+
   [[nodiscard]] const char* to_string(AnalyzerBackend backend) noexcept;
   [[nodiscard]] const char* to_string(ControlCommand command) noexcept;
   [[nodiscard]] const char* to_string(ControlValidationError error) noexcept;
@@ -128,6 +146,8 @@ namespace project
   [[nodiscard]] std::string to_json(const SwitchMetricsEvent& event);
   [[nodiscard]] std::string to_json(const FaultStateEvent& event);
   [[nodiscard]] std::string to_json(const TopologyStateEvent& event);
+  [[nodiscard]] std::string to_json(const AnomalyDetectedEvent& event);
+  [[nodiscard]] std::string to_json(const PolicyActionEvent& event);
 }
 
 #endif

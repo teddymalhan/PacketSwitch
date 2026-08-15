@@ -159,6 +159,36 @@ namespace
               "{\"api_version\":1,\"event_sequence\":12,\"topology_revision\":3,\"event\":\"topology_loaded\",\"name\":\"security-lab\",\"nodes\":[{\"id\":\"client-a\",\"type\":\"host\"},{\"id\":\"core-switch\",\"type\":\"switch\"}],\"links\":[{\"from\":\"client-a\",\"to\":\"core-switch\",\"latency_ms\":1}]}");
   }
 
+  TEST(ControlProtocolTest, SerializesAnomalyAndPolicyActionEvents)
+  {
+    project::AnomalyDetectedEvent anomaly_event;
+    anomaly_event.event_sequence = 13;
+    anomaly_event.topology_revision = 3;
+    anomaly_event.anomaly.type = project::AnomalyType::UdpFlood;
+    anomaly_event.anomaly.source_mac = project::MacAddress::from_string("00:11:22:33:44:55");
+    anomaly_event.anomaly.source_ipv4 = 0xC0A80101;
+    anomaly_event.anomaly.ingress_port = 7;
+    anomaly_event.anomaly.observed_packets = 51'000;
+    anomaly_event.anomaly.observed_bytes = 4'080'000;
+    anomaly_event.anomaly.threshold = 50'000;
+    anomaly_event.anomaly.window_duration_ns = 1'000'000'000;
+
+    EXPECT_EQ(project::to_json(anomaly_event),
+              "{\"api_version\":1,\"event_sequence\":13,\"topology_revision\":3,\"event\":\"anomaly_detected\",\"anomaly\":{\"type\":\"udp_flood\",\"source_mac\":\"00:11:22:33:44:55\",\"source_ipv4\":3232235777,\"ingress_port\":7,\"observed_packets\":51000,\"observed_bytes\":4080000,\"observed_distinct_destinations\":0,\"threshold\":50000,\"window_duration_ns\":1000000000}}");
+
+    project::PolicyActionEvent policy_event;
+    policy_event.event_sequence = 14;
+    policy_event.topology_revision = 3;
+    policy_event.decision.rule_name = "contain-udp-flood";
+    policy_event.decision.action = project::PolicyAction::RateLimit;
+    policy_event.decision.hit_count = 2;
+    policy_event.decision.rate_limit_packets_per_second = 50'000;
+    policy_event.decision.anomaly = anomaly_event.anomaly;
+
+    EXPECT_EQ(project::to_json(policy_event),
+              "{\"api_version\":1,\"event_sequence\":14,\"topology_revision\":3,\"event\":\"policy_action\",\"rule_name\":\"contain-udp-flood\",\"action\":\"rate_limit\",\"hit_count\":2,\"rate_limit_packets_per_second\":50000,\"anomaly\":{\"type\":\"udp_flood\",\"source_mac\":\"00:11:22:33:44:55\",\"source_ipv4\":3232235777,\"ingress_port\":7,\"observed_packets\":51000,\"observed_bytes\":4080000,\"observed_distinct_destinations\":0,\"threshold\":50000,\"window_duration_ns\":1000000000}}");
+  }
+
   TEST(ControlProtocolTest, ParsesAndSerializesFaultCommands)
   {
     const auto parsed = project::control_request_from_json(

@@ -635,6 +635,33 @@ namespace project
       return result.str();
     }
 
+    const char* anomaly_type_name(AnomalyType type) noexcept
+    {
+      switch (type)
+      {
+        case AnomalyType::BroadcastStorm: return "broadcast_storm";
+        case AnomalyType::MacFlap: return "mac_flap";
+        case AnomalyType::UnknownUnicastFlood: return "unknown_unicast_flood";
+        case AnomalyType::UdpFlood: return "udp_flood";
+        case AnomalyType::PortScan: return "port_scan";
+        case AnomalyType::HotTalker: return "hot_talker";
+        case AnomalyType::MalformedFrame: return "malformed_frame";
+      }
+      return "unknown";
+    }
+
+    void append_anomaly_json(std::ostringstream& result, const AnomalyEvent& anomaly)
+    {
+      result << "{\"type\":" << json_string(anomaly_type_name(anomaly.type))
+             << ",\"source_mac\":" << json_string(anomaly.source_mac.to_string())
+             << ",\"source_ipv4\":" << anomaly.source_ipv4 << ",\"ingress_port\":" << anomaly.ingress_port
+             << ",\"observed_packets\":" << anomaly.observed_packets
+             << ",\"observed_bytes\":" << anomaly.observed_bytes
+             << ",\"observed_distinct_destinations\":" << anomaly.observed_distinct_destinations
+             << ",\"threshold\":" << anomaly.threshold
+             << ",\"window_duration_ns\":" << anomaly.window_duration_ns << '}';
+    }
+
     bool is_valid_benchmark(const BenchmarkParameters& benchmark) noexcept
     {
       constexpr uint32_t MAX_BATCH_SIZE = 8192;
@@ -842,4 +869,28 @@ namespace project
     result << "]}";
     return result.str();
   }
+  std::string to_json(const AnomalyDetectedEvent& event)
+  {
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"anomaly_detected\",\"anomaly\":";
+    append_anomaly_json(result, event.anomaly);
+    result << '}';
+    return result.str();
+  }
+
+  std::string to_json(const PolicyActionEvent& event)
+  {
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"policy_action\",\"rule_name\":"
+           << json_string(event.decision.rule_name) << ",\"action\":" << json_string(to_string(event.decision.action))
+           << ",\"hit_count\":" << event.decision.hit_count
+           << ",\"rate_limit_packets_per_second\":" << event.decision.rate_limit_packets_per_second
+           << ",\"anomaly\":";
+    append_anomaly_json(result, event.decision.anomaly);
+    result << '}';
+    return result.str();
+  }
+
 }
