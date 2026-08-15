@@ -6,6 +6,7 @@ set(sources
     src/vport.cpp
     src/mac_table.cpp
     src/vswitch.cpp
+    src/traffic_generator.cpp
 )
 
 
@@ -19,6 +20,7 @@ set(headers
     include/project/vport.hpp
     include/project/mac_table.hpp
     include/project/vswitch.hpp
+    include/project/traffic_generator.hpp
 )
 
 set(test_sources
@@ -30,4 +32,5 @@ set(test_sources
   src/udp_socket_test.cpp
   src/mac_table_test.cpp
   src/integration_test.cpp
+  src/traffic_generator_test.cpp
 )

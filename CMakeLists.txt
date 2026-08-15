@@ -183,8 +183,12 @@ target_compile_features(vport PRIVATE cxx_std_17)
 add_executable(vswitch src/vswitch_main.cpp)
 target_link_libraries(vswitch PRIVATE ${PROJECT_NAME})
 target_compile_features(vswitch PRIVATE cxx_std_17)
+
+add_executable(wirelab_bench src/wirelab_bench.cpp)
+target_link_libraries(wirelab_bench PRIVATE ${PROJECT_NAME})
+target_compile_features(wirelab_bench PRIVATE cxx_std_17)
 set_target_properties(
-  vport vswitch
+  vport vswitch wirelab_bench
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
 )
@@ -207,6 +211,7 @@ install(
   ${PROJECT_NAME}
   vport
   vswitch
+  wirelab_bench
   EXPORT
   ${PROJECT_NAME}Targets
   LIBRARY DESTINATION
