@@ -16,7 +16,9 @@ namespace project
     MacFlap,
     UnknownUnicastFlood,
     UdpFlood,
-    PortScan
+    PortScan,
+    HotTalker,
+    MalformedFrame
   };
 
   struct AnomalyDetectorConfig
@@ -27,6 +29,9 @@ namespace project
     uint64_t unknown_unicast_packets_threshold = 0;
     uint64_t udp_packets_threshold = 0;
     uint64_t port_scan_destinations_threshold = 0;
+    uint64_t hot_talker_packets_threshold = 0;
+    uint64_t malformed_frames_threshold = 0;
+
   };
 
   struct AnomalyEvent
@@ -69,6 +74,7 @@ namespace project
       AnomalyType type = AnomalyType::BroadcastStorm;
       MacAddress source_mac;
       uint32_t source_ipv4 = 0;
+      uint32_t ingress_port = 0;
 
       [[nodiscard]] bool operator<(const ActiveAnomaly& other) const noexcept;
     };

@@ -25,7 +25,11 @@ namespace project
       {
         return first.source_mac < second.source_mac;
       }
-      return first.source_ipv4 < second.source_ipv4;
+      if (first.source_ipv4 != second.source_ipv4)
+      {
+        return first.source_ipv4 < second.source_ipv4;
+      }
+      return first.ingress_port < second.ingress_port;
     }
   }
 
@@ -47,7 +51,11 @@ namespace project
     {
       return source_mac < other.source_mac;
     }
-    return source_ipv4 < other.source_ipv4;
+    if (source_ipv4 != other.source_ipv4)
+    {
+      return source_ipv4 < other.source_ipv4;
+    }
+    return ingress_port < other.ingress_port;
   }
 
   std::vector<AnomalyEvent> AnomalyDetector::evaluate(const AnalysisBatch& batch, uint64_t timestamp_ns)
@@ -72,6 +80,8 @@ namespace project
     std::map<uint32_t, TrafficCounter> udp_sources;
     std::map<uint32_t, std::set<uint16_t>> scan_destinations;
     std::map<MacAddress, std::vector<uint32_t>> ingress_ports;
+    std::map<MacAddress, TrafficCounter> source_traffic;
+    std::map<uint32_t, TrafficCounter> malformed_ingress_ports;
 
     for (const auto& observation : observations_)
     {
@@ -101,6 +111,18 @@ namespace project
       if (observation.classification != PacketClassification::Malformed)
       {
         ingress_ports[observation.source_mac].push_back(observation.ingress_port);
+      }
+      if (observation.validity == PacketValidity::Valid)
+      {
+        auto& counter = source_traffic[observation.source_mac];
+        ++counter.packets;
+        counter.bytes += observation.frame_length;
+      }
+      else
+      {
+        auto& counter = malformed_ingress_ports[observation.ingress_port];
+        ++counter.packets;
+        counter.bytes += observation.frame_length;
       }
     }
 
@@ -152,13 +174,24 @@ namespace project
       add_candidate(AnomalyType::MacFlap, source_mac, 0, ports.empty() ? 0 : ports.back(), transitions, 0, 0,
                     config_.mac_flap_transitions_threshold);
     }
+    for (const auto& [source_mac, counter] : source_traffic)
+    {
+      add_candidate(AnomalyType::HotTalker, source_mac, 0, 0, counter.packets, counter.bytes, 0,
+                    config_.hot_talker_packets_threshold);
+    }
+    for (const auto& [ingress_port, counter] : malformed_ingress_ports)
+    {
+      add_candidate(AnomalyType::MalformedFrame, MacAddress(), 0, ingress_port, counter.packets, counter.bytes,
+                    0, config_.malformed_frames_threshold);
+    }
 
     std::sort(candidates.begin(), candidates.end(), event_less);
     std::set<ActiveAnomaly> current_anomalies;
     std::vector<AnomalyEvent> events;
     for (const auto& candidate : candidates)
     {
-      const ActiveAnomaly active{ candidate.type, candidate.source_mac, candidate.source_ipv4 };
+      const ActiveAnomaly active{ candidate.type, candidate.source_mac, candidate.source_ipv4,
+                                  candidate.ingress_port };
       current_anomalies.insert(active);
       if (active_anomalies_.find(active) == active_anomalies_.end())
       {

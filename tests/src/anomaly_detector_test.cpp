@@ -33,6 +33,8 @@ namespace
     config.unknown_unicast_packets_threshold = 2;
     config.udp_packets_threshold = 2;
     config.port_scan_destinations_threshold = 2;
+    config.hot_talker_packets_threshold = 0;
+    config.malformed_frames_threshold = 0;
     return config;
   }
 
@@ -94,6 +96,41 @@ namespace
     EXPECT_TRUE(detector.evaluate(project::AnalysisBatch(), 500).empty());
     EXPECT_TRUE(detector.evaluate(project::AnalysisBatch(), 1'001).empty());
     ASSERT_EQ(detector.evaluate(batch, 1'002).size(), 1U);
+  }
+
+  TEST(AnomalyDetectorTest, DetectsHotTalkersAndMalformedFramesPerIngressPort)
+  {
+    const project::MacAddress hot_talker({ 0, 0, 0, 0, 0, 9 });
+    project::AnalysisBatch batch;
+    for (size_t index = 0; index < 3; ++index)
+    {
+      batch.packets.push_back(packet(project::PacketClassification::KnownUnicast, hot_talker, 0xc0000209U, 1));
+    }
+    batch.packets.push_back(packet(project::PacketClassification::Malformed, project::MacAddress(), 0, 0, 0, 7));
+    batch.packets.push_back(packet(project::PacketClassification::Malformed, project::MacAddress(), 0, 0, 0, 7));
+    batch.packets.push_back(packet(project::PacketClassification::Malformed, project::MacAddress(), 0, 0, 0, 8));
+
+    auto config = configured_detector();
+    config.broadcast_packets_threshold = 0;
+    config.mac_flap_transitions_threshold = 0;
+    config.unknown_unicast_packets_threshold = 0;
+    config.udp_packets_threshold = 0;
+    config.port_scan_destinations_threshold = 0;
+    config.hot_talker_packets_threshold = 2;
+    config.malformed_frames_threshold = 1;
+
+    project::AnomalyDetector detector(config);
+    const auto events = detector.evaluate(batch, 0);
+
+    ASSERT_EQ(events.size(), 2U);
+    EXPECT_EQ(events[0].type, project::AnomalyType::HotTalker);
+    EXPECT_EQ(events[0].source_mac, hot_talker);
+    EXPECT_EQ(events[0].observed_packets, 3U);
+    EXPECT_EQ(events[0].observed_bytes, 180U);
+    EXPECT_EQ(events[1].type, project::AnomalyType::MalformedFrame);
+    EXPECT_EQ(events[1].ingress_port, 7U);
+    EXPECT_EQ(events[1].observed_packets, 2U);
+    EXPECT_EQ(events[1].observed_bytes, 120U);
   }
 
   TEST(AnomalyDetectorTest, RejectsInvalidWindowAndOutOfOrderTimestamps)
