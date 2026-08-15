@@ -1,11 +1,12 @@
 #ifndef PROJECT_TOPOLOGY_HPP_
 #define PROJECT_TOPOLOGY_HPP_
 
+#include <cstdint>
 #include <chrono>
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
-
 #include "project/expected.hpp"
 
 namespace project
@@ -29,6 +30,22 @@ namespace project
     DuplicateLink,
     InvalidLinkShape,
     NegativeLatency
+  };
+
+  enum class TopologyYamlError
+  {
+    FileRead,
+    MalformedDocument,
+    MissingNetwork,
+    MissingNetworkName,
+    MissingNodes,
+    MissingLinks,
+    InvalidTopLevelKey,
+    InvalidNetworkField,
+    InvalidNodeField,
+    InvalidLinkField,
+    InvalidNodeType,
+    InvalidLatency
   };
 
   struct TopologyNode
@@ -71,6 +88,10 @@ namespace project
 
   [[nodiscard]] const char* to_string(TopologyNodeType type) noexcept;
   [[nodiscard]] const char* to_string(TopologyValidationError error) noexcept;
+  [[nodiscard]] const char* to_string(TopologyYamlError error) noexcept;
+  [[nodiscard]] expected<TopologyConfiguration, TopologyYamlError> topology_configuration_from_yaml(std::string_view yaml);
+  [[nodiscard]] expected<TopologyConfiguration, TopologyYamlError> topology_configuration_from_yaml_file(
+      const std::string& path);
 }
 
 #endif

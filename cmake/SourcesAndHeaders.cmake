@@ -11,6 +11,7 @@ set(sources
     src/control_protocol.cpp
     src/control_service.cpp
     src/topology.cpp
+    src/topology_yaml.cpp
 )
 
 
@@ -45,4 +46,5 @@ set(test_sources
   src/control_protocol_test.cpp
   src/control_service_test.cpp
   src/topology_test.cpp
+  src/topology_yaml_test.cpp
 )

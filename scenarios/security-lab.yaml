@@ -1,0 +1,13 @@
+network:
+  name: security-lab
+
+nodes:
+  - { id: client-a, type: host }
+  - { id: client-b, type: host }
+  - { id: dns-server, type: host }
+  - { id: core-switch, type: switch }
+
+links:
+  - { from: client-a, to: core-switch, latency_ms: 1 }
+  - { from: client-b, to: core-switch, latency_ms: 1 }
+  - { from: dns-server, to: core-switch, latency_ms: 2 }
