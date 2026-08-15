@@ -134,6 +134,25 @@ namespace project
       traffic.resize(output_index);
     }
 
+    void rank_mac_traffic(std::vector<MacTrafficRecord>& traffic)
+    {
+      std::sort(
+          traffic.begin(), traffic.end(), [](const MacTrafficRecord& first, const MacTrafficRecord& second) {
+            if (first.byte_count != second.byte_count) return first.byte_count > second.byte_count;
+            if (first.packet_count != second.packet_count) return first.packet_count > second.packet_count;
+            return first.mac < second.mac;
+          });
+    }
+
+    void rank_flows(std::vector<FlowRecord>& flows)
+    {
+      std::sort(flows.begin(), flows.end(), [](const FlowRecord& first, const FlowRecord& second) {
+        if (first.byte_count != second.byte_count) return first.byte_count > second.byte_count;
+        if (first.packet_count != second.packet_count) return first.packet_count > second.packet_count;
+        return flow_key_less(first, second);
+      });
+    }
+
     void aggregate_traffic_matrix(std::vector<TrafficMatrixEntry>& matrix)
     {
       std::sort(
@@ -351,6 +370,9 @@ namespace project
     aggregate_mac_traffic(batch.source_mac_traffic);
     aggregate_mac_traffic(batch.destination_mac_traffic);
     aggregate_traffic_matrix(batch.mac_traffic_matrix);
+    rank_mac_traffic(batch.source_mac_traffic);
+    rank_mac_traffic(batch.destination_mac_traffic);
+    rank_flows(batch.flows);
     return batch;
   }
 

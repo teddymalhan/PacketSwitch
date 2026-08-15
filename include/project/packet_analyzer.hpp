@@ -111,10 +111,13 @@ namespace project
     std::vector<HistogramEntry> protocol_histogram;
     std::vector<HistogramEntry> destination_port_histogram;
     std::vector<PacketAnalysis> packets;
-    std::vector<FlowRecord> flows;
+    // Ranked by byte count, packet count, then MAC address.
     std::vector<MacTrafficRecord> source_mac_traffic;
+    // Ranked by byte count, packet count, then MAC address.
     std::vector<MacTrafficRecord> destination_mac_traffic;
     std::vector<TrafficMatrixEntry> mac_traffic_matrix;
+    // Ranked by byte count, packet count, then five-tuple.
+    std::vector<FlowRecord> flows;
     uint64_t received_packets = 0;
     uint64_t received_bytes = 0;
     uint64_t malformed_packets = 0;

@@ -216,17 +216,17 @@ namespace
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.flows.size(), 2U);
-    EXPECT_EQ(result.flows[0].key.source_port, 80);
-    EXPECT_EQ(result.flows[0].key.destination_port, 443);
-    EXPECT_EQ(result.flows[0].packet_count, 1U);
-    EXPECT_EQ(result.flows[0].byte_count, different_flow.size());
-    EXPECT_EQ(result.flows[1].key.source_port, 8080);
-    EXPECT_EQ(result.flows[1].key.destination_port, 53);
-    EXPECT_EQ(result.flows[1].packet_count, 2U);
-    EXPECT_EQ(result.flows[1].byte_count, first.size() + second.size());
+    EXPECT_EQ(result.flows[0].key.source_port, 8080);
+    EXPECT_EQ(result.flows[0].key.destination_port, 53);
+    EXPECT_EQ(result.flows[0].packet_count, 2U);
+    EXPECT_EQ(result.flows[0].byte_count, first.size() + second.size());
+    EXPECT_EQ(result.flows[1].key.source_port, 80);
+    EXPECT_EQ(result.flows[1].key.destination_port, 443);
+    EXPECT_EQ(result.flows[1].packet_count, 1U);
+    EXPECT_EQ(result.flows[1].byte_count, different_flow.size());
     EXPECT_NE(result.flows[0].flow_hash, result.flows[1].flow_hash);
     EXPECT_EQ(result.packets[0].flow_hash, result.packets[1].flow_hash);
-    EXPECT_EQ(result.packets[0].flow_hash, result.flows[1].flow_hash);
+    EXPECT_EQ(result.packets[0].flow_hash, result.flows[0].flow_hash);
     ASSERT_EQ(result.frame_size_histogram.size(), 7U);
     const auto frame_bucket = std::find_if(
         result.frame_size_histogram.begin(), result.frame_size_histogram.end(),
@@ -303,5 +303,36 @@ namespace
     EXPECT_EQ(result.mac_traffic_matrix[2].destination_mac, destination_a);
     EXPECT_EQ(result.mac_traffic_matrix[2].packet_count, 1U);
     EXPECT_EQ(result.mac_traffic_matrix[2].byte_count, third.size());
+  }
+
+  TEST(CpuPacketAnalyzerTest, RanksMacTrafficByBytesPacketsAndMacAddress)
+  {
+    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 });
+    const project::MacAddress source_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const project::MacAddress source_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const project::MacAddress source_c({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x03 });
+    const auto first_a = ethernet_frame(destination, source_a, project::EtherType::ARP);
+    const auto second_a = ethernet_frame(destination, source_a, project::EtherType::ARP);
+    auto from_b = ethernet_frame(destination, source_b, project::EtherType::ARP);
+    auto from_c = ethernet_frame(destination, source_c, project::EtherType::ARP);
+    from_b.resize(from_b.size() + 15);
+    from_c.resize(from_c.size() + 15);
+    const std::array<project::PacketView, 4> packets = {
+      project::PacketView{ first_a.data(), first_a.size() },
+      project::PacketView{ second_a.data(), second_a.size() },
+      project::PacketView{ from_c.data(), from_c.size() },
+      project::PacketView{ from_b.data(), from_b.size() },
+    };
+
+    project::CpuPacketAnalyzer analyzer;
+    const auto result = analyzer.analyze(packets.data(), packets.size());
+
+    ASSERT_EQ(result.source_mac_traffic.size(), 3U);
+    EXPECT_EQ(result.source_mac_traffic[0].mac, source_b);
+    EXPECT_EQ(result.source_mac_traffic[0].byte_count, from_b.size());
+    EXPECT_EQ(result.source_mac_traffic[1].mac, source_c);
+    EXPECT_EQ(result.source_mac_traffic[1].byte_count, from_c.size());
+    EXPECT_EQ(result.source_mac_traffic[2].mac, source_a);
+    EXPECT_EQ(result.source_mac_traffic[2].packet_count, 2U);
   }
 }
