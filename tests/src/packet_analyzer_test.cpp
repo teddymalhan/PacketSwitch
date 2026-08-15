@@ -253,4 +253,55 @@ namespace
     EXPECT_EQ(result.destination_port_histogram[1].value, 443U);
     EXPECT_EQ(result.destination_port_histogram[1].packet_count, 1U);
   }
+
+  TEST(CpuPacketAnalyzerTest, AggregatesMacTrafficAndTrafficMatrix)
+  {
+    const project::MacAddress source_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const project::MacAddress source_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const project::MacAddress destination_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 });
+    const project::MacAddress destination_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x11 });
+    auto first = ethernet_frame(destination_a, source_a, project::EtherType::ARP);
+    auto second = ethernet_frame(destination_b, source_a, project::EtherType::ARP);
+    auto third = ethernet_frame(destination_a, source_b, project::EtherType::ARP);
+    second.resize(second.size() + 7);
+    third.resize(third.size() + 13);
+    const std::array<project::PacketView, 3> packets = {
+      project::PacketView{ first.data(), first.size() },
+      project::PacketView{ second.data(), second.size() },
+      project::PacketView{ third.data(), third.size() },
+    };
+
+    project::CpuPacketAnalyzer analyzer;
+    const auto result = analyzer.analyze(packets.data(), packets.size());
+
+    ASSERT_EQ(result.source_mac_traffic.size(), 2U);
+    EXPECT_EQ(result.source_mac_traffic[0].mac, source_a);
+    EXPECT_EQ(result.source_mac_traffic[0].packet_count, 2U);
+    EXPECT_EQ(result.source_mac_traffic[0].byte_count, first.size() + second.size());
+    EXPECT_EQ(result.source_mac_traffic[1].mac, source_b);
+    EXPECT_EQ(result.source_mac_traffic[1].packet_count, 1U);
+    EXPECT_EQ(result.source_mac_traffic[1].byte_count, third.size());
+
+    ASSERT_EQ(result.destination_mac_traffic.size(), 2U);
+    EXPECT_EQ(result.destination_mac_traffic[0].mac, destination_a);
+    EXPECT_EQ(result.destination_mac_traffic[0].packet_count, 2U);
+    EXPECT_EQ(result.destination_mac_traffic[0].byte_count, first.size() + third.size());
+    EXPECT_EQ(result.destination_mac_traffic[1].mac, destination_b);
+    EXPECT_EQ(result.destination_mac_traffic[1].packet_count, 1U);
+    EXPECT_EQ(result.destination_mac_traffic[1].byte_count, second.size());
+
+    ASSERT_EQ(result.mac_traffic_matrix.size(), 3U);
+    EXPECT_EQ(result.mac_traffic_matrix[0].source_mac, source_a);
+    EXPECT_EQ(result.mac_traffic_matrix[0].destination_mac, destination_a);
+    EXPECT_EQ(result.mac_traffic_matrix[0].packet_count, 1U);
+    EXPECT_EQ(result.mac_traffic_matrix[0].byte_count, first.size());
+    EXPECT_EQ(result.mac_traffic_matrix[1].source_mac, source_a);
+    EXPECT_EQ(result.mac_traffic_matrix[1].destination_mac, destination_b);
+    EXPECT_EQ(result.mac_traffic_matrix[1].packet_count, 1U);
+    EXPECT_EQ(result.mac_traffic_matrix[1].byte_count, second.size());
+    EXPECT_EQ(result.mac_traffic_matrix[2].source_mac, source_b);
+    EXPECT_EQ(result.mac_traffic_matrix[2].destination_mac, destination_a);
+    EXPECT_EQ(result.mac_traffic_matrix[2].packet_count, 1U);
+    EXPECT_EQ(result.mac_traffic_matrix[2].byte_count, third.size());
+  }
 }

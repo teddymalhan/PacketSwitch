@@ -111,6 +111,55 @@ namespace project
       histogram.resize(output_index);
     }
 
+    void aggregate_mac_traffic(std::vector<MacTrafficRecord>& traffic)
+    {
+      std::sort(
+          traffic.begin(), traffic.end(),
+          [](const MacTrafficRecord& first, const MacTrafficRecord& second) { return first.mac < second.mac; });
+      size_t output_index = 0;
+      for (size_t index = 0; index < traffic.size(); ++index)
+      {
+        const MacTrafficRecord& entry = traffic[index];
+        if (output_index == 0 || traffic[output_index - 1].mac != entry.mac)
+        {
+          traffic[output_index] = entry;
+          ++output_index;
+          continue;
+        }
+
+        MacTrafficRecord& aggregate = traffic[output_index - 1];
+        aggregate.packet_count += entry.packet_count;
+        aggregate.byte_count += entry.byte_count;
+      }
+      traffic.resize(output_index);
+    }
+
+    void aggregate_traffic_matrix(std::vector<TrafficMatrixEntry>& matrix)
+    {
+      std::sort(
+          matrix.begin(), matrix.end(), [](const TrafficMatrixEntry& first, const TrafficMatrixEntry& second) {
+            return first.source_mac == second.source_mac ? first.destination_mac < second.destination_mac
+                                                         : first.source_mac < second.source_mac;
+          });
+      size_t output_index = 0;
+      for (size_t index = 0; index < matrix.size(); ++index)
+      {
+        const TrafficMatrixEntry& entry = matrix[index];
+        if (output_index == 0 || matrix[output_index - 1].source_mac != entry.source_mac ||
+            matrix[output_index - 1].destination_mac != entry.destination_mac)
+        {
+          matrix[output_index] = entry;
+          ++output_index;
+          continue;
+        }
+
+        TrafficMatrixEntry& aggregate = matrix[output_index - 1];
+        aggregate.packet_count += entry.packet_count;
+        aggregate.byte_count += entry.byte_count;
+      }
+      matrix.resize(output_index);
+    }
+
     uint16_t read_network_u16(const uint8_t* bytes) noexcept
     {
       return static_cast<uint16_t>(static_cast<uint16_t>(bytes[0]) << 8U | bytes[1]);
@@ -205,6 +254,9 @@ namespace project
     batch.protocol_histogram.reserve(packet_count);
     batch.destination_port_histogram.reserve(packet_count);
     batch.flows.reserve(packet_count);
+    batch.source_mac_traffic.reserve(packet_count);
+    batch.destination_mac_traffic.reserve(packet_count);
+    batch.mac_traffic_matrix.reserve(packet_count);
     for (size_t index = 0; index < packet_count; ++index)
     {
       const PacketView& packet = packets[index];
@@ -232,6 +284,10 @@ namespace project
       analysis.source_mac = MacAddress(packet.bytes + MAC_ADDRESS_SIZE);
       analysis.ethertype = read_network_u16(packet.bytes + MAC_ADDRESS_SIZE * 2);
       batch.ethertype_histogram.push_back(HistogramEntry{ analysis.ethertype, 1, packet.size });
+      batch.source_mac_traffic.push_back(MacTrafficRecord{ analysis.source_mac, 1, packet.size });
+      batch.destination_mac_traffic.push_back(MacTrafficRecord{ analysis.destination_mac, 1, packet.size });
+      batch.mac_traffic_matrix.push_back(
+          TrafficMatrixEntry{ analysis.source_mac, analysis.destination_mac, 1, packet.size });
       analysis.validity =
           analysis.ethertype == EtherType::IPv4 ? parse_ipv4(packet, analysis) : PacketValidity::Valid;
       if (analysis.validity != PacketValidity::Valid)
@@ -292,6 +348,9 @@ namespace project
     aggregate_histogram(batch.ethertype_histogram);
     aggregate_histogram(batch.protocol_histogram);
     aggregate_histogram(batch.destination_port_histogram);
+    aggregate_mac_traffic(batch.source_mac_traffic);
+    aggregate_mac_traffic(batch.destination_mac_traffic);
+    aggregate_traffic_matrix(batch.mac_traffic_matrix);
     return batch;
   }
 

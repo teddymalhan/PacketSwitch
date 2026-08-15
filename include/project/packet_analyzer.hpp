@@ -89,6 +89,21 @@ namespace project
     uint64_t byte_count = 0;
   };
 
+  struct MacTrafficRecord
+  {
+    MacAddress mac;
+    uint64_t packet_count = 0;
+    uint64_t byte_count = 0;
+  };
+
+  struct TrafficMatrixEntry
+  {
+    MacAddress source_mac;
+    MacAddress destination_mac;
+    uint64_t packet_count = 0;
+    uint64_t byte_count = 0;
+  };
+
   struct AnalysisBatch
   {
     std::array<PacketSizeHistogramBucket, 7> frame_size_histogram;
@@ -97,6 +112,9 @@ namespace project
     std::vector<HistogramEntry> destination_port_histogram;
     std::vector<PacketAnalysis> packets;
     std::vector<FlowRecord> flows;
+    std::vector<MacTrafficRecord> source_mac_traffic;
+    std::vector<MacTrafficRecord> destination_mac_traffic;
+    std::vector<TrafficMatrixEntry> mac_traffic_matrix;
     uint64_t received_packets = 0;
     uint64_t received_bytes = 0;
     uint64_t malformed_packets = 0;
