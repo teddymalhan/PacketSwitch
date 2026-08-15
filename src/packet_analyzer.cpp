@@ -1,4 +1,6 @@
 #include "project/packet_analyzer.hpp"
+#include "project/packet_batch.hpp"
+
 
 #include <algorithm>
 #include <limits>
@@ -252,7 +254,9 @@ namespace project
     }
   }
 
-  AnalysisBatch CpuPacketAnalyzer::analyze(const PacketView* packets, size_t packet_count)
+  template<typename PacketAt>
+  AnalysisBatch analyze_packets(size_t packet_count, PacketAt&& packet_at,
+                                std::unordered_set<MacAddress>& learned_macs)
   {
     AnalysisBatch batch;
     for (size_t index = 0; index < batch.frame_size_histogram.size(); ++index)
@@ -278,7 +282,7 @@ namespace project
     batch.mac_traffic_matrix.reserve(packet_count);
     for (size_t index = 0; index < packet_count; ++index)
     {
-      const PacketView& packet = packets[index];
+      const PacketView packet = packet_at(index);
       PacketAnalysis analysis;
       analysis.ingress_port = packet.ingress_port;
       analysis.frame_length = static_cast<uint16_t>(std::min(packet.size, static_cast<size_t>(std::numeric_limits<uint16_t>::max())));
@@ -329,7 +333,7 @@ namespace project
         analysis.classification = PacketClassification::Broadcast;
         batch.broadcast_packets += 1;
       }
-      else if (learned_macs_.find(analysis.destination_mac) == learned_macs_.end())
+      else if (learned_macs.find(analysis.destination_mac) == learned_macs.end())
       {
         analysis.classification = PacketClassification::UnknownUnicast;
         batch.unknown_unicast_packets += 1;
@@ -339,7 +343,7 @@ namespace project
         analysis.classification = PacketClassification::KnownUnicast;
         batch.known_unicast_packets += 1;
       }
-      learned_macs_.insert(analysis.source_mac);
+      learned_macs.insert(analysis.source_mac);
       if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
       {
         const FlowKey key = make_flow_key(analysis);
@@ -375,6 +379,17 @@ namespace project
     rank_mac_traffic(batch.destination_mac_traffic);
     rank_flows(batch.flows);
     return batch;
+  }
+
+  AnalysisBatch CpuPacketAnalyzer::analyze(const PacketView* packets, size_t packet_count)
+  {
+    return analyze_packets(packet_count, [packets](size_t index) { return packets[index]; }, learned_macs_);
+  }
+
+  AnalysisBatch CpuPacketAnalyzer::analyze(const PacketBatch& batch)
+  {
+    return analyze_packets(batch.packet_count(), [&batch](size_t index) { return batch.packet_view(index); },
+                           learned_macs_);
   }
 
   void CpuPacketAnalyzer::reset() noexcept

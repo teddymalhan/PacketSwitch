@@ -51,15 +51,21 @@ namespace project
     return packet_lengths.size();
   }
 
+  PacketView PacketBatch::packet_view(size_t index) const noexcept
+  {
+    const uint32_t offset = packet_offsets[index];
+    return { packet_lengths[index] == 0 ? nullptr : packet_bytes.data() + offset, packet_lengths[index],
+             sender_ids[index] };
+  }
+
+
   std::vector<PacketView> PacketBatch::packet_views() const
   {
     std::vector<PacketView> views;
     views.reserve(packet_count());
     for (size_t index = 0; index < packet_count(); ++index)
     {
-      const uint32_t offset = packet_offsets[index];
-      views.push_back({ packet_lengths[index] == 0 ? nullptr : packet_bytes.data() + offset, packet_lengths[index],
-                        sender_ids[index] });
+      views.push_back(packet_view(index));
     }
     return views;
   }

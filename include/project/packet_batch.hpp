@@ -31,6 +31,7 @@ namespace project
                                                                           size_t packet_count,
                                                                           uint64_t timestamp_ns = 0);
     [[nodiscard]] size_t packet_count() const noexcept;
+    [[nodiscard]] PacketView packet_view(size_t index) const noexcept;
     [[nodiscard]] std::vector<PacketView> packet_views() const;
   };
 

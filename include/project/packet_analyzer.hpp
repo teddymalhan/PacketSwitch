@@ -11,6 +11,8 @@
 
 namespace project
 {
+  struct PacketBatch;
+
   struct PacketView
   {
     const uint8_t* bytes = nullptr;
@@ -139,6 +141,7 @@ namespace project
   {
    public:
     [[nodiscard]] AnalysisBatch analyze(const PacketView* packets, size_t packet_count) override;
+    [[nodiscard]] AnalysisBatch analyze(const PacketBatch& batch);
     void reset() noexcept;
 
    private:

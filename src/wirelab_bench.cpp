@@ -8,6 +8,8 @@
 #include <vector>
 
 #include "project/packet_analyzer.hpp"
+#include "project/packet_batch.hpp"
+
 #include "project/traffic_generator.hpp"
 
 namespace
@@ -87,8 +89,14 @@ int main(int argc, char* argv[])
         packets.push_back(project::PacketView{ frame.data(), frame.size() });
       }
 
+      const auto batch = project::PacketBatch::create(packets.data(), packets.size());
+      if (!batch)
+      {
+        throw std::invalid_argument(std::string("cannot create packet batch: ") + project::to_string(batch.error()));
+      }
+
       const auto analysis_started = std::chrono::steady_clock::now();
-      const project::AnalysisBatch result = analyzer.analyze(packets.data(), packets.size());
+      const project::AnalysisBatch result = analyzer.analyze(*batch);
       const auto analysis_elapsed = std::chrono::steady_clock::now() - analysis_started;
       analysis_latency_ns.push_back(
           static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(analysis_elapsed).count()));

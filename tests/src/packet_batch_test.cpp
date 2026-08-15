@@ -25,6 +25,10 @@ namespace
     EXPECT_EQ(batch->sender_ids, (std::vector<uint32_t>{ 9, 10, 11 }));
     EXPECT_EQ(batch->packet_bytes, (std::vector<uint8_t>{ 1, 2, 3, 4, 5 }));
 
+    const auto direct_view = batch->packet_view(2);
+    EXPECT_EQ(direct_view.bytes[0], 4U);
+    EXPECT_EQ(direct_view.ingress_port, 11U);
+
     const auto views = batch->packet_views();
     ASSERT_EQ(views.size(), 3U);
     EXPECT_EQ(views[0].size, 3U);

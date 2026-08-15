@@ -5,6 +5,8 @@
 #include <vector>
 
 #include "project/packet_analyzer.hpp"
+#include "project/packet_batch.hpp"
+
 
 namespace
 {
@@ -70,6 +72,43 @@ namespace
     EXPECT_EQ(result.unknown_unicast_packets, 1U);
     EXPECT_EQ(result.known_unicast_packets, 1U);
     EXPECT_EQ(result.broadcast_packets, 1U);
+  }
+
+  TEST(CpuPacketAnalyzerTest, AnalyzesContiguousPacketBatchesWithEquivalentResults)
+  {
+    const project::MacAddress first_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const project::MacAddress second_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const auto first = ethernet_frame(second_source, first_source, project::EtherType::IPv4);
+    const auto second = ethernet_frame(first_source, second_source, project::EtherType::ARP);
+    const auto broadcast = ethernet_frame(project::MacAddress::broadcast(), first_source, project::EtherType::IPv4);
+    const std::array<project::PacketView, 3> packets = {
+      project::PacketView{ first.data(), first.size(), 7 },
+      project::PacketView{ second.data(), second.size(), 8 },
+      project::PacketView{ broadcast.data(), broadcast.size(), 9 },
+    };
+    const auto batch = project::PacketBatch::create(packets.data(), packets.size(), 1234);
+
+    ASSERT_TRUE(batch.has_value());
+    project::CpuPacketAnalyzer direct_analyzer;
+    project::CpuPacketAnalyzer batch_analyzer;
+    const auto direct_result = direct_analyzer.analyze(packets.data(), packets.size());
+    const auto batch_result = batch_analyzer.analyze(*batch);
+
+    EXPECT_EQ(batch_result.received_packets, direct_result.received_packets);
+    EXPECT_EQ(batch_result.received_bytes, direct_result.received_bytes);
+    EXPECT_EQ(batch_result.malformed_packets, direct_result.malformed_packets);
+    EXPECT_EQ(batch_result.broadcast_packets, direct_result.broadcast_packets);
+    EXPECT_EQ(batch_result.unknown_unicast_packets, direct_result.unknown_unicast_packets);
+    EXPECT_EQ(batch_result.known_unicast_packets, direct_result.known_unicast_packets);
+    ASSERT_EQ(batch_result.packets.size(), direct_result.packets.size());
+    for (size_t index = 0; index < direct_result.packets.size(); ++index)
+    {
+      EXPECT_EQ(batch_result.packets[index].source_mac, direct_result.packets[index].source_mac);
+      EXPECT_EQ(batch_result.packets[index].destination_mac, direct_result.packets[index].destination_mac);
+      EXPECT_EQ(batch_result.packets[index].ingress_port, direct_result.packets[index].ingress_port);
+      EXPECT_EQ(batch_result.packets[index].classification, direct_result.packets[index].classification);
+      EXPECT_EQ(batch_result.packets[index].validity, direct_result.packets[index].validity);
+    }
   }
 
   TEST(CpuPacketAnalyzerTest, RecordsMalformedPacketsWithoutReadingTheirPayload)
