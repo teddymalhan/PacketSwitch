@@ -55,6 +55,8 @@ namespace project
    private:
     [[nodiscard]] bool is_port(std::string_view port_id) const noexcept;
     [[nodiscard]] bool is_link(std::string_view first_endpoint, std::string_view second_endpoint) const noexcept;
+    [[nodiscard]] std::chrono::milliseconds link_latency(
+        std::string_view first_endpoint, std::string_view second_endpoint) const noexcept;
     [[nodiscard]] static std::string port_fault_target(std::string_view port_id);
     [[nodiscard]] static std::string link_fault_target(
         std::string_view first_endpoint, std::string_view second_endpoint);

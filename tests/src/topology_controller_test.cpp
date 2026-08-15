@@ -94,6 +94,33 @@ namespace
     EXPECT_EQ(reloaded->delivery_count, 1U);
   }
 
+  TEST(TopologyControllerTest, PreservesTopologyLinkLatencyAlongsideInjectedFaults)
+  {
+    project::TopologyController controller;
+    controller.load(make_topology());
+    const auto arrival = std::chrono::steady_clock::time_point(std::chrono::seconds(5));
+
+    const auto baseline = controller.evaluate_link("client-a", "core-switch", 64, arrival);
+    ASSERT_TRUE(baseline.has_value());
+    ASSERT_EQ(baseline->delivery_count, 1U);
+    EXPECT_EQ(baseline->delivery_times[0], arrival + std::chrono::milliseconds(1));
+
+    project::FaultConfiguration configuration;
+    configuration.latency = std::chrono::milliseconds(2);
+    ASSERT_TRUE(controller.set_link_fault("core-switch", "client-a", configuration).has_value());
+
+    const auto injected = controller.evaluate_link("client-a", "core-switch", 64, arrival);
+    ASSERT_TRUE(injected.has_value());
+    ASSERT_EQ(injected->delivery_count, 1U);
+    EXPECT_EQ(injected->delivery_times[0], arrival + std::chrono::milliseconds(3));
+
+    ASSERT_TRUE(controller.clear_link_fault("client-a", "core-switch"));
+    const auto restored = controller.evaluate_link("core-switch", "client-a", 64, arrival);
+    ASSERT_TRUE(restored.has_value());
+    ASSERT_EQ(restored->delivery_count, 1U);
+    EXPECT_EQ(restored->delivery_times[0], arrival + std::chrono::milliseconds(1));
+  }
+
   TEST(TopologyControllerTest, ReportsOnlyPublicTopologyFaultIdentifiers)
   {
     project::TopologyController controller;

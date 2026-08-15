@@ -153,7 +153,22 @@ namespace project
     {
       return unexpected(TopologyControllerError::UnknownLink);
     }
-    return fault_engine_.evaluate(link_fault_target(first_endpoint, second_endpoint), frame_bytes, arrival);
+    auto decision = fault_engine_.evaluate(link_fault_target(first_endpoint, second_endpoint), frame_bytes, arrival);
+    const auto latency = link_latency(first_endpoint, second_endpoint);
+    if (latency == std::chrono::milliseconds::zero())
+    {
+      return decision;
+    }
+
+    const auto maximum_delivery_time = std::chrono::steady_clock::time_point::max() - latency;
+    for (uint8_t index = 0; index < decision.delivery_count; ++index)
+    {
+      auto& delivery_time = decision.delivery_times[index];
+      delivery_time = delivery_time > maximum_delivery_time
+                          ? std::chrono::steady_clock::time_point::max()
+                          : delivery_time + latency;
+    }
+    return decision;
   }
 
   bool TopologyController::is_port(std::string_view port_id) const noexcept
@@ -170,6 +185,17 @@ namespace project
                          return (link.from == first_endpoint && link.to == second_endpoint) ||
                                 (link.from == second_endpoint && link.to == first_endpoint);
                        });
+  }
+
+  std::chrono::milliseconds TopologyController::link_latency(
+      std::string_view first_endpoint, std::string_view second_endpoint) const noexcept
+  {
+    const auto link = std::find_if(
+        topology_->links().begin(), topology_->links().end(), [first_endpoint, second_endpoint](const TopologyLink& link) {
+          return (link.from == first_endpoint && link.to == second_endpoint) ||
+                 (link.from == second_endpoint && link.to == first_endpoint);
+        });
+    return link->latency;
   }
 
   std::string TopologyController::port_fault_target(std::string_view port_id)
