@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "project/expected.hpp"
 
@@ -32,6 +33,12 @@ namespace project
     bool isolated = false;
   };
 
+  struct ActiveFault
+  {
+    std::string target;
+    FaultConfiguration configuration;
+  };
+
   struct FaultDecision
   {
     bool dropped = false;
@@ -48,6 +55,7 @@ namespace project
         std::string target, FaultConfiguration configuration);
     [[nodiscard]] bool clear_fault(std::string_view target);
     [[nodiscard]] bool has_fault(std::string_view target) const;
+    [[nodiscard]] std::vector<ActiveFault> active_faults() const;
     [[nodiscard]] FaultDecision evaluate(
         std::string_view target, size_t frame_bytes, std::chrono::steady_clock::time_point arrival);
 

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <string>
+#include <tuple>
 #include <utility>
 
 namespace project
@@ -82,6 +83,48 @@ namespace project
   {
     return topology_ && is_link(first_endpoint, second_endpoint) &&
            fault_engine_.clear_fault(link_fault_target(first_endpoint, second_endpoint));
+  }
+
+  expected<std::vector<TopologyFault>, TopologyControllerError> TopologyController::active_faults() const
+  {
+    if (!topology_)
+    {
+      return unexpected(TopologyControllerError::NoTopology);
+    }
+
+    const auto configured_faults = fault_engine_.active_faults();
+    std::vector<TopologyFault> faults;
+    faults.reserve(configured_faults.size());
+    for (const auto& node : topology_->nodes())
+    {
+      if (node.type != TopologyNodeType::Host)
+      {
+        continue;
+      }
+      const auto target = port_fault_target(node.id);
+      const auto configured = std::find_if(
+          configured_faults.begin(), configured_faults.end(),
+          [&target](const ActiveFault& fault) { return fault.target == target; });
+      if (configured != configured_faults.end())
+      {
+        faults.push_back({ node.id, {}, configured->configuration });
+      }
+    }
+    for (const auto& link : topology_->links())
+    {
+      const auto target = link_fault_target(link.from, link.to);
+      const auto configured = std::find_if(
+          configured_faults.begin(), configured_faults.end(),
+          [&target](const ActiveFault& fault) { return fault.target == target; });
+      if (configured != configured_faults.end())
+      {
+        faults.push_back({ link.from, link.to, configured->configuration });
+      }
+    }
+    std::sort(faults.begin(), faults.end(), [](const TopologyFault& left, const TopologyFault& right) {
+      return std::tie(left.first_endpoint, left.second_endpoint) < std::tie(right.first_endpoint, right.second_endpoint);
+    });
+    return faults;
   }
 
   expected<FaultDecision, TopologyControllerError> TopologyController::evaluate_port(

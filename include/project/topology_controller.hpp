@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "project/expected.hpp"
 #include "project/fault_engine.hpp"
@@ -19,6 +20,12 @@ namespace project
     UnknownPort,
     UnknownLink,
     InvalidFaultConfiguration
+  };
+  struct TopologyFault
+  {
+    std::string first_endpoint;
+    std::string second_endpoint;
+    FaultConfiguration configuration;
   };
 
   class TopologyController
@@ -37,6 +44,7 @@ namespace project
         std::string_view first_endpoint, std::string_view second_endpoint, FaultConfiguration configuration);
     [[nodiscard]] bool clear_port_fault(std::string_view port_id);
     [[nodiscard]] bool clear_link_fault(std::string_view first_endpoint, std::string_view second_endpoint);
+    [[nodiscard]] expected<std::vector<TopologyFault>, TopologyControllerError> active_faults() const;
 
     [[nodiscard]] expected<FaultDecision, TopologyControllerError> evaluate_port(
         std::string_view port_id, size_t frame_bytes, std::chrono::steady_clock::time_point arrival);

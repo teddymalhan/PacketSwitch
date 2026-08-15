@@ -118,4 +118,23 @@ namespace
     EXPECT_FALSE(engine.has_fault("client-a"));
     EXPECT_FALSE(engine.clear_fault("client-a"));
   }
+
+  TEST(FaultEngineTest, ReportsActiveFaultsInStableTargetOrder)
+  {
+    project::FaultEngine engine;
+    project::FaultConfiguration first_configuration;
+    first_configuration.blackhole = true;
+    project::FaultConfiguration second_configuration;
+    second_configuration.loss_basis_points = 2500;
+
+    ASSERT_TRUE(engine.set_fault("port:zeta", first_configuration).has_value());
+    ASSERT_TRUE(engine.set_fault("port:alpha", second_configuration).has_value());
+
+    const auto faults = engine.active_faults();
+    ASSERT_EQ(faults.size(), 2U);
+    EXPECT_EQ(faults[0].target, "port:alpha");
+    EXPECT_EQ(faults[0].configuration.loss_basis_points, 2500U);
+    EXPECT_EQ(faults[1].target, "port:zeta");
+    EXPECT_TRUE(faults[1].configuration.blackhole);
+  }
 }

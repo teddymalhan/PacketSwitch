@@ -93,4 +93,28 @@ namespace
     ASSERT_TRUE(reloaded.has_value());
     EXPECT_EQ(reloaded->delivery_count, 1U);
   }
+
+  TEST(TopologyControllerTest, ReportsOnlyPublicTopologyFaultIdentifiers)
+  {
+    project::TopologyController controller;
+    EXPECT_EQ(controller.active_faults().error(), project::TopologyControllerError::NoTopology);
+
+    controller.load(make_topology());
+    project::FaultConfiguration port_configuration;
+    port_configuration.blackhole = true;
+    project::FaultConfiguration link_configuration;
+    link_configuration.loss_basis_points = 500;
+    ASSERT_TRUE(controller.set_port_fault("client-b", port_configuration).has_value());
+    ASSERT_TRUE(controller.set_link_fault("client-a", "core-switch", link_configuration).has_value());
+
+    const auto faults = controller.active_faults();
+    ASSERT_TRUE(faults.has_value());
+    ASSERT_EQ(faults->size(), 2U);
+    EXPECT_EQ((*faults)[0].first_endpoint, "client-a");
+    EXPECT_EQ((*faults)[0].second_endpoint, "core-switch");
+    EXPECT_EQ((*faults)[0].configuration.loss_basis_points, 500U);
+    EXPECT_EQ((*faults)[1].first_endpoint, "client-b");
+    EXPECT_TRUE((*faults)[1].second_endpoint.empty());
+    EXPECT_TRUE((*faults)[1].configuration.blackhole);
+  }
 }

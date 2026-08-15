@@ -44,6 +44,20 @@ namespace project
     return states_.find(std::string(target)) != states_.end();
   }
 
+  std::vector<ActiveFault> FaultEngine::active_faults() const
+  {
+    std::vector<ActiveFault> faults;
+    faults.reserve(states_.size());
+    for (const auto& [target, state] : states_)
+    {
+      faults.push_back({ target, state.configuration });
+    }
+    std::sort(faults.begin(), faults.end(), [](const ActiveFault& left, const ActiveFault& right) {
+      return left.target < right.target;
+    });
+    return faults;
+  }
+
   FaultDecision FaultEngine::evaluate(
       std::string_view target, size_t frame_bytes, std::chrono::steady_clock::time_point arrival)
   {
