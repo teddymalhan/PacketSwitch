@@ -6,9 +6,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
-    <ProjectGuid>{3C17B8D4-25D3-4DFC-96E9-BF35968D6B3C}</ProjectGuid>
+    <ProjectGuid>{8A932C20-5D3E-4E54-A2C5-ED0D3B98D4A8}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>PacketSwitch</RootNamespace>
+    <RootNamespace>VPort</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -23,17 +23,17 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup><OutDir>$(SolutionDir)build\$(Platform)\$(Configuration)\</OutDir><IntDir>$(SolutionDir)build\obj\$(Platform)\$(Configuration)\</IntDir><TargetName>vswitch</TargetName></PropertyGroup>
+  <PropertyGroup><OutDir>$(SolutionDir)build\$(Platform)\$(Configuration)\</OutDir><IntDir>$(SolutionDir)build\obj\$(Platform)\$(Configuration)\VPort\</IntDir><TargetName>vport</TargetName></PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><ClCompile><WarningLevel>Level4</WarningLevel><SDLCheck>true</SDLCheck><LanguageStandard>stdcpp17</LanguageStandard><PreprocessorDefinitions>_WIN32_WINNT=0x0A00;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><SubSystem>Console</SubSystem><AdditionalDependencies>Ws2_32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link></ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><ClCompile><WarningLevel>Level4</WarningLevel><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><LanguageStandard>stdcpp17</LanguageStandard><PreprocessorDefinitions>_WIN32_WINNT=0x0A00;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><SubSystem>Console</SubSystem><AdditionalDependencies>Ws2_32.lib;Advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies><EnableCOMDATFolding>true</EnableCOMDATFolding><OptimizeReferences>true</OptimizeReferences></Link></ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\vswitch_main.cpp" /><ClCompile Include="src\sys_utils.cpp" /><ClCompile Include="src\tap_device.cpp" /><ClCompile Include="src\ethernet_frame.cpp" /><ClCompile Include="src\udp_socket.cpp" /><ClCompile Include="src\vport.cpp" /><ClCompile Include="src\mac_table.cpp" /><ClCompile Include="src\vswitch.cpp" />
+    <ClCompile Include="src\vport_main.cpp" /><ClCompile Include="src\sys_utils.cpp" /><ClCompile Include="src\tap_device.cpp" /><ClCompile Include="src\ethernet_frame.cpp" /><ClCompile Include="src\udp_socket.cpp" /><ClCompile Include="src\vport.cpp" /><ClCompile Include="src\mac_table.cpp" /><ClCompile Include="src\vswitch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\project\expected.hpp" /><ClInclude Include="include\project\joining_thread.hpp" /><ClInclude Include="include\project\sys_utils.hpp" /><ClInclude Include="include\project\tap_device.hpp" /><ClInclude Include="include\project\ethernet_frame.hpp" /><ClInclude Include="include\project\udp_socket.hpp" /><ClInclude Include="include\project\vport.hpp" /><ClInclude Include="include\project\mac_table.hpp" /><ClInclude Include="include\project\vswitch.hpp" />
   </ItemGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><LocalDebuggerCommandArguments>8080</LocalDebuggerCommandArguments></PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><LocalDebuggerCommandArguments>8080</LocalDebuggerCommandArguments></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><LocalDebuggerCommandArguments>127.0.0.1 8080</LocalDebuggerCommandArguments></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><LocalDebuggerCommandArguments>127.0.0.1 8080</LocalDebuggerCommandArguments></PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>

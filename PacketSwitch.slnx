@@ -1,7 +1,17 @@
 <Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+  </Configurations>
   <Folder Name="/Solution Items/">
     <File Path="README.md" />
     <File Path="CMakeLists.txt" />
   </Folder>
-  <Project Path="PacketSwitch.vcxproj" Id="3c17b8d4-25d3-4dfc-96e9-bf35968d6b3c" />
+  <Project Path="PacketSwitch.vcxproj" Id="3c17b8d4-25d3-4dfc-96e9-bf35968d6b3c">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="VPort.vcxproj" Id="8a932c20-5d3e-4e54-a2c5-ed0d3b98d4a8">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

@@ -95,6 +95,18 @@ TAP-Windows6 adapter is installed, the selector may be omitted. Wintun is not
 supported because it transports Layer-3 packets; PacketSwitch forwards complete
 Ethernet frames.
 
+### Visual Studio
+
+Open `PacketSwitch.slnx` rather than opening an individual source file. The
+default `PacketSwitch` startup project builds and runs `vswitch.exe` on UDP
+port 8080 when you select **Debug > Start Without Debugging** (`Ctrl+F5`).
+
+The solution also contains `VPort`. Set it as the startup project only after
+`vswitch` is running and a TAP-Windows6 adapter is available. Its default
+arguments are `127.0.0.1 8080`; set the adapter connection name under
+**Project > Properties > Debugging > Command Arguments** when more than one
+TAP adapter is installed.
+
 ### Build with Make
 
 ```bash

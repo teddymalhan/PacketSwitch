@@ -61,52 +61,21 @@ include(cmake/Vcpkg.cmake)
 
 include(cmake/SourcesAndHeaders.cmake)
 
-if(${PROJECT_NAME}_BUILD_EXECUTABLE)
-  add_executable(${PROJECT_NAME} ${exe_sources})
+add_library(
+  ${PROJECT_NAME}
+  ${headers}
+  ${sources}
+)
 
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following sources:")
-    foreach(source IN LISTS exe_sources)
-      verbose_message("* ${source}")
-    endforeach()
-  endif()
-
-  if(${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    add_library(${PROJECT_NAME}_LIB ${headers} ${sources})
-
-    if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-      verbose_message("Found the following headers:")
-      foreach(header IN LISTS headers)
-        verbose_message("* ${header}")
-      endforeach()
-    endif()
-  endif()
-elseif(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  add_library(${PROJECT_NAME} INTERFACE)
-
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following headers:")
-    foreach(header IN LIST headers)
-      verbose_message("* ${header}")
-    endforeach()
-  endif()
-else()
-  add_library(
-    ${PROJECT_NAME}
-    ${headers}
-    ${sources}
-  )
-
-  if(${PROJECT_NAME}_VERBOSE_OUTPUT)
-    verbose_message("Found the following sources:")
-    foreach(source IN LISTS sources)
-      verbose_message("* ${source}")
-    endforeach()
-    verbose_message("Found the following headers:")
-    foreach(header IN LISTS headers)
-      verbose_message("* ${header}")
-    endforeach()
-  endif()
+if(${PROJECT_NAME}_VERBOSE_OUTPUT)
+  verbose_message("Found the following sources:")
+  foreach(source IN LISTS sources)
+    verbose_message("* ${source}")
+  endforeach()
+  verbose_message("Found the following headers:")
+  foreach(header IN LISTS headers)
+    verbose_message("* ${header}")
+  endforeach()
 endif()
 
 set_target_properties(
@@ -116,15 +85,7 @@ set_target_properties(
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}"
 )
-if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-  set_target_properties(
-    ${PROJECT_NAME}_LIB
-    PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
-    OUTPUT_NAME ${PROJECT_NAME}
-  )
-endif()
+ 
 
 message(STATUS "Added all header and implementation files.\n")
 
@@ -132,23 +93,12 @@ message(STATUS "Added all header and implementation files.\n")
 
 
 
-if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
-else()
-  target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
-
-  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    target_compile_features(${PROJECT_NAME}_LIB PUBLIC cxx_std_17)
-  endif()
-endif()
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 if(WIN32)
   target_compile_definitions(${PROJECT_NAME} PRIVATE _WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN NOMINMAX)
   target_link_libraries(${PROJECT_NAME} PRIVATE Ws2_32 Advapi32)
-  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    target_compile_definitions(${PROJECT_NAME}_LIB PRIVATE _WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN NOMINMAX)
-    target_link_libraries(${PROJECT_NAME}_LIB PRIVATE Ws2_32 Advapi32)
-  endif()
+ 
 endif()
 include(cmake/CompilerWarnings.cmake)
 set_project_warnings(${PROJECT_NAME})
@@ -203,33 +153,14 @@ verbose_message("Successfully added all dependencies and linked against them.")
 
 
 
-if(${PROJECT_NAME}_BUILD_HEADERS_ONLY)
-  target_include_directories(
-    ${PROJECT_NAME}
-    INTERFACE
-    $<INSTALL_INTERFACE:include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  )
-else()
-  target_include_directories(
-    ${PROJECT_NAME}
-    PUBLIC
-    $<INSTALL_INTERFACE:include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-  )
-  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
-    target_include_directories(
-      ${PROJECT_NAME}_LIB
-      PUBLIC
-      $<INSTALL_INTERFACE:include>
-      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-      PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}/src
-    )
-  endif()
-endif()
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC
+  $<INSTALL_INTERFACE:include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 message(STATUS "Finished setting up include directories.")
 
@@ -237,11 +168,7 @@ message(STATUS "Finished setting up include directories.")
 
 
 
-if(${PROJECT_NAME}_BUILD_EXECUTABLE)
-  add_executable(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-else()
-  add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-endif()
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 verbose_message("Project is now aliased as ${PROJECT_NAME}::${PROJECT_NAME}.\n")
 

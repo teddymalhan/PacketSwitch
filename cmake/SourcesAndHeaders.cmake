@@ -8,10 +8,6 @@ set(sources
     src/vswitch.cpp
 )
 
-set(exe_sources
-		src/main.cpp
-		${sources}
-)
 
 set(headers
     include/project/expected.hpp
