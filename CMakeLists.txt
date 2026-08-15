@@ -212,6 +212,28 @@ if(TARGET project_cuda)
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 endif()
+
+option(PROJECT_BUILD_WIRELAB_GUI "Build the Qt 6 WireLab frontend" OFF)
+if(PROJECT_BUILD_WIRELAB_GUI)
+  find_package(Qt6 6.5 QUIET COMPONENTS Quick QuickControls2)
+  if(Qt6_FOUND)
+    qt_add_executable(wirelab_gui
+      apps/wirelab_gui.cpp
+      src/wirelab_view_model.cpp
+      include/project/wirelab_view_model.hpp)
+    qt_add_qml_module(wirelab_gui
+      URI WireLab
+      VERSION 1.0
+      QML_FILES src/gui/qml/Main.qml)
+    target_link_libraries(wirelab_gui PRIVATE
+      ${PROJECT_NAME}
+      Qt6::Quick
+      Qt6::QuickControls2)
+    target_compile_features(wirelab_gui PRIVATE cxx_std_17)
+  else()
+    message(WARNING "PROJECT_BUILD_WIRELAB_GUI is enabled, but Qt 6.5 Quick and QuickControls2 were not found.")
+  endif()
+endif()
 set_target_properties(
   vport vswitch wirelab_bench
   PROPERTIES
@@ -250,6 +272,13 @@ install(
   PUBLIC_HEADER DESTINATION
   include
 )
+
+if(TARGET wirelab_gui)
+  install(
+    TARGETS wirelab_gui
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
+endif()
 
 install(
   EXPORT
