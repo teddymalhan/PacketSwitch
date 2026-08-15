@@ -7,6 +7,7 @@ set(sources
     src/mac_table.cpp
     src/vswitch.cpp
     src/traffic_generator.cpp
+    src/switch_metrics.cpp
 )
 
 
@@ -21,6 +22,7 @@ set(headers
     include/project/mac_table.hpp
     include/project/vswitch.hpp
     include/project/traffic_generator.hpp
+    include/project/switch_metrics.hpp
 )
 
 set(test_sources
@@ -33,4 +35,5 @@ set(test_sources
   src/mac_table_test.cpp
   src/integration_test.cpp
   src/traffic_generator_test.cpp
+  src/switch_metrics_test.cpp
 )

@@ -17,6 +17,8 @@
 #include <memory>
 
 #include "project/vswitch.hpp"
+#include <string_view>
+
 
 
 std::unique_ptr<project::VSwitch> g_vswitch;
@@ -49,10 +51,11 @@ void setup_signal_handlers()
 
 void print_usage(const char* program_name)
 {
-  std::cerr << "Usage: " << program_name << " <port>\n";
+  std::cerr << "Usage: " << program_name << " <port> [--verbose]\n";
   std::cerr << "\n";
   std::cerr << "Arguments:\n";
   std::cerr << "  port     UDP port to listen on (0 for ephemeral)\n";
+  std::cerr << "  --verbose  Log every forwarding decision; disabled by default for throughput measurements\n";
   std::cerr << "\n";
   std::cerr << "Examples:\n";
   std::cerr << "  " << program_name << " 8080\n";
@@ -70,10 +73,23 @@ int main(int argc, char* argv[])
   std::cout << "=== VSwitch - Virtual Switch for Layer 2 Networking ===\n\n";
 
   
-  if (argc != 2)
+  if (argc < 2 || argc > 3)
   {
     print_usage(argv[0]);
     return EXIT_FAILURE;
+  }
+
+  project::VSwitchLogLevel log_level = project::VSwitchLogLevel::Lifecycle;
+  if (argc == 3)
+  {
+    const std::string_view option(argv[2]);
+    if (option != "--verbose")
+    {
+      std::cerr << "Error: Unknown option '" << option << "'\n";
+      print_usage(argv[0]);
+      return EXIT_FAILURE;
+    }
+    log_level = project::VSwitchLogLevel::Frame;
   }
 
   const char* port_str = argv[1];
@@ -102,7 +118,7 @@ int main(int argc, char* argv[])
 
     
     std::cout << "Creating VSwitch...\n";
-    auto vswitch_result = project::VSwitch::create(port);
+    auto vswitch_result = project::VSwitch::create(port, log_level);
 
     if (!vswitch_result)
     {

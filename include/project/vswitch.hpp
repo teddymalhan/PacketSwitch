@@ -7,6 +7,8 @@
 #include "project/ethernet_frame.hpp"
 #include "project/mac_table.hpp"
 #include "project/udp_socket.hpp"
+#include "project/switch_metrics.hpp"
+
 
 namespace project
 {
@@ -20,18 +22,29 @@ namespace project
 
   [[nodiscard]] const char* to_string(VSwitchError error) noexcept;
 
+  enum class VSwitchLogLevel
+  {
+    Lifecycle,
+    Frame
+  };
+
   class VSwitch
   {
    private:
     UdpSocket socket_;
     MacTable mac_table_;
     uint16_t port_;
-
+    SwitchMetrics metrics_;
     std::atomic<bool> running_;
+    std::atomic<VSwitchLogLevel> log_level_;
+
 
    public:
-      [[nodiscard]] static expected<VSwitch, VSwitchError> create(uint16_t port);
-    VSwitch() = default;
+    [[nodiscard]] static expected<VSwitch, VSwitchError> create(
+        uint16_t port, VSwitchLogLevel log_level = VSwitchLogLevel::Lifecycle);
+    VSwitch() : port_(0), running_(false), log_level_(VSwitchLogLevel::Lifecycle)
+    {
+    }
     VSwitch(VSwitch&& other) noexcept;
     VSwitch& operator=(VSwitch&& other) noexcept;
     VSwitch(const VSwitch&) = delete;
@@ -55,9 +68,22 @@ namespace project
     {
       return mac_table_.get_all_entries();
     }
+    [[nodiscard]] SwitchMetricsSnapshot metrics() const noexcept
+    {
+      return metrics_.snapshot();
+    }
+    void set_log_level(VSwitchLogLevel log_level) noexcept
+    {
+      log_level_.store(log_level, std::memory_order_relaxed);
+    }
+    [[nodiscard]] VSwitchLogLevel log_level() const noexcept
+    {
+      return log_level_.load(std::memory_order_relaxed);
+    }
+
 
    private:
-      VSwitch(UdpSocket socket, uint16_t port) noexcept;
+      VSwitch(UdpSocket socket, uint16_t port, VSwitchLogLevel log_level) noexcept;
        void process_frame(const std::vector<uint8_t>& frame_data, const Endpoint& sender_endpoint);
     void log_frame(
         const EthernetFrame& frame,
