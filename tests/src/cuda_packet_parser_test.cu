@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -78,6 +79,7 @@ namespace
       EXPECT_EQ(cuda_result[index].ingress_port, cpu_result.packets[index].ingress_port);
       EXPECT_EQ(cuda_result[index].protocol, cpu_result.packets[index].protocol);
       EXPECT_EQ(cuda_result[index].tcp_flags, cpu_result.packets[index].tcp_flags);
+      EXPECT_EQ(cuda_result[index].flow_hash, cpu_result.packets[index].flow_hash);
       EXPECT_EQ(cuda_result[index].validity, cpu_result.packets[index].validity);
     }
   }
@@ -113,5 +115,20 @@ namespace
         EXPECT_EQ(result[index].destination_port, 53) << "batch size " << batch_size;
       }
     }
+  }
+
+  TEST(CudaPacketParserTest, RejectsMalformedContiguousBatchBeforeDeviceAccess)
+  {
+    project::PacketBatch batch;
+    batch.packet_offsets = { 0 };
+    batch.packet_lengths = { 0 };
+
+    project::CudaPacketParser cuda;
+    EXPECT_THROW(
+        {
+          const auto analyses = cuda.parse(batch);
+          static_cast<void>(analyses);
+        },
+        std::invalid_argument);
   }
 }

@@ -39,6 +39,7 @@ namespace project
       uint8_t protocol = 0;
       uint8_t tcp_flags = 0;
       uint8_t validity = static_cast<uint8_t>(PacketValidity::MalformedEthernet);
+      uint64_t flow_hash = 0;
     };
 
     [[noreturn]] void throw_cuda_error(cudaError_t error, const char* operation)
@@ -97,6 +98,38 @@ namespace project
                                    static_cast<uint32_t>(bytes[2]) << 8U | bytes[3]);
     }
 
+    __device__ void hash_byte(uint64_t& hash, uint8_t byte)
+    {
+      constexpr uint64_t FNV1A_PRIME = 1099511628211ULL;
+      hash ^= byte;
+      hash *= FNV1A_PRIME;
+    }
+
+    __device__ void hash_u16(uint64_t& hash, uint16_t value)
+    {
+      hash_byte(hash, static_cast<uint8_t>(value >> 8U));
+      hash_byte(hash, static_cast<uint8_t>(value));
+    }
+
+    __device__ void hash_u32(uint64_t& hash, uint32_t value)
+    {
+      hash_byte(hash, static_cast<uint8_t>(value >> 24U));
+      hash_byte(hash, static_cast<uint8_t>(value >> 16U));
+      hash_byte(hash, static_cast<uint8_t>(value >> 8U));
+      hash_byte(hash, static_cast<uint8_t>(value));
+    }
+
+    __device__ uint64_t hash_flow_key(const DevicePacketAnalysis& analysis)
+    {
+      uint64_t hash = 14695981039346656037ULL;
+      hash_u32(hash, analysis.source_ipv4);
+      hash_u32(hash, analysis.destination_ipv4);
+      hash_u16(hash, analysis.source_port);
+      hash_u16(hash, analysis.destination_port);
+      hash_byte(hash, analysis.protocol);
+      return hash;
+    }
+
     __global__ void parse_packets(const uint8_t* packet_bytes, const uint32_t* packet_offsets,
                                   const uint16_t* packet_lengths, const uint32_t* sender_ids,
                                   size_t packet_count, DevicePacketAnalysis* output)
@@ -153,6 +186,7 @@ namespace project
         analysis.protocol = ipv4[9];
         if ((read_network_u16(ipv4 + 6) & 0x1fffU) != 0)
         {
+          analysis.flow_hash = hash_flow_key(analysis);
           output[index] = analysis;
           continue;
         }
@@ -197,6 +231,10 @@ namespace project
         {
           analysis.validity = static_cast<uint8_t>(PacketValidity::MalformedTransport);
         }
+        if (analysis.validity == static_cast<uint8_t>(PacketValidity::Valid))
+        {
+          analysis.flow_hash = hash_flow_key(analysis);
+        }
         output[index] = analysis;
       }
     }
@@ -204,8 +242,8 @@ namespace project
     void validate_batch(const PacketBatch& batch)
     {
       const size_t packet_count = batch.packet_count();
-      if (batch.packet_offsets.size() != packet_count + 1 || batch.sender_ids.size() != packet_count ||
-          batch.packet_offsets.empty() || batch.packet_offsets.front() != 0 ||
+      if (batch.packet_offsets.size() != packet_count + 1 || batch.packet_lengths.size() != packet_count ||
+          batch.sender_ids.size() != packet_count || batch.packet_offsets.empty() || batch.packet_offsets.front() != 0 ||
           batch.packet_offsets.back() != batch.packet_bytes.size())
       {
         throw std::invalid_argument("invalid contiguous packet batch");
@@ -292,6 +330,7 @@ namespace project
       analysis.protocol = result.protocol;
       analysis.tcp_flags = result.tcp_flags;
       analysis.validity = static_cast<PacketValidity>(result.validity);
+      analysis.flow_hash = result.flow_hash;
       analyses.push_back(analysis);
     }
     return analyses;
