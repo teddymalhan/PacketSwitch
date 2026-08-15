@@ -10,6 +10,7 @@ set(sources
     src/switch_metrics.cpp
     src/control_protocol.cpp
     src/control_service.cpp
+    src/topology.cpp
 )
 
 
@@ -27,6 +28,7 @@ set(headers
     include/project/switch_metrics.hpp
     include/project/control_protocol.hpp
     include/project/control_service.hpp
+    include/project/topology.hpp
 )
 
 set(test_sources
@@ -42,4 +44,5 @@ set(test_sources
   src/switch_metrics_test.cpp
   src/control_protocol_test.cpp
   src/control_service_test.cpp
+  src/topology_test.cpp
 )
