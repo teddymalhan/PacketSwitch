@@ -86,6 +86,31 @@ namespace project
       size_t count_ = 0;
     };
 
+    class CudaEvent final
+    {
+     public:
+      CudaEvent()
+      {
+        check_cuda(cudaEventCreate(&event_), "cudaEventCreate");
+      }
+
+      ~CudaEvent()
+      {
+        if (event_ != nullptr)
+        {
+          cudaEventDestroy(event_);
+        }
+      }
+
+      CudaEvent(const CudaEvent&) = delete;
+      CudaEvent& operator=(const CudaEvent&) = delete;
+
+      [[nodiscard]] cudaEvent_t get() const noexcept { return event_; }
+
+     private:
+      cudaEvent_t event_ = nullptr;
+    };
+
     __device__ uint16_t read_network_u16(const uint8_t* bytes)
     {
       return static_cast<uint16_t>(static_cast<uint16_t>(bytes[0]) << 8U | bytes[1]);
@@ -267,6 +292,11 @@ namespace project
 
   std::vector<PacketAnalysis> CudaPacketParser::parse(const PacketBatch& batch) const
   {
+    return parse_with_timing(batch).packets;
+  }
+
+  CudaPacketParser::ParseResult CudaPacketParser::parse_with_timing(const PacketBatch& batch) const
+  {
     validate_batch(batch);
     if (!is_available())
     {
@@ -283,6 +313,13 @@ namespace project
     DeviceBuffer<uint16_t> device_lengths(batch.packet_lengths.size());
     DeviceBuffer<uint32_t> device_sender_ids(batch.sender_ids.size());
     DeviceBuffer<DevicePacketAnalysis> device_analyses(packet_count);
+    CudaEvent host_to_device_started;
+    CudaEvent host_to_device_finished;
+    CudaEvent kernel_started;
+    CudaEvent kernel_finished;
+    CudaEvent device_to_host_started;
+    CudaEvent device_to_host_finished;
+    check_cuda(cudaEventRecord(host_to_device_started.get()), "cudaEventRecord host-to-device start");
     check_cuda(cudaMemcpy(device_bytes.data(), batch.packet_bytes.data(), batch.packet_bytes.size(), cudaMemcpyHostToDevice),
                "cudaMemcpy packet bytes");
     check_cuda(cudaMemcpy(device_offsets.data(), batch.packet_offsets.data(),
@@ -294,18 +331,23 @@ namespace project
     check_cuda(cudaMemcpy(device_sender_ids.data(), batch.sender_ids.data(),
                           batch.sender_ids.size() * sizeof(uint32_t), cudaMemcpyHostToDevice),
                "cudaMemcpy sender ids");
+    check_cuda(cudaEventRecord(host_to_device_finished.get()), "cudaEventRecord host-to-device finish");
+    check_cuda(cudaEventRecord(kernel_started.get()), "cudaEventRecord kernel start");
 
     const size_t block_count = (packet_count + CUDA_BLOCK_SIZE - 1) / CUDA_BLOCK_SIZE;
     parse_packets<<<static_cast<unsigned int>(block_count), CUDA_BLOCK_SIZE>>>(
         device_bytes.data(), device_offsets.data(), device_lengths.data(), device_sender_ids.data(), packet_count,
         device_analyses.data());
     check_cuda(cudaGetLastError(), "packet parser kernel launch");
-    check_cuda(cudaDeviceSynchronize(), "packet parser synchronization");
+    check_cuda(cudaEventRecord(kernel_finished.get()), "cudaEventRecord kernel finish");
+    check_cuda(cudaEventRecord(device_to_host_started.get()), "cudaEventRecord device-to-host start");
 
     std::vector<DevicePacketAnalysis> device_results(packet_count);
     check_cuda(cudaMemcpy(device_results.data(), device_analyses.data(), packet_count * sizeof(DevicePacketAnalysis),
                           cudaMemcpyDeviceToHost),
                "cudaMemcpy packet analyses");
+    check_cuda(cudaEventRecord(device_to_host_finished.get()), "cudaEventRecord device-to-host finish");
+    check_cuda(cudaEventSynchronize(device_to_host_finished.get()), "cudaEventSynchronize device-to-host finish");
     std::vector<PacketAnalysis> analyses;
     analyses.reserve(packet_count);
     for (const DevicePacketAnalysis& result : device_results)
@@ -333,7 +375,19 @@ namespace project
       analysis.flow_hash = result.flow_hash;
       analyses.push_back(analysis);
     }
-    return analyses;
+    CudaPacketParser::ParseResult parse_result;
+    parse_result.packets = std::move(analyses);
+    const auto elapsed_ns = [](cudaEvent_t start, cudaEvent_t finish) {
+      float elapsed_milliseconds = 0.0F;
+      check_cuda(cudaEventElapsedTime(&elapsed_milliseconds, start, finish), "cudaEventElapsedTime");
+      return static_cast<uint64_t>(elapsed_milliseconds * 1000000.0F);
+    };
+    parse_result.timing.host_to_device_ns =
+        elapsed_ns(host_to_device_started.get(), host_to_device_finished.get());
+    parse_result.timing.kernel_ns = elapsed_ns(kernel_started.get(), kernel_finished.get());
+    parse_result.timing.device_to_host_ns =
+        elapsed_ns(device_to_host_started.get(), device_to_host_finished.get());
+    return parse_result;
   }
 
   AnalysisBatch CudaPacketAnalyzer::analyze(const PacketView* packets, size_t packet_count)
@@ -348,11 +402,19 @@ namespace project
 
   AnalysisBatch CudaPacketAnalyzer::analyze(const PacketBatch& batch)
   {
-    return aggregator_.aggregate(parser_.parse(batch));
+    auto parsed = parser_.parse_with_timing(batch);
+    last_timing_ = parsed.timing;
+    return aggregator_.aggregate(std::move(parsed.packets));
+  }
+
+  CudaPacketParser::Timing CudaPacketAnalyzer::last_timing() const noexcept
+  {
+    return last_timing_;
   }
 
   void CudaPacketAnalyzer::reset() noexcept
   {
     aggregator_.reset();
+    last_timing_ = {};
   }
 }

@@ -61,9 +61,13 @@ namespace
     const auto batch = project::PacketBatch::create(views, 3);
 
     project::CpuPacketAnalyzer cpu;
-    project::CudaPacketParser cuda;
     const auto cpu_result = cpu.analyze(*batch);
-    const auto cuda_result = cuda.parse(*batch);
+    project::CudaPacketParser cuda;
+    const auto cuda_parse_result = cuda.parse_with_timing(*batch);
+    EXPECT_GT(cuda_parse_result.timing.host_to_device_ns + cuda_parse_result.timing.kernel_ns +
+                  cuda_parse_result.timing.device_to_host_ns,
+              0U);
+    const auto& cuda_result = cuda_parse_result.packets;
 
     ASSERT_EQ(cuda_result.size(), cpu_result.packets.size());
     for (size_t index = 0; index < cuda_result.size(); ++index)

@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
   project::TrafficGeneratorConfig config;
   size_t packet_count = 100000;
   size_t batch_size = 1;
+  std::string scenario_name = "mixed-traffic";
   std::string analyzer_name = "cpu";
 
   try
@@ -57,7 +58,11 @@ int main(int argc, char* argv[])
       const std::string option = argv[index];
       const std::string value = argv[index + 1];
       if (option == "--analyzer") analyzer_name = value;
-      else if (option == "--scenario") config.scenario = parse_scenario(value);
+      else if (option == "--scenario")
+      {
+        config.scenario = parse_scenario(value);
+        scenario_name = value;
+      }
       else if (option == "--packets") packet_count = std::stoull(value);
       else if (option == "--batch-size") batch_size = std::stoull(value);
       else if (option == "--frame-size") config.frame_size = std::stoull(value);
@@ -74,6 +79,13 @@ int main(int argc, char* argv[])
       throw std::invalid_argument("batch-size must be greater than zero");
     }
 
+    uint64_t host_to_device_ns = 0;
+    uint64_t kernel_ns = 0;
+    uint64_t device_to_host_ns = 0;
+#ifdef PROJECT_HAS_CUDA
+    project::CudaPacketAnalyzer* cuda_analyzer = nullptr;
+#endif
+
     std::unique_ptr<project::PacketAnalyzer> analyzer;
     if (analyzer_name == "cpu")
     {
@@ -86,7 +98,9 @@ int main(int argc, char* argv[])
       {
         throw std::runtime_error("CUDA analyzer selected, but no compatible CUDA device is available");
       }
-      analyzer = std::make_unique<project::CudaPacketAnalyzer>();
+      auto selected_cuda_analyzer = std::make_unique<project::CudaPacketAnalyzer>();
+      cuda_analyzer = selected_cuda_analyzer.get();
+      analyzer = std::move(selected_cuda_analyzer);
     }
 #else
     else if (analyzer_name == "cuda")
@@ -141,6 +155,15 @@ int main(int argc, char* argv[])
       unknown_unicast_packets += result.unknown_unicast_packets;
       known_unicast_packets += result.known_unicast_packets;
       generated_packets += current_batch_size;
+#ifdef PROJECT_HAS_CUDA
+      if (cuda_analyzer != nullptr)
+      {
+        const auto timing = cuda_analyzer->last_timing();
+        host_to_device_ns += timing.host_to_device_ns;
+        kernel_ns += timing.kernel_ns;
+        device_to_host_ns += timing.device_to_host_ns;
+      }
+#endif
     }
     const auto elapsed = std::chrono::steady_clock::now() - started;
     const double elapsed_seconds = std::chrono::duration<double>(elapsed).count();
@@ -154,7 +177,8 @@ int main(int argc, char* argv[])
         received_packets == 0 ? 0.0 : static_cast<double>(malformed_packets) * 100.0 / received_packets;
 
     std::cout << std::fixed << std::setprecision(2);
-    std::cout << "backend=" << analyzer_name << " packets=" << packet_count << " batch_size=" << batch_size
+    std::cout << "backend=" << analyzer_name << " scenario=" << scenario_name << " seed=" << config.seed
+              << " frame_size=" << config.frame_size << " packets=" << packet_count << " batch_size=" << batch_size
               << " elapsed_seconds=" << elapsed_seconds
               << " packets_per_second=" << (elapsed_seconds == 0.0 ? 0.0 : received_packets / elapsed_seconds)
               << " goodput_bits_per_second=" << (elapsed_seconds == 0.0 ? 0.0 : received_bytes * 8.0 / elapsed_seconds)
@@ -162,6 +186,8 @@ int main(int argc, char* argv[])
               << " batch_analysis_latency_p50_ns=" << percentile(50, 100)
               << " batch_analysis_latency_p95_ns=" << percentile(95, 100)
               << " batch_analysis_latency_p99_ns=" << percentile(99, 100)
+              << " host_to_device_ns=" << host_to_device_ns << " kernel_ns=" << kernel_ns
+              << " device_to_host_ns=" << device_to_host_ns
               << " malformed_packets=" << malformed_packets
               << " broadcast_packets=" << broadcast_packets
               << " unknown_unicast_packets=" << unknown_unicast_packets
