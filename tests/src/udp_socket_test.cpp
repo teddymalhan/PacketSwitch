@@ -100,7 +100,7 @@ TEST(UdpSocketTest, MoveConstruction)
   ASSERT_TRUE(result.has_value());
 
   UdpSocket socket1 = std::move(*result);
-  int fd1 = socket1.get_fd();
+  native_socket_handle fd1 = socket1.get_fd();
 
   UdpSocket socket2(std::move(socket1));
 
@@ -119,7 +119,7 @@ TEST(UdpSocketTest, MoveAssignment)
   UdpSocket socket1 = std::move(*result1);
   UdpSocket socket2 = std::move(*result2);
 
-  int fd1 = socket1.get_fd();
+  native_socket_handle fd1 = socket1.get_fd();
 
   socket2 = std::move(socket1);
 
@@ -140,7 +140,7 @@ TEST(UdpSocketTest, Bind)
   EXPECT_TRUE(bind_result.has_value());
 
   EXPECT_EQ(socket.local_endpoint().address(), "127.0.0.1");
-  EXPECT_EQ(socket.local_endpoint().port(), 0);  
+  EXPECT_NE(socket.local_endpoint().port(), 0);
 }
 
 TEST(UdpSocketTest, BindInvalidAddress)

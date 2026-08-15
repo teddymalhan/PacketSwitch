@@ -90,7 +90,7 @@ namespace project
     {
       return local_endpoint_;
     }
-    [[nodiscard]] int get_fd() const noexcept
+    [[nodiscard]] native_socket_handle get_fd() const noexcept
     {
       return socket_.get();
     }

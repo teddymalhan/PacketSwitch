@@ -28,7 +28,7 @@ TEST(ExpectedTest, ValueConstruction)
 
 TEST(ExpectedTest, ErrorConstruction)
 {
-  expected<int, std::string> ex(unexpected<std::string>("error"));
+  expected<int, std::string> ex(project::unexpected<std::string>("error"));
   EXPECT_FALSE(ex.has_value());
   EXPECT_EQ(ex.error(), "error");
 }
@@ -43,7 +43,7 @@ TEST(ExpectedTest, UnexpectConstruction)
 TEST(ExpectedTest, BoolConversion)
 {
   expected<int, std::string> ex_value(42);
-  expected<int, std::string> ex_error(unexpected<std::string>("error"));
+  expected<int, std::string> ex_error(project::unexpected<std::string>("error"));
 
   EXPECT_TRUE(static_cast<bool>(ex_value));
   EXPECT_FALSE(static_cast<bool>(ex_error));
@@ -58,14 +58,14 @@ TEST(ExpectedTest, ValueAccess)
 
 TEST(ExpectedTest, ValueAccessThrows)
 {
-  expected<int, std::string> ex(unexpected<std::string>("error"));
+  expected<int, std::string> ex(project::unexpected<std::string>("error"));
   EXPECT_THROW({ [[maybe_unused]] int val = ex.value(); }, bad_expected_access<std::string>);
 }
 
 TEST(ExpectedTest, ValueOr)
 {
   expected<int, std::string> ex_value(42);
-  expected<int, std::string> ex_error(unexpected<std::string>("error"));
+  expected<int, std::string> ex_error(project::unexpected<std::string>("error"));
 
   EXPECT_EQ(ex_value.value_or(100), 42);
   EXPECT_EQ(ex_error.value_or(100), 100);
@@ -79,7 +79,7 @@ TEST(ExpectedTest, Assignment)
   ex = 100;
   EXPECT_EQ(*ex, 100);
 
-  ex = unexpected<std::string>("error");
+  ex = project::unexpected<std::string>("error");
   EXPECT_FALSE(ex.has_value());
   EXPECT_EQ(ex.error(), "error");
 }
@@ -98,7 +98,7 @@ TEST(ExpectedTest, VoidSpecialization)
   expected<void, std::string> ex;
   EXPECT_TRUE(ex.has_value());
 
-  expected<void, std::string> ex_error(unexpected<std::string>("error"));
+  expected<void, std::string> ex_error(project::unexpected<std::string>("error"));
   EXPECT_FALSE(ex_error.has_value());
   EXPECT_EQ(ex_error.error(), "error");
 }
@@ -108,7 +108,7 @@ TEST(ExpectedTest, VoidValue)
   expected<void, std::string> ex;
   EXPECT_NO_THROW(ex.value());
 
-  expected<void, std::string> ex_error(unexpected<std::string>("error"));
+  expected<void, std::string> ex_error(project::unexpected<std::string>("error"));
   EXPECT_THROW(ex_error.value(), bad_expected_access<std::string>);
 }
 

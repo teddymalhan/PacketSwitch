@@ -32,7 +32,8 @@ namespace project
       return unexpected(VSwitchError::BindFailed);
     }
 
-    return VSwitch(std::move(socket), port);
+    const uint16_t actual_port = socket.local_endpoint().port();
+    return VSwitch(std::move(socket), actual_port);
   }
 
   VSwitch::VSwitch(UdpSocket socket, uint16_t port) noexcept : socket_(std::move(socket)), port_(port), running_(false)
@@ -96,15 +97,9 @@ namespace project
 
   void VSwitch::stop() noexcept
   {
-    if (!running_.load())
-    {
-      return;
-    }
-
+    if (!running_.exchange(false)) return;
     std::cout << "[VSwitch] Stopping...\n";
-
-    running_.store(false);
-
+    socket_.close();
     std::cout << "[VSwitch] Stopped. Learned " << mac_table_.size() << " MAC addresses.\n";
   }
 

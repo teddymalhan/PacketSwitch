@@ -59,7 +59,11 @@ void print_usage(const char* program_name)
   std::cerr << "  " << program_name << " 127.0.0.1 8080\n";
   std::cerr << "  " << program_name << " 192.168.1.100 9000 tap0\n";
   std::cerr << "\n";
+#ifdef _WIN32
+  std::cerr << "Note: Install a TAP-Windows6 adapter; pass its connection name or GUID.\n";
+#else
   std::cerr << "Note: This program requires root/sudo privileges to create TAP devices.\n";
+#endif
 }
 
 int main(int argc, char* argv[])
@@ -110,8 +114,12 @@ int main(int argc, char* argv[])
 
       if (vport_result.error() == project::VPortError::TapDeviceCreationFailed)
       {
+#ifdef _WIN32
+        std::cerr << "\nHint: Install the OpenVPN TAP-Windows6 component and create an adapter with tapctl.exe.\n";
+#else
         std::cerr << "\nHint: Creating TAP devices requires root privileges.\n";
         std::cerr << "      Try running with sudo: sudo " << argv[0] << " " << vswitch_ip << " " << vswitch_port << "\n";
+#endif
       }
 
       return EXIT_FAILURE;

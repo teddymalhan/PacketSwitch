@@ -52,6 +52,10 @@ if(${CMAKE_PROJECT_NAME}_ENABLE_CODE_COVERAGE)
   verbose_message("Code coverage is enabled and provided with GCC.")
 endif()
 
+if(WIN32)
+  list(REMOVE_ITEM test_sources src/sys_utils_test.cpp src/tap_device_test.cpp)
+endif()
+
 foreach(file ${test_sources})
   string(REGEX REPLACE "(.*/)([a-zA-Z0-9_ ]+)(\.cpp)" "\\2" test_name ${file}) 
   add_executable(${test_name}_Tests ${file})

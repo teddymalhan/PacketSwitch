@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 
 
 
@@ -17,7 +17,7 @@ project(
 include(cmake/StandardSettings.cmake)
 include(cmake/StaticAnalyzers.cmake)
 include(cmake/Utils.cmake)
-if(NOT CMAKE_BUILD_TYPE)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug")
 endif()
 message(STATUS "Started CMake for ${PROJECT_NAME} v${PROJECT_VERSION}...\n")
@@ -141,6 +141,15 @@ else()
     target_compile_features(${PROJECT_NAME}_LIB PUBLIC cxx_std_17)
   endif()
 endif()
+
+if(WIN32)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE _WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN NOMINMAX)
+  target_link_libraries(${PROJECT_NAME} PRIVATE Ws2_32 Advapi32)
+  if(${PROJECT_NAME}_BUILD_EXECUTABLE AND ${PROJECT_NAME}_ENABLE_UNIT_TESTING)
+    target_compile_definitions(${PROJECT_NAME}_LIB PRIVATE _WIN32_WINNT=0x0A00 WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_link_libraries(${PROJECT_NAME}_LIB PRIVATE Ws2_32 Advapi32)
+  endif()
+endif()
 include(cmake/CompilerWarnings.cmake)
 set_project_warnings(${PROJECT_NAME})
 
@@ -247,6 +256,11 @@ target_compile_features(vport PRIVATE cxx_std_17)
 add_executable(vswitch src/vswitch_main.cpp)
 target_link_libraries(vswitch PRIVATE ${PROJECT_NAME})
 target_compile_features(vswitch PRIVATE cxx_std_17)
+set_target_properties(
+  vport vswitch
+  PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
+)
 
 verbose_message("Added vport and vswitch executable targets.")
 

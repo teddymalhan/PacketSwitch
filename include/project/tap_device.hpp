@@ -49,7 +49,7 @@ namespace project
     {
       return device_name_;
     }
-    [[nodiscard]] int get_fd() const noexcept
+    [[nodiscard]] native_file_handle get_fd() const noexcept
     {
       return fd_.get();
     }

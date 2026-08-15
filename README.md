@@ -62,6 +62,39 @@ cmake --build . --parallel
 
 Binaries are placed at `build/vswitch` and `build/vport`.
 
+### Native Windows (no Docker)
+
+Requirements: Windows 10/11 x64, CMake 3.21 or newer, Visual Studio with the
+Desktop development with C++ workload, and (for `vport`) an OpenVPN
+TAP-Windows6 adapter. `vswitch` and the loopback test suite do not require the
+adapter or administrator rights.
+
+From PowerShell:
+
+```powershell
+cmake -S . -B out/build/windows -A x64 `
+  -DProject_ENABLE_UNIT_TESTING=ON `
+  -DProject_ENABLE_CCACHE=OFF
+cmake --build out/build/windows --config Release --parallel
+ctest --test-dir out/build/windows -C Release --output-on-failure
+```
+
+The executables are written to `out/build/windows/bin/Release`.
+
+Install the TAP component from the
+[OpenVPN Community distribution](https://openvpn.net/community-downloads/),
+then create a dedicated adapter from an elevated PowerShell:
+
+```powershell
+& "$env:ProgramFiles\OpenVPN\bin\tapctl.exe" create --name "PacketSwitch TAP"
+.\out\build\windows\bin\Release\vport.exe 127.0.0.1 8080 "PacketSwitch TAP"
+```
+
+`vport` accepts the TAP connection name or adapter GUID. If exactly one
+TAP-Windows6 adapter is installed, the selector may be omitted. Wintun is not
+supported because it transports Layer-3 packets; PacketSwitch forwards complete
+Ethernet frames.
+
 ### Build with Make
 
 ```bash

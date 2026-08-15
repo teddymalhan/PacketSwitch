@@ -1,6 +1,7 @@
 #ifndef PROJECT_SYS_UTILS_HPP_
 #define PROJECT_SYS_UTILS_HPP_
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -37,99 +38,74 @@ namespace project
     {
     }
   };
+  using native_file_handle = std::intptr_t;
+#ifdef _WIN32
+  using native_socket_handle = std::uintptr_t;
+#else
+  using native_socket_handle = int;
+#endif
+
   class FileDescriptor
   {
    private:
-    int fd_;
+    native_file_handle fd_;
 
    public:
-    FileDescriptor() noexcept : fd_(-1)
-    {
-    }
-    explicit FileDescriptor(int fd) noexcept : fd_(fd)
-    {
-    }
-    FileDescriptor(FileDescriptor&& other) noexcept : fd_(other.fd_)
-    {
-      other.fd_ = -1;
-    }
+    FileDescriptor() noexcept : fd_(-1) {}
+    explicit FileDescriptor(native_file_handle fd) noexcept : fd_(fd) {}
+    FileDescriptor(FileDescriptor&& other) noexcept : fd_(other.release()) {}
     FileDescriptor& operator=(FileDescriptor&& other) noexcept
     {
-      if (this != &other)
-      {
-        close();
-        fd_ = other.fd_;
-        other.fd_ = -1;
-      }
+      if (this != &other) reset(other.release());
       return *this;
     }
     FileDescriptor(const FileDescriptor&) = delete;
     FileDescriptor& operator=(const FileDescriptor&) = delete;
     ~FileDescriptor();
     void close() noexcept;
-    [[nodiscard]] bool is_valid() const noexcept
+    [[nodiscard]] bool is_valid() const noexcept { return fd_ != -1; }
+    [[nodiscard]] native_file_handle get() const noexcept { return fd_; }
+    [[nodiscard]] native_file_handle release() noexcept
     {
-      return fd_ >= 0;
-    }
-    [[nodiscard]] int get() const noexcept
-    {
-      return fd_;
-    }
-    [[nodiscard]] int release() noexcept
-    {
-      int fd = fd_;
+      const auto fd = fd_;
       fd_ = -1;
       return fd;
     }
-    void reset(int fd = -1) noexcept
+    void reset(native_file_handle fd = -1) noexcept
     {
       close();
       fd_ = fd;
     }
-    explicit operator bool() const noexcept
-    {
-      return is_valid();
-    }
+    explicit operator bool() const noexcept { return is_valid(); }
   };
+
   class SocketHandle
   {
    private:
-    FileDescriptor fd_;
+    native_socket_handle socket_;
 
    public:
-      SocketHandle() noexcept = default;
-    explicit SocketHandle(int sockfd) noexcept : fd_(sockfd)
+    SocketHandle() noexcept;
+    explicit SocketHandle(native_socket_handle socket) noexcept : socket_(socket) {}
+    SocketHandle(SocketHandle&& other) noexcept : socket_(other.release()) {}
+    SocketHandle& operator=(SocketHandle&& other) noexcept
     {
+      if (this != &other) reset(other.release());
+      return *this;
     }
-    SocketHandle(SocketHandle&& other) noexcept = default;
-    SocketHandle& operator=(SocketHandle&& other) noexcept = default;
     SocketHandle(const SocketHandle&) = delete;
     SocketHandle& operator=(const SocketHandle&) = delete;
-    ~SocketHandle() = default;
-    void close() noexcept
+    ~SocketHandle();
+    void close() noexcept;
+    [[nodiscard]] bool is_valid() const noexcept;
+    [[nodiscard]] native_socket_handle get() const noexcept { return socket_; }
+    [[nodiscard]] native_socket_handle release() noexcept;
+    void reset(native_socket_handle socket) noexcept
     {
-      fd_.close();
+      close();
+      socket_ = socket;
     }
-    [[nodiscard]] bool is_valid() const noexcept
-    {
-      return fd_.is_valid();
-    }
-    [[nodiscard]] int get() const noexcept
-    {
-      return fd_.get();
-    }
-    [[nodiscard]] int release() noexcept
-    {
-      return fd_.release();
-    }
-    void reset(int sockfd = -1) noexcept
-    {
-      fd_.reset(sockfd);
-    }
-    explicit operator bool() const noexcept
-    {
-      return is_valid();
-    }
+    explicit operator bool() const noexcept { return is_valid(); }
   };
 }  
 

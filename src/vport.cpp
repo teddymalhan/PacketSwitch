@@ -117,15 +117,12 @@ namespace project
 
   void VPort::stop() noexcept
   {
-    if (!running_.load())
-    {
-      return;
-    }
-
+    if (!running_.exchange(false)) return;
     std::cout << "[VPort] Stopping forwarder threads...\n";
-
-    running_.store(false);
-
+    tap_device_.close();
+    udp_socket_.close();
+    if (tap_to_switch_thread_.joinable()) tap_to_switch_thread_.join();
+    if (switch_to_tap_thread_.joinable()) switch_to_tap_thread_.join();
     std::cout << "[VPort] Stopped\n";
   }
 
