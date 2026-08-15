@@ -1,6 +1,7 @@
 #ifndef PROJECT_PACKET_ANALYZER_HPP_
 #define PROJECT_PACKET_ANALYZER_HPP_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <unordered_set>
@@ -65,6 +66,21 @@ namespace project
     PacketClassification classification = PacketClassification::Malformed;
   };
 
+  struct PacketSizeHistogramBucket
+  {
+    uint64_t inclusive_minimum = 0;
+    uint64_t inclusive_maximum = 0;
+    uint64_t packet_count = 0;
+    uint64_t byte_count = 0;
+  };
+
+  struct HistogramEntry
+  {
+    uint32_t value = 0;
+    uint64_t packet_count = 0;
+    uint64_t byte_count = 0;
+  };
+
   struct FlowRecord
   {
     FlowKey key;
@@ -75,6 +91,10 @@ namespace project
 
   struct AnalysisBatch
   {
+    std::array<PacketSizeHistogramBucket, 7> frame_size_histogram;
+    std::vector<HistogramEntry> ethertype_histogram;
+    std::vector<HistogramEntry> protocol_histogram;
+    std::vector<HistogramEntry> destination_port_histogram;
     std::vector<PacketAnalysis> packets;
     std::vector<FlowRecord> flows;
     uint64_t received_packets = 0;

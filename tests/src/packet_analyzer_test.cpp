@@ -227,5 +227,30 @@ namespace
     EXPECT_NE(result.flows[0].flow_hash, result.flows[1].flow_hash);
     EXPECT_EQ(result.packets[0].flow_hash, result.packets[1].flow_hash);
     EXPECT_EQ(result.packets[0].flow_hash, result.flows[1].flow_hash);
+    ASSERT_EQ(result.frame_size_histogram.size(), 7U);
+    const auto frame_bucket = std::find_if(
+        result.frame_size_histogram.begin(), result.frame_size_histogram.end(),
+        [&first](const project::PacketSizeHistogramBucket& bucket) {
+          return first.size() >= bucket.inclusive_minimum && first.size() <= bucket.inclusive_maximum;
+        });
+    ASSERT_NE(frame_bucket, result.frame_size_histogram.end());
+    EXPECT_EQ(frame_bucket->packet_count, 3U);
+    EXPECT_EQ(frame_bucket->byte_count, first.size() + second.size() + different_flow.size());
+
+    ASSERT_EQ(result.ethertype_histogram.size(), 1U);
+    EXPECT_EQ(result.ethertype_histogram[0].value, project::EtherType::IPv4);
+    EXPECT_EQ(result.ethertype_histogram[0].packet_count, 3U);
+    EXPECT_EQ(result.ethertype_histogram[0].byte_count, first.size() + second.size() + different_flow.size());
+
+    ASSERT_EQ(result.protocol_histogram.size(), 1U);
+    EXPECT_EQ(result.protocol_histogram[0].value, 17U);
+    EXPECT_EQ(result.protocol_histogram[0].packet_count, 3U);
+    EXPECT_EQ(result.protocol_histogram[0].byte_count, first.size() + second.size() + different_flow.size());
+
+    ASSERT_EQ(result.destination_port_histogram.size(), 2U);
+    EXPECT_EQ(result.destination_port_histogram[0].value, 53U);
+    EXPECT_EQ(result.destination_port_histogram[0].packet_count, 2U);
+    EXPECT_EQ(result.destination_port_histogram[1].value, 443U);
+    EXPECT_EQ(result.destination_port_histogram[1].packet_count, 1U);
   }
 }

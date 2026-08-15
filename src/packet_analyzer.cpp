@@ -17,6 +17,16 @@ namespace project
     constexpr size_t ICMP_MINIMUM_HEADER_SIZE = 4;
 
     constexpr uint64_t FNV1A_OFFSET_BASIS = 14695981039346656037ULL;
+
+    constexpr std::array<uint64_t, 7> FRAME_SIZE_BUCKET_MINIMUMS = {
+      0,
+      64,
+      128,
+      256,
+      512,
+      1024,
+      1519,
+    };
     constexpr uint64_t FNV1A_PRIME = 1099511628211ULL;
 
     void hash_byte(uint64_t& hash, uint8_t byte) noexcept
@@ -76,6 +86,29 @@ namespace project
         return first.key.destination_port < second.key.destination_port;
       }
       return first.key.protocol < second.key.protocol;
+    }
+
+    void aggregate_histogram(std::vector<HistogramEntry>& histogram)
+    {
+      std::sort(
+          histogram.begin(), histogram.end(),
+          [](const HistogramEntry& first, const HistogramEntry& second) { return first.value < second.value; });
+      size_t output_index = 0;
+      for (size_t index = 0; index < histogram.size(); ++index)
+      {
+        const HistogramEntry& entry = histogram[index];
+        if (output_index == 0 || histogram[output_index - 1].value != entry.value)
+        {
+          histogram[output_index] = entry;
+          ++output_index;
+          continue;
+        }
+
+        HistogramEntry& aggregate = histogram[output_index - 1];
+        aggregate.packet_count += entry.packet_count;
+        aggregate.byte_count += entry.byte_count;
+      }
+      histogram.resize(output_index);
     }
 
     uint16_t read_network_u16(const uint8_t* bytes) noexcept
@@ -154,12 +187,23 @@ namespace project
   AnalysisBatch CpuPacketAnalyzer::analyze(const PacketView* packets, size_t packet_count)
   {
     AnalysisBatch batch;
+    for (size_t index = 0; index < batch.frame_size_histogram.size(); ++index)
+    {
+      PacketSizeHistogramBucket& bucket = batch.frame_size_histogram[index];
+      bucket.inclusive_minimum = FRAME_SIZE_BUCKET_MINIMUMS[index];
+      bucket.inclusive_maximum = index + 1 == batch.frame_size_histogram.size()
+                                     ? std::numeric_limits<uint64_t>::max()
+                                     : FRAME_SIZE_BUCKET_MINIMUMS[index + 1] - 1;
+    }
     if (packet_count == 0)
     {
       return batch;
     }
 
     batch.packets.reserve(packet_count);
+    batch.ethertype_histogram.reserve(packet_count);
+    batch.protocol_histogram.reserve(packet_count);
+    batch.destination_port_histogram.reserve(packet_count);
     batch.flows.reserve(packet_count);
     for (size_t index = 0; index < packet_count; ++index)
     {
@@ -168,6 +212,14 @@ namespace project
       analysis.frame_length = static_cast<uint16_t>(std::min(packet.size, static_cast<size_t>(std::numeric_limits<uint16_t>::max())));
       batch.received_packets += 1;
       batch.received_bytes += packet.size;
+      const auto frame_size_bucket =
+          static_cast<size_t>(std::upper_bound(
+                                  FRAME_SIZE_BUCKET_MINIMUMS.begin() + 1,
+                                  FRAME_SIZE_BUCKET_MINIMUMS.end(), packet.size) -
+                              FRAME_SIZE_BUCKET_MINIMUMS.begin() - 1);
+      PacketSizeHistogramBucket& size_bucket = batch.frame_size_histogram[frame_size_bucket];
+      size_bucket.packet_count += 1;
+      size_bucket.byte_count += packet.size;
 
       if (packet.bytes == nullptr || packet.size < ETHERNET_HEADER_SIZE)
       {
@@ -179,11 +231,21 @@ namespace project
       analysis.destination_mac = MacAddress(packet.bytes);
       analysis.source_mac = MacAddress(packet.bytes + MAC_ADDRESS_SIZE);
       analysis.ethertype = read_network_u16(packet.bytes + MAC_ADDRESS_SIZE * 2);
+      batch.ethertype_histogram.push_back(HistogramEntry{ analysis.ethertype, 1, packet.size });
       analysis.validity =
           analysis.ethertype == EtherType::IPv4 ? parse_ipv4(packet, analysis) : PacketValidity::Valid;
       if (analysis.validity != PacketValidity::Valid)
       {
         batch.malformed_packets += 1;
+      }
+      if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
+      {
+        batch.protocol_histogram.push_back(HistogramEntry{ analysis.protocol, 1, packet.size });
+        if (analysis.protocol == TCP_PROTOCOL || analysis.protocol == UDP_PROTOCOL)
+        {
+          batch.destination_port_histogram.push_back(
+              HistogramEntry{ analysis.destination_port, 1, packet.size });
+        }
       }
 
       if (analysis.destination_mac.is_broadcast())
@@ -227,6 +289,9 @@ namespace project
       aggregate.byte_count += flow.byte_count;
     }
     batch.flows.resize(output_index);
+    aggregate_histogram(batch.ethertype_histogram);
+    aggregate_histogram(batch.protocol_histogram);
+    aggregate_histogram(batch.destination_port_histogram);
     return batch;
   }
 
