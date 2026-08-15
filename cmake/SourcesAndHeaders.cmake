@@ -8,6 +8,7 @@ set(sources
     src/vswitch.cpp
     src/traffic_generator.cpp
     src/packet_analyzer.cpp
+    src/packet_batch.cpp
     src/anomaly_detector.cpp
     src/policy_engine.cpp
     src/switch_metrics.cpp
@@ -32,6 +33,7 @@ set(headers
     include/project/vswitch.hpp
     include/project/traffic_generator.hpp
     include/project/packet_analyzer.hpp
+    include/project/packet_batch.hpp
     include/project/anomaly_detector.hpp
     include/project/policy_engine.hpp
     include/project/switch_metrics.hpp
@@ -53,6 +55,7 @@ set(test_sources
   src/integration_test.cpp
   src/traffic_generator_test.cpp
   src/packet_analyzer_test.cpp
+  src/packet_batch_test.cpp
   src/anomaly_detector_test.cpp
   src/policy_engine_test.cpp
   src/switch_metrics_test.cpp
