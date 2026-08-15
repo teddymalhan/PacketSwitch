@@ -1,8 +1,8 @@
-#include "project/packet_batch.hpp"
+#include "wirelab/packet_batch.hpp"
 
 #include <limits>
 
-namespace project
+namespace wirelab
 {
   expected<PacketBatch, PacketBatchError> PacketBatch::create(const PacketView* packets, size_t packet_count,
                                                                uint64_t timestamp_ns)

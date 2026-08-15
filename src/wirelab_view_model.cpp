@@ -1,4 +1,4 @@
-#include "project/wirelab_view_model.hpp"
+#include "wirelab/wirelab_view_model.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -9,13 +9,17 @@
 #include <vector>
 
 #include <QFileInfo>
+#include <QUrl>
 #include <QVariantMap>
 
-#ifdef PROJECT_HAS_CUDA
-#include "project/cuda_packet_parser.hpp"
+#ifdef WIRELAB_HAS_CUDA
+#include "wirelab/cuda_packet_parser.hpp"
+#endif
+#ifdef WIRELAB_HAS_METAL
+#include "wirelab/metal_packet_parser.hpp"
 #endif
 
-namespace project
+namespace wirelab
 {
   namespace
   {
@@ -127,13 +131,22 @@ namespace project
   QVariantList WireLabViewModel::anomalyRows() const { return anomalyRows_; }
   QVariantList WireLabViewModel::activeFaults() const { return activeFaults_; }
 
-  bool WireLabViewModel::cudaAvailable() const noexcept
+  QStringList WireLabViewModel::availableBackends() const
   {
-#ifdef PROJECT_HAS_CUDA
-    return CudaPacketParser::is_available();
-#else
-    return false;
+    QStringList backends{ QStringLiteral("CPU") };
+#ifdef WIRELAB_HAS_CUDA
+    if (CudaPacketParser::is_available())
+    {
+      backends.push_back(QStringLiteral("CUDA"));
+    }
 #endif
+#ifdef WIRELAB_HAS_METAL
+    if (MetalPacketParser::is_available())
+    {
+      backends.push_back(QStringLiteral("Metal"));
+    }
+#endif
+    return backends;
   }
 
   void WireLabViewModel::setStatus(QString message)
@@ -164,13 +177,18 @@ namespace project
 
   void WireLabViewModel::openTopology(const QString& path)
   {
-    const auto configuration = topology_configuration_from_yaml_file(path.toStdString());
+    QString localPath = path;
+    if (localPath.startsWith(QStringLiteral("file://")))
+    {
+      localPath = QUrl(localPath).toLocalFile();
+    }
+    const auto configuration = topology_configuration_from_yaml_file(localPath.toStdString());
     if (!configuration)
     {
       setStatus(QStringLiteral("Open topology failed: %1").arg(to_string(configuration.error())));
       return;
     }
-    topologyPath_ = path;
+    topologyPath_ = localPath;
     const auto name = QString::fromStdString(configuration.value().name);
     (void)commitTopology(configuration.value(), QStringLiteral("Loaded %1").arg(name));
   }
@@ -182,7 +200,12 @@ namespace project
       setStatus(QStringLiteral("There is no topology to save."));
       return;
     }
-    std::ofstream output(path.toStdString(), std::ios::trunc);
+    QString localPath = path;
+    if (localPath.startsWith(QStringLiteral("file://")))
+    {
+      localPath = QUrl(localPath).toLocalFile();
+    }
+    std::ofstream output(localPath.toStdString(), std::ios::trunc);
     if (!output)
     {
       setStatus(QStringLiteral("Could not open %1 for writing.").arg(path));
@@ -198,11 +221,11 @@ namespace project
              << ", latency_ms: " << link.latency.count() << " }\n";
     if (!output)
     {
-      setStatus(QStringLiteral("Writing %1 failed.").arg(path));
+      setStatus(QStringLiteral("Writing %1 failed.").arg(localPath));
       return;
     }
-    topologyPath_ = path;
-    setStatus(QStringLiteral("Saved topology to %1").arg(QFileInfo(path).fileName()));
+    topologyPath_ = localPath;
+    setStatus(QStringLiteral("Saved topology to %1").arg(QFileInfo(localPath).fileName()));
   }
 
   void WireLabViewModel::rebuildTopologyModels()
@@ -365,27 +388,30 @@ namespace project
       setStatus(QStringLiteral("Traffic settings are invalid."));
       return;
     }
-    if (backend == QStringLiteral("CUDA") && !cudaAvailable())
+    if (!availableBackends().contains(backend))
     {
-      setStatus(QStringLiteral("CUDA is not available in this build or on this system."));
+      setStatus(QStringLiteral("%1 is not available in this build or on this system.").arg(backend));
       return;
     }
     trafficScenario_ = parsedScenario;
     packetsPerTick_ = packetsPerTick;
     frameSize_ = frameSize;
     trafficSeed_ = seed;
-    activeBackend_ = backend == QStringLiteral("CUDA") ? QStringLiteral("CUDA") : QStringLiteral("CPU");
+    activeBackend_ = backend;
     const auto hostCount = static_cast<uint32_t>(std::max<size_t>(
         1, std::count_if(topologyConfiguration_.nodes.begin(), topologyConfiguration_.nodes.end(),
                          [](const TopologyNode& node) { return node.type == TopologyNodeType::Host; })));
     trafficGenerator_ = std::make_unique<DeterministicTrafficGenerator>(
         TrafficGeneratorConfig{ trafficScenario_, trafficSeed_, static_cast<size_t>(frameSize_), hostCount });
-#ifdef PROJECT_HAS_CUDA
+    trafficAnalyzer_ = std::make_unique<CpuPacketAnalyzer>();
+#ifdef WIRELAB_HAS_CUDA
     if (activeBackend_ == QStringLiteral("CUDA"))
       trafficAnalyzer_ = std::make_unique<CudaPacketAnalyzer>();
-    else
 #endif
-      trafficAnalyzer_ = std::make_unique<CpuPacketAnalyzer>();
+#ifdef WIRELAB_HAS_METAL
+    if (activeBackend_ == QStringLiteral("Metal"))
+      trafficAnalyzer_ = std::make_unique<MetalPacketAnalyzer>();
+#endif
     trafficRunning_ = true;
     setStatus(QStringLiteral("Traffic running on %1").arg(activeBackend_));
     emit trafficStateChanged();

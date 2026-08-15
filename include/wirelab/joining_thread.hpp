@@ -4,7 +4,7 @@
 #include <thread>
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   class joining_thread
   {

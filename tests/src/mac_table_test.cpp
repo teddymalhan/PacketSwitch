@@ -3,14 +3,14 @@
 
 
 
-#include "project/mac_table.hpp"
+#include "wirelab/mac_table.hpp"
 
 #include <gtest/gtest.h>
 
 #include <array>
 #include <thread>
 
-using namespace project;
+using namespace wirelab;
 
 TEST(MacTableTest, DefaultConstruction)
 {

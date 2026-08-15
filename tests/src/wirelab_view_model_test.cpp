@@ -3,9 +3,9 @@
 
 #include <gtest/gtest.h>
 
-#include "project/wirelab_view_model.hpp"
+#include "wirelab/wirelab_view_model.hpp"
 
-namespace project
+namespace wirelab
 {
   namespace
   {
@@ -42,6 +42,39 @@ namespace project
 
     model.clearFault(QStringLiteral("client-a"), QString());
     EXPECT_TRUE(model.activeFaults().isEmpty());
+  }
+
+  TEST(WireLabViewModelTest, RunsTrafficOnMetalBackendWhenAvailable)
+  {
+    WireLabViewModel model;
+    if (!model.availableBackends().contains(QStringLiteral("Metal")))
+    {
+      GTEST_SKIP() << "Metal backend not built or no Metal device";
+    }
+    model.openTopology(QString::fromStdString(scenario_path()));
+    ASSERT_TRUE(model.hasTopology());
+
+    EXPECT_TRUE(model.availableBackends().contains(QStringLiteral("CPU")));
+    EXPECT_TRUE(model.availableBackends().contains(QStringLiteral("Metal")));
+
+    model.startTraffic(QStringLiteral("mixed-traffic"), 64, 128, 42, QStringLiteral("Metal"));
+    ASSERT_TRUE(model.trafficRunning());
+    EXPECT_EQ(model.activeBackend(), QStringLiteral("Metal"));
+    model.runTrafficStep();
+    EXPECT_FALSE(model.packetRows().isEmpty());
+    model.stopTraffic();
+
+    model.startTraffic(QStringLiteral("mixed-traffic"), 16, 128, 7, QStringLiteral("DoesNotExist"));
+    EXPECT_FALSE(model.trafficRunning());
+    EXPECT_TRUE(model.statusMessage().contains(QStringLiteral("not available")));
+  }
+
+  TEST(WireLabViewModelTest, OpensTopologyFromFileUrlString)
+  {
+    WireLabViewModel model;
+    model.openTopology(QStringLiteral("file://") + QString::fromStdString(scenario_path()));
+    EXPECT_TRUE(model.hasTopology());
+    EXPECT_EQ(model.topologyName(), QStringLiteral("security-lab"));
   }
 
   TEST(WireLabViewModelTest, EditsValidTopologyAndRejectsInvalidChanges)

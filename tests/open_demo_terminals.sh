@@ -21,13 +21,13 @@ open_window() {
 
 ./tests/demo_stack.sh start
 
-open_window "PacketSwitch — VSwitch" \
-  "docker logs --follow --tail 20 packetswitch-demo-switch 2>&1 | awk -f ./tests/highlight_logs.awk"
-open_window "PacketSwitch — VPort 1 (10.1.1.101)" \
-  "docker logs --follow --tail 12 packetswitch-demo-port1 2>&1 | awk -f ./tests/highlight_logs.awk"
-open_window "PacketSwitch — VPort 2 (10.1.1.102)" \
-  "docker logs --follow --tail 12 packetswitch-demo-port2 2>&1 | awk -f ./tests/highlight_logs.awk"
-open_window "PacketSwitch — Live Traffic" \
+open_window "WireLab — VSwitch" \
+  "docker logs --follow --tail 20 wirelab-demo-switch 2>&1 | awk -f ./tests/highlight_logs.awk"
+open_window "WireLab — VPort 1 (10.1.1.101)" \
+  "docker logs --follow --tail 12 wirelab-demo-port1 2>&1 | awk -f ./tests/highlight_logs.awk"
+open_window "WireLab — VPort 2 (10.1.1.102)" \
+  "docker logs --follow --tail 12 wirelab-demo-port2 2>&1 | awk -f ./tests/highlight_logs.awk"
+open_window "WireLab — Live Traffic" \
   "./tests/demo_stack.sh traffic 2>&1 | awk -f ./tests/highlight_logs.awk"
 
 printf '\nOpened four Otty windows:\n'

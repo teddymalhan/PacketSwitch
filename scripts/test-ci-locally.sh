@@ -80,8 +80,8 @@ fi
 echo "Configuring CMake..."
 if cmake -B "$BUILD_DIR" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DProject_ENABLE_UNIT_TESTING=ON \
-    -DProject_ENABLE_CCACHE=OFF \
+    -DWireLab_ENABLE_UNIT_TESTING=ON \
+    -DWireLab_ENABLE_CCACHE=OFF \
     -G Ninja 2>&1 > /dev/null; then
     print_success "CMake configuration successful"
 else
@@ -128,9 +128,9 @@ if command -v clang-tidy &> /dev/null; then
     echo "Configuring with Clang-Tidy..."
     if cmake -B "$BUILD_DIR_TIDY" \
         -DCMAKE_BUILD_TYPE=Debug \
-        -DProject_ENABLE_UNIT_TESTING=ON \
-        -DProject_ENABLE_CLANG_TIDY=ON \
-        -DProject_ENABLE_CCACHE=OFF \
+        -DWireLab_ENABLE_UNIT_TESTING=ON \
+        -DWireLab_ENABLE_CLANG_TIDY=ON \
+        -DWireLab_ENABLE_CCACHE=OFF \
         -G Ninja 2>&1 > /dev/null; then
         
         echo "Building with static analysis..."
@@ -161,9 +161,9 @@ if [[ "$OSTYPE" == "linux-gnu"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
     echo "Configuring with ASan..."
     if cmake -B "$BUILD_DIR_ASAN" \
         -DCMAKE_BUILD_TYPE=Debug \
-        -DProject_ENABLE_UNIT_TESTING=ON \
-        -DProject_ENABLE_ASAN=ON \
-        -DProject_ENABLE_CCACHE=OFF \
+        -DWireLab_ENABLE_UNIT_TESTING=ON \
+        -DWireLab_ENABLE_ASAN=ON \
+        -DWireLab_ENABLE_CCACHE=OFF \
         -G Ninja 2>&1 > /dev/null; then
         
         echo "Building with ASan..."

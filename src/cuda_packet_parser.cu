@@ -1,4 +1,4 @@
-#include "project/cuda_packet_parser.hpp"
+#include "wirelab/cuda_packet_parser.hpp"
 
 #include <array>
 #include <cstddef>
@@ -11,7 +11,7 @@
 
 #include <cuda_runtime.h>
 
-namespace project
+namespace wirelab
 {
   namespace
   {

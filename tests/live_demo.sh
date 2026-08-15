@@ -2,11 +2,11 @@
 
 set -Eeuo pipefail
 
-readonly IMAGE="packetswitch-demo"
-readonly NETWORK="packetswitch-demo-net"
-readonly SWITCH="packetswitch-demo-switch"
-readonly PORT1="packetswitch-demo-port1"
-readonly PORT2="packetswitch-demo-port2"
+readonly IMAGE="wirelab-demo"
+readonly NETWORK="wirelab-demo-net"
+readonly SWITCH="wirelab-demo-switch"
+readonly PORT1="wirelab-demo-port1"
+readonly PORT2="wirelab-demo-port2"
 readonly SWITCH_PORT="8080"
 readonly SWITCH_IP="172.30.0.2"
 readonly PORT1_IP="10.1.1.101"
@@ -67,7 +67,7 @@ start_port() {
 }
 
 printf '=============================================\n'
-printf ' PacketSwitch: live Layer-2 switching demo\n'
+printf ' WireLab: live Layer-2 switching demo\n'
 printf '=============================================\n\n'
 
 require_docker

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace project
+namespace wirelab
 {
   enum class TrafficScenario
   {

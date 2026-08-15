@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "project/packet_batch.hpp"
+#include "wirelab/packet_batch.hpp"
 
 namespace
 {
@@ -10,13 +10,13 @@ namespace
   {
     const std::array<uint8_t, 3> first = { 1, 2, 3 };
     const std::array<uint8_t, 2> second = { 4, 5 };
-    const project::PacketView packets[] = {
+    const wirelab::PacketView packets[] = {
       { first.data(), first.size(), 9 },
       { nullptr, 0, 10 },
       { second.data(), second.size(), 11 },
     };
 
-    const auto batch = project::PacketBatch::create(packets, 3, 1234);
+    const auto batch = wirelab::PacketBatch::create(packets, 3, 1234);
 
     ASSERT_TRUE(batch.has_value());
     EXPECT_EQ(batch->timestamp_ns, 1234U);
@@ -42,12 +42,12 @@ namespace
 
   TEST(PacketBatchTest, RejectsNullOrCudaIncompatiblePackets)
   {
-    EXPECT_EQ(project::PacketBatch::create(nullptr, 1).error(), project::PacketBatchError::NullPacketBytes);
-    const project::PacketView null_packet = { nullptr, 1, 0 };
-    EXPECT_EQ(project::PacketBatch::create(&null_packet, 1).error(), project::PacketBatchError::NullPacketBytes);
+    EXPECT_EQ(wirelab::PacketBatch::create(nullptr, 1).error(), wirelab::PacketBatchError::NullPacketBytes);
+    const wirelab::PacketView null_packet = { nullptr, 1, 0 };
+    EXPECT_EQ(wirelab::PacketBatch::create(&null_packet, 1).error(), wirelab::PacketBatchError::NullPacketBytes);
 
     std::vector<uint8_t> oversized(65'536);
-    const project::PacketView oversized_packet = { oversized.data(), oversized.size(), 0 };
-    EXPECT_EQ(project::PacketBatch::create(&oversized_packet, 1).error(), project::PacketBatchError::PacketTooLarge);
+    const wirelab::PacketView oversized_packet = { oversized.data(), oversized.size(), 0 };
+    EXPECT_EQ(wirelab::PacketBatch::create(&oversized_packet, 1).error(), wirelab::PacketBatchError::PacketTooLarge);
   }
 }

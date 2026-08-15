@@ -4,7 +4,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace project
+namespace wirelab
 {
   struct SwitchMetricsSnapshot
   {

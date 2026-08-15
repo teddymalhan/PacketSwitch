@@ -3,7 +3,7 @@
 
 
 
-#include "project/joining_thread.hpp"
+#include "wirelab/joining_thread.hpp"
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@
 #include <chrono>
 #include <thread>
 
-using namespace project;
+using namespace wirelab;
 
 TEST(JoiningThreadTest, DefaultConstruction)
 {

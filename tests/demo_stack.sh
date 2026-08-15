@@ -2,11 +2,11 @@
 
 set -Eeuo pipefail
 
-readonly IMAGE="packetswitch-demo"
-readonly NETWORK="packetswitch-demo-net"
-readonly SWITCH="packetswitch-demo-switch"
-readonly PORT1="packetswitch-demo-port1"
-readonly PORT2="packetswitch-demo-port2"
+readonly IMAGE="wirelab-demo"
+readonly NETWORK="wirelab-demo-net"
+readonly SWITCH="wirelab-demo-switch"
+readonly PORT1="wirelab-demo-port1"
+readonly PORT2="wirelab-demo-port2"
 readonly SWITCH_PORT="8080"
 readonly SWITCH_IP="172.30.0.2"
 readonly PORT1_IP="10.1.1.101"
@@ -72,7 +72,7 @@ start_port() {
 
 start_stack() {
   local status=0
-  printf '[setup] Building PacketSwitch demo image...\n'
+  printf '[setup] Building WireLab demo image...\n'
   docker build --quiet --tag "$IMAGE" --file tests/Dockerfile . >/dev/null
 
   printf '[setup] Creating isolated demo network...\n'
@@ -143,10 +143,10 @@ case "${1:-}" in
   start) start_stack ;;
   stop)
     remove_stack
-    printf 'PacketSwitch demo stack stopped.\n'
+    printf 'WireLab demo stack stopped.\n'
     ;;
   status)
-    docker ps --filter "name=packetswitch-demo-" --format 'table {{.Names}}\t{{.Status}}'
+    docker ps --filter "name=wirelab-demo-" --format 'table {{.Names}}\t{{.Status}}'
     ;;
   ping-1) send_ping "$PORT1" "$PORT2_IP" ;;
   ping-2) send_ping "$PORT2" "$PORT1_IP" ;;

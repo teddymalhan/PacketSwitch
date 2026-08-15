@@ -17,8 +17,8 @@ jobs:
         run: >
           cmake -S . -B out/build/windows
           -G "Visual Studio 17 2022" -A x64
-          -DProject_ENABLE_UNIT_TESTING=ON
-          -DProject_ENABLE_CCACHE=OFF
+          -DWireLab_ENABLE_UNIT_TESTING=ON
+          -DWireLab_ENABLE_CCACHE=OFF
           -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/out/install"
 
       - name: Build

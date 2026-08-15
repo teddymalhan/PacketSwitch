@@ -1,4 +1,4 @@
-#include "project/tap_device.hpp"
+#include "wirelab/tap_device.hpp"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -127,7 +127,7 @@ namespace
 }
 #endif
 
-namespace project
+namespace wirelab
 {
   const char* to_string(TapError error) noexcept
   {

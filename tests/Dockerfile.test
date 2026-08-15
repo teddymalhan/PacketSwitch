@@ -17,7 +17,7 @@ WORKDIR /app
 
 RUN mkdir -p build-test && \
     cd build-test && \
-    cmake .. -DCMAKE_BUILD_TYPE=Debug -DProject_ENABLE_UNIT_TESTING=ON -DProject_USE_GTEST=ON && \
+    cmake .. -DCMAKE_BUILD_TYPE=Debug -DWireLab_ENABLE_UNIT_TESTING=ON -DProject_USE_GTEST=ON && \
     cmake --build .
 
 

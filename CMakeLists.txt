@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.21)
 
 
 project(
-  "Project"
+  WireLab
   VERSION 0.1.0
   LANGUAGES CXX
 )
@@ -68,19 +68,50 @@ add_library(
   ${sources}
 )
 
-option(PROJECT_ENABLE_CUDA "Build the optional WireLab CUDA packet parser" OFF)
-if(PROJECT_ENABLE_CUDA)
+option(WIRELAB_ENABLE_CUDA "Build the optional WireLab CUDA packet parser" OFF)
+if(WIRELAB_ENABLE_CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
-  add_library(project_cuda src/cuda_packet_parser.cu include/project/cuda_packet_parser.hpp)
-  target_compile_features(project_cuda PUBLIC cxx_std_17)
-  target_include_directories(project_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  target_link_libraries(project_cuda PUBLIC ${PROJECT_NAME} CUDA::cudart)
-  target_compile_definitions(project_cuda PUBLIC PROJECT_HAS_CUDA=1)
-  set_target_properties(project_cuda PROPERTIES
+  add_library(wirelab_cuda src/cuda_packet_parser.cu include/wirelab/cuda_packet_parser.hpp)
+  target_compile_features(wirelab_cuda PUBLIC cxx_std_17)
+  target_include_directories(wirelab_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(wirelab_cuda PUBLIC ${PROJECT_NAME} CUDA::cudart)
+  target_compile_definitions(wirelab_cuda PUBLIC WIRELAB_HAS_CUDA=1)
+  set_target_properties(wirelab_cuda PROPERTIES
     CUDA_STANDARD 17
     CUDA_STANDARD_REQUIRED ON
     CUDA_SEPARABLE_COMPILATION ON)
+endif()
+
+option(WIRELAB_ENABLE_METAL "Build the optional WireLab Metal packet parser for Apple GPUs" OFF)
+if(WIRELAB_ENABLE_METAL AND APPLE)
+  enable_language(OBJCXX)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  set(METAL_KERNEL_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/metal_kernel.metal")
+  set(METAL_KERNEL_HEADER "${CMAKE_CURRENT_BINARY_DIR}/metal_kernel_source.h")
+  add_custom_command(
+    OUTPUT "${METAL_KERNEL_HEADER}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_metal.py"
+            "${METAL_KERNEL_SOURCE}" "${METAL_KERNEL_HEADER}"
+    DEPENDS "${METAL_KERNEL_SOURCE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_metal.py"
+    COMMENT "Embedding the WireLab Metal kernel source"
+    VERBATIM)
+  add_library(wirelab_metal
+    src/metal_packet_parser.mm
+    include/wirelab/metal_packet_parser.hpp
+    "${METAL_KERNEL_HEADER}")
+  target_compile_features(wirelab_metal PUBLIC cxx_std_17)
+  set_target_properties(wirelab_metal PROPERTIES
+    OBJCXX_STANDARD 17
+    OBJCXX_STANDARD_REQUIRED ON)
+  target_compile_options(wirelab_metal PRIVATE -fobjc-arc -fblocks)
+  target_include_directories(wirelab_metal
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_link_libraries(wirelab_metal
+    PUBLIC ${PROJECT_NAME}
+    PRIVATE "-framework Metal" "-framework Foundation")
+  target_compile_definitions(wirelab_metal PUBLIC WIRELAB_HAS_METAL=1)
 endif()
 
 if(${PROJECT_NAME}_VERBOSE_OUTPUT)
@@ -117,7 +148,7 @@ if(WIN32)
  
 endif()
 include(cmake/CompilerWarnings.cmake)
-set_project_warnings(${PROJECT_NAME})
+set_wirelab_warnings(${PROJECT_NAME})
 
 verbose_message("Applied compiler warnings. Using standard ${CMAKE_CXX_STANDARD}.\n")
 
@@ -203,14 +234,17 @@ target_compile_features(vswitch PRIVATE cxx_std_17)
 add_executable(wirelab_bench src/wirelab_bench.cpp)
 target_link_libraries(wirelab_bench PRIVATE ${PROJECT_NAME})
 target_compile_features(wirelab_bench PRIVATE cxx_std_17)
-if(TARGET project_cuda)
+if(TARGET wirelab_cuda)
   # CMake needs a CUDA translation unit in this executable to schedule the
   # device-link step required by the separably compiled static CUDA backend.
   set_source_files_properties(src/wirelab_bench.cpp PROPERTIES LANGUAGE CUDA)
-  target_link_libraries(wirelab_bench PRIVATE project_cuda)
+  target_link_libraries(wirelab_bench PRIVATE wirelab_cuda)
   set_target_properties(wirelab_bench PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+endif()
+if(TARGET wirelab_metal)
+  target_link_libraries(wirelab_bench PRIVATE wirelab_metal)
 endif()
 
 option(PROJECT_BUILD_WIRELAB_GUI "Build the Qt 6 WireLab frontend" OFF)
@@ -220,7 +254,7 @@ if(PROJECT_BUILD_WIRELAB_GUI)
     qt_add_executable(wirelab_gui
       apps/wirelab_gui.cpp
       src/wirelab_view_model.cpp
-      include/project/wirelab_view_model.hpp)
+      include/wirelab/wirelab_view_model.hpp)
     set_target_properties(wirelab_gui PROPERTIES AUTOMOC ON AUTORCC ON)
     qt_add_qml_module(wirelab_gui
       RESOURCE_PREFIX "/qt/qml"
@@ -231,10 +265,26 @@ if(PROJECT_BUILD_WIRELAB_GUI)
       ${PROJECT_NAME}
       Qt6::Quick
       Qt6::QuickControls2)
-    if(TARGET project_cuda)
-      target_link_libraries(wirelab_gui PRIVATE project_cuda)
+    if(TARGET wirelab_cuda)
+      target_link_libraries(wirelab_gui PRIVATE wirelab_cuda)
+    endif()
+    if(TARGET wirelab_metal)
+      target_link_libraries(wirelab_gui PRIVATE wirelab_metal)
     endif()
     target_compile_features(wirelab_gui PRIVATE cxx_std_17)
+    if(APPLE)
+      set_target_properties(wirelab_gui PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "WireLab"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "dev.wirelab.desktop"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "WireLab.icns")
+      add_custom_command(TARGET wirelab_gui POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${CMAKE_CURRENT_SOURCE_DIR}/apps/resources/WireLab.icns"
+          "$<TARGET_BUNDLE_CONTENT_DIR:wirelab_gui>/Resources/WireLab.icns")
+    endif()
   else()
     message(WARNING "PROJECT_BUILD_WIRELAB_GUI is enabled, but Qt 6.5 Quick and QuickControls2 were not found.")
   endif()
@@ -244,6 +294,10 @@ set_target_properties(
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
 )
+if(TARGET wirelab_gui)
+  set_target_properties(wirelab_gui PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+endif()
 
 verbose_message("Added vport and vswitch executable targets.")
 
@@ -281,6 +335,7 @@ install(
 if(TARGET wirelab_gui)
   install(
     TARGETS wirelab_gui
+    BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   )
 endif()

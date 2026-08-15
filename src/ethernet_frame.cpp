@@ -1,11 +1,11 @@
-#include "project/ethernet_frame.hpp"
+#include "wirelab/ethernet_frame.hpp"
 
 #include <algorithm>
 #include <cstring>
 #include <iomanip>
 #include <sstream>
 
-namespace project
+namespace wirelab
 {
   MacAddress::MacAddress(const uint8_t* data) noexcept
   {

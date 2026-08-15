@@ -1,4 +1,4 @@
-#include "project/sys_utils.hpp"
+#include "wirelab/sys_utils.hpp"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -10,7 +10,7 @@
 #include <unistd.h>
 #endif
 
-namespace project
+namespace wirelab
 {
   FileDescriptor::~FileDescriptor() { close(); }
 

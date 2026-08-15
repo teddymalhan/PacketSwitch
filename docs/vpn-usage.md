@@ -38,7 +38,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
 
-cmake -B build -DCMAKE_BUILD_TYPE=Debug -DProject_ENABLE_UNIT_TESTING=ON
+cmake -B build -DCMAKE_BUILD_TYPE=Debug -DWireLab_ENABLE_UNIT_TESTING=ON
 cmake --build build
 
 
@@ -174,7 +174,7 @@ lsof -i :8080
 ## Project Structure
 
 ```
-├── include/project/
+├── include/wirelab/
 │   ├── expected.hpp          # std::expected implementation
 │   ├── joining_thread.hpp    # RAII thread wrapper
 │   ├── sys_utils.hpp          # System utilities

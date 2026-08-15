@@ -1,8 +1,8 @@
-#include "project/control_service.hpp"
+#include "wirelab/control_service.hpp"
 
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   ControlService::ControlService(VSwitch& vswitch, uint64_t topology_revision) noexcept
       : vswitch_(vswitch), topology_revision_(topology_revision)

@@ -1,4 +1,4 @@
-#include "project/topology.hpp"
+#include "wirelab/topology.hpp"
 
 #include <charconv>
 #include <cctype>
@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   namespace
   {

@@ -30,7 +30,7 @@
     <ClCompile Include="src\vport_main.cpp" /><ClCompile Include="src\sys_utils.cpp" /><ClCompile Include="src\tap_device.cpp" /><ClCompile Include="src\ethernet_frame.cpp" /><ClCompile Include="src\udp_socket.cpp" /><ClCompile Include="src\vport.cpp" /><ClCompile Include="src\mac_table.cpp" /><ClCompile Include="src\vswitch.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\project\expected.hpp" /><ClInclude Include="include\project\joining_thread.hpp" /><ClInclude Include="include\project\sys_utils.hpp" /><ClInclude Include="include\project\tap_device.hpp" /><ClInclude Include="include\project\ethernet_frame.hpp" /><ClInclude Include="include\project\udp_socket.hpp" /><ClInclude Include="include\project\vport.hpp" /><ClInclude Include="include\project\mac_table.hpp" /><ClInclude Include="include\project\vswitch.hpp" />
+    <ClInclude Include="include\wirelab\expected.hpp" /><ClInclude Include="include\wirelab\joining_thread.hpp" /><ClInclude Include="include\wirelab\sys_utils.hpp" /><ClInclude Include="include\wirelab\tap_device.hpp" /><ClInclude Include="include\wirelab\ethernet_frame.hpp" /><ClInclude Include="include\wirelab\udp_socket.hpp" /><ClInclude Include="include\wirelab\vport.hpp" /><ClInclude Include="include\wirelab\mac_table.hpp" /><ClInclude Include="include\wirelab\vswitch.hpp" />
   </ItemGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><LocalDebuggerCommandArguments>127.0.0.1 8080</LocalDebuggerCommandArguments></PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><LocalDebuggerCommandArguments>127.0.0.1 8080</LocalDebuggerCommandArguments></PropertyGroup>

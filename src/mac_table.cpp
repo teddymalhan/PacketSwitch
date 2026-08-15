@@ -1,8 +1,8 @@
-#include "project/mac_table.hpp"
+#include "wirelab/mac_table.hpp"
 
 #include <algorithm>
 
-namespace project
+namespace wirelab
 {
   MacTable::MacTable(MacTable&& other) noexcept : table_(std::move(other.table_))
   {

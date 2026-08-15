@@ -4,13 +4,13 @@
 #include <atomic>
 #include <memory>
 
-#include "project/ethernet_frame.hpp"
-#include "project/mac_table.hpp"
-#include "project/udp_socket.hpp"
-#include "project/switch_metrics.hpp"
+#include "wirelab/ethernet_frame.hpp"
+#include "wirelab/mac_table.hpp"
+#include "wirelab/udp_socket.hpp"
+#include "wirelab/switch_metrics.hpp"
 
 
-namespace project
+namespace wirelab
 {
   enum class VSwitchError
   {

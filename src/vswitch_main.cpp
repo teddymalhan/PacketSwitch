@@ -16,12 +16,12 @@
 #include <iostream>
 #include <memory>
 
-#include "project/vswitch.hpp"
+#include "wirelab/vswitch.hpp"
 #include <string_view>
 
 
 
-std::unique_ptr<project::VSwitch> g_vswitch;
+std::unique_ptr<wirelab::VSwitch> g_vswitch;
 
 
 
@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  project::VSwitchLogLevel log_level = project::VSwitchLogLevel::Lifecycle;
+  wirelab::VSwitchLogLevel log_level = wirelab::VSwitchLogLevel::Lifecycle;
   if (argc == 3)
   {
     const std::string_view option(argv[2]);
@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
       print_usage(argv[0]);
       return EXIT_FAILURE;
     }
-    log_level = project::VSwitchLogLevel::Frame;
+    log_level = wirelab::VSwitchLogLevel::Frame;
   }
 
   const char* port_str = argv[1];
@@ -118,13 +118,13 @@ int main(int argc, char* argv[])
 
     
     std::cout << "Creating VSwitch...\n";
-    auto vswitch_result = project::VSwitch::create(port, log_level);
+    auto vswitch_result = wirelab::VSwitch::create(port, log_level);
 
     if (!vswitch_result)
     {
-      std::cerr << "Error: Failed to create VSwitch: " << project::to_string(vswitch_result.error()) << "\n";
+      std::cerr << "Error: Failed to create VSwitch: " << wirelab::to_string(vswitch_result.error()) << "\n";
 
-      if (vswitch_result.error() == project::VSwitchError::BindFailed)
+      if (vswitch_result.error() == wirelab::VSwitchError::BindFailed)
       {
         std::cerr << "\nHint: Port might be in use. Try a different port number.\n";
         std::cerr << "      Check with: lsof -i :" << port << " or netstat -an | grep " << port << "\n";
@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
     }
 
     
-    g_vswitch = std::make_unique<project::VSwitch>(std::move(*vswitch_result));
+    g_vswitch = std::make_unique<wirelab::VSwitch>(std::move(*vswitch_result));
 
     std::cout << "\nVSwitch created successfully!\n";
     std::cout << "  Port: " << g_vswitch->port() << "\n";
@@ -146,7 +146,7 @@ int main(int argc, char* argv[])
 
     if (!start_result)
     {
-      std::cerr << "Error: Failed to start VSwitch: " << project::to_string(start_result.error()) << "\n";
+      std::cerr << "Error: Failed to start VSwitch: " << wirelab::to_string(start_result.error()) << "\n";
       return EXIT_FAILURE;
     }
   }

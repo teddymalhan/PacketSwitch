@@ -4,7 +4,7 @@
 
 
 
-function(set_project_warnings project_name)
+function(set_wirelab_warnings project_name)
   set(MSVC_WARNINGS
       /W4
       /w14242

@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
-#include "project/switch_metrics.hpp"
+#include "wirelab/switch_metrics.hpp"
 
 namespace
 {
   TEST(SwitchMetricsTest, SnapshotReportsAllCounterClasses)
   {
-    project::SwitchMetrics metrics;
+    wirelab::SwitchMetrics metrics;
 
     metrics.record_received(64);
     metrics.record_received(128);
@@ -31,11 +31,11 @@ namespace
 
   TEST(SwitchMetricsTest, MovePreservesCounters)
   {
-    project::SwitchMetrics original;
+    wirelab::SwitchMetrics original;
     original.record_received(128);
     original.record_forwarded(128);
 
-    project::SwitchMetrics moved(std::move(original));
+    wirelab::SwitchMetrics moved(std::move(original));
     const auto snapshot = moved.snapshot();
 
     EXPECT_EQ(snapshot.received_packets, 1U);

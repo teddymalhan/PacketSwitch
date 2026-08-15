@@ -22,26 +22,26 @@ set(sources
 
 
 set(headers
-    include/project/expected.hpp
-    include/project/joining_thread.hpp
-    include/project/sys_utils.hpp
-    include/project/tap_device.hpp
-    include/project/ethernet_frame.hpp
-    include/project/udp_socket.hpp
-    include/project/vport.hpp
-    include/project/mac_table.hpp
-    include/project/vswitch.hpp
-    include/project/traffic_generator.hpp
-    include/project/packet_analyzer.hpp
-    include/project/packet_batch.hpp
-    include/project/anomaly_detector.hpp
-    include/project/policy_engine.hpp
-    include/project/switch_metrics.hpp
-    include/project/control_protocol.hpp
-    include/project/control_service.hpp
-    include/project/topology.hpp
-    include/project/fault_engine.hpp
-    include/project/topology_controller.hpp
+    include/wirelab/expected.hpp
+    include/wirelab/joining_thread.hpp
+    include/wirelab/sys_utils.hpp
+    include/wirelab/tap_device.hpp
+    include/wirelab/ethernet_frame.hpp
+    include/wirelab/udp_socket.hpp
+    include/wirelab/vport.hpp
+    include/wirelab/mac_table.hpp
+    include/wirelab/vswitch.hpp
+    include/wirelab/traffic_generator.hpp
+    include/wirelab/packet_analyzer.hpp
+    include/wirelab/packet_batch.hpp
+    include/wirelab/anomaly_detector.hpp
+    include/wirelab/policy_engine.hpp
+    include/wirelab/switch_metrics.hpp
+    include/wirelab/control_protocol.hpp
+    include/wirelab/control_service.hpp
+    include/wirelab/topology.hpp
+    include/wirelab/fault_engine.hpp
+    include/wirelab/topology_controller.hpp
 )
 
 set(test_sources

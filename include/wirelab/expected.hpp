@@ -7,7 +7,7 @@
 #include <utility>
 #include <variant>
 
-namespace project
+namespace wirelab
 {
   template<typename E>
   class bad_expected_access : public std::exception

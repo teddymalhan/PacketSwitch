@@ -80,8 +80,8 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }} \
-            -DProject_ENABLE_UNIT_TESTING=ON \
-            -DProject_ENABLE_CCACHE=OFF \
+            -DWireLab_ENABLE_UNIT_TESTING=ON \
+            -DWireLab_ENABLE_CCACHE=OFF \
             -G Ninja
         env:
           CC: ${{ matrix.config.cc }}
@@ -118,9 +118,9 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DProject_ENABLE_UNIT_TESTING=ON \
-            -DProject_ENABLE_CLANG_TIDY=ON \
-            -DProject_ENABLE_CCACHE=OFF \
+            -DWireLab_ENABLE_UNIT_TESTING=ON \
+            -DWireLab_ENABLE_CLANG_TIDY=ON \
+            -DWireLab_ENABLE_CCACHE=OFF \
             -G Ninja
         env:
           CC: clang
@@ -152,9 +152,9 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DProject_ENABLE_UNIT_TESTING=ON \
-            -DProject_ENABLE_CODE_COVERAGE=ON \
-            -DProject_ENABLE_CCACHE=OFF \
+            -DWireLab_ENABLE_UNIT_TESTING=ON \
+            -DWireLab_ENABLE_CODE_COVERAGE=ON \
+            -DWireLab_ENABLE_CCACHE=OFF \
             -G Ninja
         env:
           CC: gcc
@@ -171,7 +171,7 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: |
           lcov --capture \
-            --directory CMakeFiles/Project.dir \
+            --directory CMakeFiles/WireLab.dir \
             --rc geninfo_unexecuted_blocks=1 \
             --output-file coverage.info
           lcov --remove coverage.info '/usr/*' --output-file coverage.info
@@ -225,9 +225,9 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DProject_ENABLE_UNIT_TESTING=ON \
-            -DProject_ENABLE_ASAN=ON \
-            -DProject_ENABLE_CCACHE=OFF \
+            -DWireLab_ENABLE_UNIT_TESTING=ON \
+            -DWireLab_ENABLE_ASAN=ON \
+            -DWireLab_ENABLE_CCACHE=OFF \
             -G Ninja
         env:
           CC: clang

@@ -77,7 +77,7 @@ Comprehensive documentation suite:
 1. **Update README Badges**
    ```markdown
    Replace teddymalhan in README.md:
-   [![CI](https://github.com/teddymalhan/modern-cpp-template/...)]
+   [![CI](https://github.com/teddymalhan/WireLab/...)]
    ```
 
 2. **Push to GitHub**
@@ -165,7 +165,7 @@ make format
 cd build && ctest -C Release -VV
 
 
-cmake -B build -DProject_ENABLE_CLANG_TIDY=ON
+cmake -B build -DWireLab_ENABLE_CLANG_TIDY=ON
 cmake --build build
 
 

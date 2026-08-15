@@ -5,27 +5,27 @@
 
 #include <gtest/gtest.h>
 
-#include "project/control_service.hpp"
+#include "wirelab/control_service.hpp"
 
 namespace
 {
-  project::VSwitch make_switch()
+  wirelab::VSwitch make_switch()
   {
-    auto created = project::VSwitch::create(0, project::VSwitchLogLevel::Frame);
+    auto created = wirelab::VSwitch::create(0, wirelab::VSwitchLogLevel::Frame);
     EXPECT_TRUE(created.has_value());
     return std::move(created.value());
   }
 
-  project::Topology make_topology()
+  wirelab::Topology make_topology()
   {
-    project::TopologyConfiguration configuration;
+    wirelab::TopologyConfiguration configuration;
     configuration.name = "security-lab";
-    configuration.nodes = { { "client-a", project::TopologyNodeType::Host },
-                            { "client-b", project::TopologyNodeType::Host },
-                            { "core-switch", project::TopologyNodeType::Switch } };
+    configuration.nodes = { { "client-a", wirelab::TopologyNodeType::Host },
+                            { "client-b", wirelab::TopologyNodeType::Host },
+                            { "core-switch", wirelab::TopologyNodeType::Switch } };
     configuration.links = { { "client-a", "core-switch", std::chrono::milliseconds(1) },
                             { "client-b", "core-switch", std::chrono::milliseconds(1) } };
-    auto topology = project::Topology::create(std::move(configuration));
+    auto topology = wirelab::Topology::create(std::move(configuration));
     EXPECT_TRUE(topology.has_value());
     return std::move(topology.value());
   }
@@ -33,7 +33,7 @@ namespace
   TEST(ControlServiceTest, ReturnsAcknowledgementAndMetricsSnapshot)
   {
     auto vswitch = make_switch();
-    project::ControlService service(vswitch, 3);
+    wirelab::ControlService service(vswitch, 3);
 
     const auto result = service.dispatch(
         R"({"api_version":1,"request_id":"state-1","command":"get_switch_state","topology_revision":3})");
@@ -50,7 +50,7 @@ namespace
   TEST(ControlServiceTest, RejectsInvalidAndStaleRequests)
   {
     auto vswitch = make_switch();
-    project::ControlService service(vswitch, 3);
+    wirelab::ControlService service(vswitch, 3);
 
     const auto malformed = service.dispatch("not json");
     EXPECT_FALSE(malformed.reply.accepted);
@@ -67,7 +67,7 @@ namespace
   TEST(ControlServiceTest, RejectsCommandsWithoutAnImplementation)
   {
     auto vswitch = make_switch();
-    project::ControlService service(vswitch);
+    wirelab::ControlService service(vswitch);
 
     const auto result = service.dispatch(
         R"({"api_version":1,"request_id":"bench-1","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":1,"duration_seconds":1,"seed":42}})");
@@ -92,8 +92,8 @@ namespace
     }
 
     auto vswitch = make_switch();
-    project::TopologyController controller;
-    project::ControlService service(vswitch, controller);
+    wirelab::TopologyController controller;
+    wirelab::ControlService service(vswitch, controller);
 
     const auto result = service.dispatch(
         "{\"api_version\":1,\"request_id\":\"topology-1\",\"command\":\"load_topology\",\"topology_revision\":0,"
@@ -117,9 +117,9 @@ namespace
   TEST(ControlServiceTest, AppliesFaultCommandsAndPublishesStateChanges)
   {
     auto vswitch = make_switch();
-    project::TopologyController controller;
+    wirelab::TopologyController controller;
     controller.load(make_topology());
-    project::ControlService service(vswitch, controller);
+    wirelab::ControlService service(vswitch, controller);
 
     const auto set = service.dispatch(
         R"({"api_version":1,"request_id":"fault-1","command":"set_port_fault","topology_revision":1,"parameters":{"port_id":"client-a","latency_ms":2,"jitter_ms":1,"loss_basis_points":0,"duplication_basis_points":0,"bandwidth_bits_per_second":0,"blackhole":true,"isolated":false}})");
@@ -147,14 +147,14 @@ namespace
   TEST(ControlServiceTest, ReturnsEveryActiveFaultWithOrderedStateEvents)
   {
     auto vswitch = make_switch();
-    project::TopologyController controller;
+    wirelab::TopologyController controller;
     controller.load(make_topology());
-    project::ControlService service(vswitch, controller);
+    wirelab::ControlService service(vswitch, controller);
 
-    project::FaultConfiguration port_configuration;
+    wirelab::FaultConfiguration port_configuration;
     port_configuration.blackhole = true;
     ASSERT_TRUE(controller.set_port_fault("client-b", port_configuration).has_value());
-    project::FaultConfiguration link_configuration;
+    wirelab::FaultConfiguration link_configuration;
     link_configuration.loss_basis_points = 500;
     ASSERT_TRUE(controller.set_link_fault("client-a", "core-switch", link_configuration).has_value());
 
@@ -176,22 +176,22 @@ namespace
   TEST(ControlServiceTest, PublishesRevisionedAnomalyAndPolicyEventsFromAnalysis)
   {
     auto vswitch = make_switch();
-    project::TopologyController controller;
+    wirelab::TopologyController controller;
     controller.load(make_topology());
-    project::ControlService service(vswitch, controller);
-    project::AnomalyDetector detector({ 1'000'000'000, 1 });
-    project::PolicyEngine policy_engine;
+    wirelab::ControlService service(vswitch, controller);
+    wirelab::AnomalyDetector detector({ 1'000'000'000, 1 });
+    wirelab::PolicyEngine policy_engine;
     ASSERT_TRUE(policy_engine.add_rule(
-        { "contain-broadcast-storm", project::AnomalyType::BroadcastStorm, project::PolicyAction::Quarantine }));
+        { "contain-broadcast-storm", wirelab::AnomalyType::BroadcastStorm, wirelab::PolicyAction::Quarantine }));
 
-    project::AnalysisBatch batch;
-    project::PacketAnalysis packet;
-    packet.source_mac = project::MacAddress::from_string("00:11:22:33:44:55");
-    packet.destination_mac = project::MacAddress::broadcast();
+    wirelab::AnalysisBatch batch;
+    wirelab::PacketAnalysis packet;
+    packet.source_mac = wirelab::MacAddress::from_string("00:11:22:33:44:55");
+    packet.destination_mac = wirelab::MacAddress::broadcast();
     packet.frame_length = 64;
     packet.ingress_port = 4;
-    packet.validity = project::PacketValidity::Valid;
-    packet.classification = project::PacketClassification::Broadcast;
+    packet.validity = wirelab::PacketValidity::Valid;
+    packet.classification = wirelab::PacketClassification::Broadcast;
     batch.packets = { packet, packet };
 
     const auto events = service.evaluate_analysis(batch, 500, detector, policy_engine);
@@ -199,13 +199,13 @@ namespace
     ASSERT_EQ(events.anomaly_events.size(), 1U);
     EXPECT_EQ(events.anomaly_events[0].event_sequence, 1U);
     EXPECT_EQ(events.anomaly_events[0].topology_revision, 1U);
-    EXPECT_EQ(events.anomaly_events[0].anomaly.type, project::AnomalyType::BroadcastStorm);
+    EXPECT_EQ(events.anomaly_events[0].anomaly.type, wirelab::AnomalyType::BroadcastStorm);
     EXPECT_EQ(events.anomaly_events[0].anomaly.observed_packets, 2U);
     ASSERT_EQ(events.policy_events.size(), 1U);
     EXPECT_EQ(events.policy_events[0].event_sequence, 2U);
     EXPECT_EQ(events.policy_events[0].topology_revision, 1U);
     EXPECT_EQ(events.policy_events[0].decision.rule_name, "contain-broadcast-storm");
-    EXPECT_EQ(events.policy_events[0].decision.action, project::PolicyAction::Quarantine);
+    EXPECT_EQ(events.policy_events[0].decision.action, wirelab::PolicyAction::Quarantine);
 
     const auto repeated = service.evaluate_analysis(batch, 501, detector, policy_engine);
     EXPECT_TRUE(repeated.anomaly_events.empty());

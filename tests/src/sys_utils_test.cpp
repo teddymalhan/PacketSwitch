@@ -3,13 +3,13 @@
 
 
 
-#include "project/sys_utils.hpp"
+#include "wirelab/sys_utils.hpp"
 
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <unistd.h>
 
-using namespace project;
+using namespace wirelab;
 
 TEST(FileDescriptorTest, DefaultConstruction)
 {

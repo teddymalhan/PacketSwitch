@@ -6,7 +6,7 @@
 #include <string>
 #include <system_error>
 
-namespace project
+namespace wirelab
 {
   class SystemException : public std::runtime_error
   {

@@ -8,7 +8,7 @@ Since building in Docker is complex, here's how to test manually:
 
 1. Build your executables on macOS:
 ```bash
-cd /Users/teddymalhan/Documents/vpn/modern-cpp-template/build
+cd /Users/teddymalhan/Documents/vpn/wirelab/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build .
 ```
@@ -32,7 +32,7 @@ In Alpine container:
 apk add --no-cache build-base cmake git linux-headers iproute2
 
 # Mount your source code
-docker run -it --rm -v /Users/teddymalhan/Documents/vpn/modern-cpp-template:/app \
+docker run -it --rm -v /Users/teddymalhan/Documents/vpn/wirelab:/app \
   --privileged --cap-add=NET_ADMIN alpine:latest sh
 
 cd /app

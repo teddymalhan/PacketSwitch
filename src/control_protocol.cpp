@@ -1,4 +1,4 @@
-#include "project/control_protocol.hpp"
+#include "wirelab/control_protocol.hpp"
 
 #include <chrono>
 #include <iomanip>
@@ -6,7 +6,7 @@
 #include <sstream>
 #include <string_view>
 
-namespace project
+namespace wirelab
 {
   namespace
   {

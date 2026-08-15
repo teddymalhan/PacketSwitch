@@ -1,4 +1,4 @@
-#include "project/udp_socket.hpp"
+#include "wirelab/udp_socket.hpp"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -39,7 +39,7 @@ namespace
 #endif
 }
 
-namespace project
+namespace wirelab
 {
   const char* to_string(UdpError error) noexcept
   {

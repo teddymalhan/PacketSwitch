@@ -1,17 +1,19 @@
-#ifndef PROJECT_CUDA_PACKET_PARSER_HPP_
-#define PROJECT_CUDA_PACKET_PARSER_HPP_
+#ifndef PROJECT_METAL_PACKET_PARSER_HPP_
+#define PROJECT_METAL_PACKET_PARSER_HPP_
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
-#include "project/packet_analyzer.hpp"
-#include "project/packet_batch.hpp"
+#include "wirelab/packet_analyzer.hpp"
+#include "wirelab/packet_batch.hpp"
 
-namespace project
+namespace wirelab
 {
-  // Offline GPU parser. Forwarding classification remains host-owned because it
-  // depends on the ordered MAC-learning state maintained by the dataplane.
-  class CudaPacketParser final
+  // Offline GPU parser for Apple GPUs (Metal). Mirrors CudaPacketParser;
+  // forwarding classification remains host-owned because it depends on the
+  // ordered MAC-learning state maintained by the dataplane.
+  class MetalPacketParser final
   {
    public:
     struct Timing
@@ -27,25 +29,34 @@ namespace project
       Timing timing;
     };
 
+    MetalPacketParser();
+    ~MetalPacketParser();
+    MetalPacketParser(const MetalPacketParser&) = delete;
+    MetalPacketParser& operator=(const MetalPacketParser&) = delete;
+
     [[nodiscard]] static bool is_available() noexcept;
     [[nodiscard]] std::vector<PacketAnalysis> parse(const PacketBatch& batch) const;
     [[nodiscard]] ParseResult parse_with_timing(const PacketBatch& batch) const;
+
+   private:
+    struct Impl;
+    mutable std::unique_ptr<Impl> impl_;
   };
 
   // Uses the GPU for packet parsing and the shared host aggregator for ordered
   // MAC learning plus compact histograms, traffic matrices, and flow results.
-  class CudaPacketAnalyzer final : public PacketAnalyzer
+  class MetalPacketAnalyzer final : public PacketAnalyzer
   {
    public:
     [[nodiscard]] AnalysisBatch analyze(const PacketView* packets, size_t packet_count) override;
     [[nodiscard]] AnalysisBatch analyze(const PacketBatch& batch) override;
-    [[nodiscard]] CudaPacketParser::Timing last_timing() const noexcept;
+    [[nodiscard]] MetalPacketParser::Timing last_timing() const noexcept;
     void reset() noexcept;
 
    private:
-    CudaPacketParser parser_;
+    MetalPacketParser parser_;
     PacketAnalysisAggregator aggregator_;
-    CudaPacketParser::Timing last_timing_;
+    MetalPacketParser::Timing last_timing_;
   };
 }
 

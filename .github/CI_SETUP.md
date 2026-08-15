@@ -98,7 +98,7 @@ git commit -m "docs: update README [skip ci]"
 1. Update badge URLs in `README.md`:
    ```markdown
    Replace teddymalhan with your GitHub username:
-   [![CI](https://github.com/teddymalhan/modern-cpp-template/workflows/CI/badge.svg)]...
+   [![CI](https://github.com/teddymalhan/WireLab/workflows/CI/badge.svg)]...
    ```
 
 2. For private repos with Codecov:
@@ -183,7 +183,7 @@ rm -rf build/
 make format
 
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DProject_ENABLE_UNIT_TESTING=ON
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DWireLab_ENABLE_UNIT_TESTING=ON
 cmake --build build
 
 
@@ -192,8 +192,8 @@ cd build && ctest -C Release --output-on-failure --verbose
 
 cd ..
 cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug \
-  -DProject_ENABLE_UNIT_TESTING=ON \
-  -DProject_ENABLE_ASAN=ON
+  -DWireLab_ENABLE_UNIT_TESTING=ON \
+  -DWireLab_ENABLE_ASAN=ON
 cmake --build build-asan
 cd build-asan && ctest -C Debug --output-on-failure
 ```

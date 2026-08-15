@@ -8,11 +8,11 @@
 #include <string_view>
 #include <vector>
 
-#include "project/expected.hpp"
-#include "project/fault_engine.hpp"
-#include "project/topology.hpp"
+#include "wirelab/expected.hpp"
+#include "wirelab/fault_engine.hpp"
+#include "wirelab/topology.hpp"
 
-namespace project
+namespace wirelab
 {
   enum class TopologyControllerError
   {

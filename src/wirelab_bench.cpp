@@ -8,30 +8,33 @@
 #include <string>
 #include <vector>
 
-#include "project/packet_analyzer.hpp"
-#include "project/packet_batch.hpp"
-#ifdef PROJECT_HAS_CUDA
-#include "project/cuda_packet_parser.hpp"
+#include "wirelab/packet_analyzer.hpp"
+#include "wirelab/packet_batch.hpp"
+#ifdef WIRELAB_HAS_CUDA
+#include "wirelab/cuda_packet_parser.hpp"
+#endif
+#ifdef WIRELAB_HAS_METAL
+#include "wirelab/metal_packet_parser.hpp"
 #endif
 
 
-#include "project/traffic_generator.hpp"
+#include "wirelab/traffic_generator.hpp"
 
 namespace
 {
-  project::TrafficScenario parse_scenario(const std::string& value)
+  wirelab::TrafficScenario parse_scenario(const std::string& value)
   {
-    if (value == "known-unicast") return project::TrafficScenario::KnownUnicast;
-    if (value == "broadcast") return project::TrafficScenario::Broadcast;
-    if (value == "unknown-unicast") return project::TrafficScenario::UnknownUnicast;
-    if (value == "mixed-traffic") return project::TrafficScenario::Mixed;
+    if (value == "known-unicast") return wirelab::TrafficScenario::KnownUnicast;
+    if (value == "broadcast") return wirelab::TrafficScenario::Broadcast;
+    if (value == "unknown-unicast") return wirelab::TrafficScenario::UnknownUnicast;
+    if (value == "mixed-traffic") return wirelab::TrafficScenario::Mixed;
     throw std::invalid_argument("unknown scenario: " + value);
   }
 
   void print_usage(const char* program)
   {
     std::cerr << "Usage: " << program
-              << " [--analyzer cpu|cuda]"
+              << " [--analyzer cpu|cuda|metal]"
                  " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic]"
                  " [--packets count] [--batch-size count] [--frame-size bytes] [--seed value]\n";
   }
@@ -39,7 +42,7 @@ namespace
 
 int main(int argc, char* argv[])
 {
-  project::TrafficGeneratorConfig config;
+  wirelab::TrafficGeneratorConfig config;
   size_t packet_count = 100000;
   size_t batch_size = 1;
   std::string scenario_name = "mixed-traffic";
@@ -82,23 +85,26 @@ int main(int argc, char* argv[])
     uint64_t host_to_device_ns = 0;
     uint64_t kernel_ns = 0;
     uint64_t device_to_host_ns = 0;
-#ifdef PROJECT_HAS_CUDA
-    project::CudaPacketAnalyzer* cuda_analyzer = nullptr;
+#ifdef WIRELAB_HAS_CUDA
+    wirelab::CudaPacketAnalyzer* cuda_analyzer = nullptr;
+#endif
+#ifdef WIRELAB_HAS_METAL
+    wirelab::MetalPacketAnalyzer* metal_analyzer = nullptr;
 #endif
 
-    std::unique_ptr<project::PacketAnalyzer> analyzer;
+    std::unique_ptr<wirelab::PacketAnalyzer> analyzer;
     if (analyzer_name == "cpu")
     {
-      analyzer = std::make_unique<project::CpuPacketAnalyzer>();
+      analyzer = std::make_unique<wirelab::CpuPacketAnalyzer>();
     }
-#ifdef PROJECT_HAS_CUDA
+#ifdef WIRELAB_HAS_CUDA
     else if (analyzer_name == "cuda")
     {
-      if (!project::CudaPacketParser::is_available())
+      if (!wirelab::CudaPacketParser::is_available())
       {
         throw std::runtime_error("CUDA analyzer selected, but no compatible CUDA device is available");
       }
-      auto selected_cuda_analyzer = std::make_unique<project::CudaPacketAnalyzer>();
+      auto selected_cuda_analyzer = std::make_unique<wirelab::CudaPacketAnalyzer>();
       cuda_analyzer = selected_cuda_analyzer.get();
       analyzer = std::move(selected_cuda_analyzer);
     }
@@ -107,7 +113,26 @@ int main(int argc, char* argv[])
     {
       throw std::runtime_error(
           "CUDA analyzer selected, but this wirelab_bench build has no CUDA backend; "
-          "reconfigure with -DPROJECT_ENABLE_CUDA=ON");
+          "reconfigure with -DWIRELAB_ENABLE_CUDA=ON");
+    }
+#endif
+#ifdef WIRELAB_HAS_METAL
+    else if (analyzer_name == "metal")
+    {
+      if (!wirelab::MetalPacketParser::is_available())
+      {
+        throw std::runtime_error("Metal analyzer selected, but no compatible Metal device is available");
+      }
+      auto selected_metal_analyzer = std::make_unique<wirelab::MetalPacketAnalyzer>();
+      metal_analyzer = selected_metal_analyzer.get();
+      analyzer = std::move(selected_metal_analyzer);
+    }
+#else
+    else if (analyzer_name == "metal")
+    {
+      throw std::runtime_error(
+          "Metal analyzer selected, but this wirelab_bench build has no Metal backend; "
+          "reconfigure with -DWIRELAB_ENABLE_METAL=ON");
     }
 #endif
     else
@@ -115,7 +140,7 @@ int main(int argc, char* argv[])
       throw std::invalid_argument("unknown analyzer: " + analyzer_name);
     }
 
-    project::DeterministicTrafficGenerator generator(config);
+    wirelab::DeterministicTrafficGenerator generator(config);
     uint64_t received_packets = 0;
     uint64_t received_bytes = 0;
     uint64_t malformed_packets = 0;
@@ -130,21 +155,21 @@ int main(int argc, char* argv[])
     {
       const size_t current_batch_size = std::min(batch_size, packet_count - generated_packets);
       const auto frames = generator.generate(current_batch_size);
-      std::vector<project::PacketView> packets;
+      std::vector<wirelab::PacketView> packets;
       packets.reserve(frames.size());
       for (const auto& frame : frames)
       {
-        packets.push_back(project::PacketView{ frame.data(), frame.size() });
+        packets.push_back(wirelab::PacketView{ frame.data(), frame.size() });
       }
 
-      const auto batch = project::PacketBatch::create(packets.data(), packets.size());
+      const auto batch = wirelab::PacketBatch::create(packets.data(), packets.size());
       if (!batch)
       {
-        throw std::invalid_argument(std::string("cannot create packet batch: ") + project::to_string(batch.error()));
+        throw std::invalid_argument(std::string("cannot create packet batch: ") + wirelab::to_string(batch.error()));
       }
 
       const auto analysis_started = std::chrono::steady_clock::now();
-      const project::AnalysisBatch result = analyzer->analyze(*batch);
+      const wirelab::AnalysisBatch result = analyzer->analyze(*batch);
       const auto analysis_elapsed = std::chrono::steady_clock::now() - analysis_started;
       analysis_latency_ns.push_back(
           static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(analysis_elapsed).count()));
@@ -155,10 +180,19 @@ int main(int argc, char* argv[])
       unknown_unicast_packets += result.unknown_unicast_packets;
       known_unicast_packets += result.known_unicast_packets;
       generated_packets += current_batch_size;
-#ifdef PROJECT_HAS_CUDA
+#ifdef WIRELAB_HAS_CUDA
       if (cuda_analyzer != nullptr)
       {
         const auto timing = cuda_analyzer->last_timing();
+        host_to_device_ns += timing.host_to_device_ns;
+        kernel_ns += timing.kernel_ns;
+        device_to_host_ns += timing.device_to_host_ns;
+      }
+#endif
+#ifdef WIRELAB_HAS_METAL
+      if (metal_analyzer != nullptr)
+      {
+        const auto timing = metal_analyzer->last_timing();
         host_to_device_ns += timing.host_to_device_ns;
         kernel_ns += timing.kernel_ns;
         device_to_host_ns += timing.device_to_host_ns;

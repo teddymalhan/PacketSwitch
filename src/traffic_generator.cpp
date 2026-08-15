@@ -1,13 +1,13 @@
-#include "project/traffic_generator.hpp"
+#include "wirelab/traffic_generator.hpp"
 
 #include <algorithm>
 #include <array>
 #include <limits>
 #include <stdexcept>
 
-#include "project/ethernet_frame.hpp"
+#include "wirelab/ethernet_frame.hpp"
 
-namespace project
+namespace wirelab
 {
   namespace
   {

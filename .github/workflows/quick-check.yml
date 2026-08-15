@@ -27,8 +27,8 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DProject_ENABLE_UNIT_TESTING=ON \
-            -DProject_ENABLE_CCACHE=OFF \
+            -DWireLab_ENABLE_UNIT_TESTING=ON \
+            -DWireLab_ENABLE_CCACHE=OFF \
             -G Ninja
 
       - name: Build

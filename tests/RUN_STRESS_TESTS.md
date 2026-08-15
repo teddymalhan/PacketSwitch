@@ -6,7 +6,7 @@ Quick copy-paste commands for running stress tests with Docker.
 
 ```bash
 
-cd /path/to/modern-cpp-template
+cd /path/to/wirelab
 
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release

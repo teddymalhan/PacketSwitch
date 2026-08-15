@@ -11,27 +11,28 @@ ApplicationWindow {
     minimumHeight: 720
     visible: true
     title: wirelab.topologyName === "" ? "WireLab" : "WireLab — " + wirelab.topologyName
-    color: "#0b1220"
+    color: root.windowBg
 
-    property color panel: "#121c2e"
-    property color panelRaised: "#18253a"
-    property color border: "#293852"
-    property color accent: "#42b8ff"
-    property color good: "#45d49b"
-    property color warning: "#ffbd59"
-    property color danger: "#ff647c"
-    property color textPrimary: "#edf5ff"
-    property color textMuted: "#91a3ba"
+    // ---- macOS system palette, adaptive to light/dark appearance ----
+    readonly property bool dark: Qt.styleHints.colorScheme === Qt.Dark
+    readonly property color windowBg: dark ? "#1e1e1e" : "#ececec"
+    readonly property color sidebarBg: dark ? "#282828" : "#e8e8e8"
+    readonly property color cardBg: dark ? "#2d2d2d" : "#ffffff"
+    readonly property color cardAltBg: dark ? "#3a3a3c" : "#f2f2f7"
+    readonly property color separator: dark ? "#38383a" : "#c6c6c8"
+    readonly property color textPrimary: dark ? "#ffffff" : "#000000"
+    readonly property color textSecondary: dark ? "#98989d" : "#6e6e73"
+    readonly property color accent: dark ? "#0a84ff" : "#007aff"
+    readonly property color good: dark ? "#30d158" : "#34c759"
+    readonly property color warning: dark ? "#ffd60a" : "#ff9f0a"
+    readonly property color danger: dark ? "#ff453a" : "#ff3b30"
+    readonly property color sidebarHoverBg: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
+    readonly property color sidebarSelectedBg: dark ? "#48484a" : "#d1d1d6"
 
-    palette.window: root.color
-    palette.windowText: textPrimary
-    palette.base: panel
-    palette.alternateBase: panelRaised
-    palette.text: textPrimary
-    palette.button: panelRaised
-    palette.buttonText: textPrimary
-    palette.highlight: accent
-    palette.highlightedText: "#07111f"
+    function localFilePath(url) {
+        const text = url.toString()
+        return text.startsWith("file://") ? decodeURIComponent(text.slice(7)) : text
+    }
 
     function nodePoint(id, area) {
         for (let i = 0; i < wirelab.topologyNodes.length; ++i) {
@@ -79,7 +80,7 @@ ApplicationWindow {
         id: openDialog
         title: "Open topology"
         nameFilters: ["Topology YAML (*.yaml *.yml)"]
-        onAccepted: wirelab.openTopology(selectedFile.toLocalFile())
+        onAccepted: wirelab.openTopology(root.localFilePath(selectedFile))
     }
 
     FileDialog {
@@ -88,7 +89,7 @@ ApplicationWindow {
         fileMode: FileDialog.SaveFile
         defaultSuffix: "yaml"
         nameFilters: ["Topology YAML (*.yaml *.yml)"]
-        onAccepted: wirelab.saveTopology(selectedFile.toLocalFile())
+        onAccepted: wirelab.saveTopology(root.localFilePath(selectedFile))
     }
 
     Timer {
@@ -98,225 +99,401 @@ ApplicationWindow {
         onTriggered: wirelab.runTrafficStep()
     }
 
+    // System menu bar (renders natively on macOS)
+    menuBar: MenuBar {
+        Menu {
+            title: "File"
+            Action { text: "Open Topology…"; shortcut: "Cmd+O"; onTriggered: openDialog.open() }
+            Action {
+                text: "Save Topology…"
+                shortcut: "Cmd+S"
+                enabled: wirelab.hasTopology
+                onTriggered: saveDialog.open()
+            }
+            MenuSeparator {}
+            Action { text: "Quit WireLab"; shortcut: "Cmd+Q"; onTriggered: Qt.quit() }
+        }
+        Menu {
+            title: "Edit"
+            Action { text: "Cut"; shortcut: "Cmd+X"; enabled: false }
+            Action { text: "Copy"; shortcut: "Cmd+C"; enabled: false }
+            Action { text: "Paste"; shortcut: "Cmd+V"; enabled: false }
+        }
+    }
+
+    // Unified toolbar
     header: ToolBar {
-        height: 58
+        height: 50
         background: Rectangle {
-            color: root.panel
-            border.color: root.border
+            color: root.windowBg
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: root.separator
+            }
         }
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            spacing: 12
-            Label {
-                text: "WIRELAB"
-                color: root.accent
-                font.pixelSize: 18
-                font.bold: true
-                font.letterSpacing: 2
-            }
-            ToolSeparator {}
+            anchors.leftMargin: 12
+            anchors.rightMargin: 14
+            spacing: 10
             Button { text: "Open"; onClicked: openDialog.open() }
             Button {
                 text: "Save"
                 enabled: wirelab.hasTopology
                 onClicked: saveDialog.open()
             }
+            Rectangle { width: 1; height: 22; color: root.separator }
             Label {
                 text: wirelab.topologyName === "" ? "No topology loaded" : wirelab.topologyName
                 color: root.textPrimary
-                font.bold: true
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                elide: Text.ElideMiddle
                 Layout.fillWidth: true
             }
             Rectangle {
-                implicitWidth: backendLabel.implicitWidth + 24
-                implicitHeight: 30
-                radius: 15
-                color: wirelab.trafficRunning ? "#153c35" : root.panelRaised
-                border.color: wirelab.trafficRunning ? root.good : root.border
+                implicitWidth: livePillText.implicitWidth + 28
+                implicitHeight: 26
+                radius: 13
+                color: wirelab.trafficRunning
+                       ? Qt.rgba(root.good.r, root.good.g, root.good.b, dark ? 0.22 : 0.14)
+                       : Qt.rgba(root.textSecondary.r, root.textSecondary.g, root.textSecondary.b, 0.12)
                 Label {
-                    id: backendLabel
+                    id: livePillText
                     anchors.centerIn: parent
                     text: wirelab.trafficRunning ? "● LIVE · " + wirelab.activeBackend : "○ IDLE"
-                    color: wirelab.trafficRunning ? root.good : root.textMuted
-                    font.bold: true
+                    color: wirelab.trafficRunning ? root.good : root.textSecondary
+                    font.pixelSize: 12
+                    font.weight: Font.DemiBold
                 }
             }
         }
     }
 
     footer: Rectangle {
-        implicitHeight: 38
-        color: root.panel
-        border.color: root.border
+        implicitHeight: 28
+        color: root.windowBg
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 1
+            color: root.separator
+        }
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
+            anchors.leftMargin: 14
+            anchors.rightMargin: 14
             Label {
                 text: wirelab.statusMessage === "" ? "Open scenarios/security-lab.yaml to begin." : wirelab.statusMessage
-                color: root.textMuted
+                color: root.textSecondary
+                font.pixelSize: 11
                 Layout.fillWidth: true
                 elide: Text.ElideRight
             }
             Label {
                 text: wirelab.topologyNodes.length + " nodes · " + wirelab.topologyLinks.length + " links · "
                       + wirelab.activeFaults.length + " faults"
-                color: root.textMuted
+                color: root.textSecondary
+                font.pixelSize: 11
             }
         }
     }
 
-    ColumnLayout {
+    // ---- Sidebar vector icons ----
+    component SidebarIcon: Canvas {
+        property string kind: "dashboard"
+        property color iconColor: root.textPrimary
+        width: 16
+        height: 16
+        antialiasing: true
+        onPaint: {
+            const ctx = getContext("2d")
+            ctx.reset()
+            ctx.strokeStyle = iconColor
+            ctx.fillStyle = iconColor
+            ctx.lineWidth = 1.6
+            ctx.lineCap = "round"
+            ctx.lineJoin = "round"
+            const dot = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke() }
+            switch (kind) {
+            case "dashboard":
+                ctx.beginPath(); ctx.arc(8, 9.5, 6, Math.PI, 0); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(8, 9.5); ctx.lineTo(11, 5.5); ctx.stroke()
+                ctx.beginPath(); ctx.arc(8, 9.5, 1.5, 0, Math.PI * 2); ctx.fill()
+                break
+            case "topology":
+                dot(4, 12, 2); dot(12, 12, 2); dot(8, 4, 2)
+                ctx.beginPath(); ctx.moveTo(4, 12); ctx.lineTo(12, 12)
+                ctx.moveTo(8, 4); ctx.lineTo(4, 12); ctx.moveTo(8, 4); ctx.lineTo(12, 12); ctx.stroke()
+                break
+            case "traffic":
+                ctx.beginPath(); ctx.moveTo(2.5, 8); ctx.lineTo(13.5, 8)
+                ctx.moveTo(13.5, 8); ctx.lineTo(10.5, 5); ctx.moveTo(13.5, 8); ctx.lineTo(10.5, 11); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(8, 2.5); ctx.lineTo(8, 13.5)
+                ctx.moveTo(8, 2.5); ctx.lineTo(5, 5.5); ctx.moveTo(8, 2.5); ctx.lineTo(11, 5.5); ctx.stroke()
+                break
+            case "security":
+                ctx.beginPath(); ctx.moveTo(8, 1.5); ctx.lineTo(14.5, 4)
+                ctx.lineTo(14.5, 8); ctx.quadraticCurveTo(14.5, 12.5, 8, 14.5)
+                ctx.quadraticCurveTo(1.5, 12.5, 1.5, 8); ctx.lineTo(1.5, 4); ctx.closePath(); ctx.stroke()
+                break
+            case "faults":
+                ctx.beginPath(); ctx.moveTo(8, 2); ctx.lineTo(15, 14); ctx.lineTo(1, 14); ctx.closePath(); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(8, 6); ctx.lineTo(8, 10.5); ctx.stroke()
+                ctx.beginPath(); ctx.arc(8, 12.5, 1, 0, Math.PI * 2); ctx.fill()
+                break
+            }
+        }
+        onIconColorChanged: requestPaint()
+        onKindChanged: requestPaint()
+    }
+
+    // ---- Content: sidebar + pages ----
+    RowLayout {
         anchors.fill: parent
         spacing: 0
 
-        TabBar {
-            id: tabs
-            Layout.fillWidth: true
-            background: Rectangle { color: root.panel; border.color: root.border }
-            TabButton { text: "Dashboard" }
-            TabButton { text: "Topology" }
-            TabButton { text: "Traffic" }
-            TabButton { text: "Packets & Security" }
-            TabButton { text: "Faults" }
+        // Finder-style sidebar
+        Rectangle {
+            id: sidebar
+            Layout.preferredWidth: 216
+            Layout.fillHeight: true
+            color: root.sidebarBg
+            Rectangle {
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 1
+                color: root.separator
+            }
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.topMargin: 12
+                anchors.bottomMargin: 10
+                spacing: 4
+                Label {
+                    text: "WIRELAB"
+                    color: root.textSecondary
+                    font.pixelSize: 11
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: 1.4
+                    Layout.leftMargin: 18
+                    Layout.bottomMargin: 4
+                }
+                ListView {
+                    id: navList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    model: ListModel {
+                        ListElement { label: "Dashboard"; page: 0; icon: "dashboard" }
+                        ListElement { label: "Topology"; page: 1; icon: "topology" }
+                        ListElement { label: "Traffic"; page: 2; icon: "traffic" }
+                        ListElement { label: "Packets & Security"; page: 3; icon: "security" }
+                        ListElement { label: "Faults"; page: 4; icon: "faults" }
+                    }
+                    delegate: Item {
+                        required property string label
+                        required property int page
+                        required property string icon
+                        width: ListView.view.width
+                        height: 30
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            radius: 6
+                            color: navList.currentIndex === page
+                                   ? root.sidebarSelectedBg
+                                   : (sidebarItemHover.hovered ? root.sidebarHoverBg : "transparent")
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                spacing: 8
+                                SidebarIcon { kind: icon; iconColor: navList.currentIndex === page ? root.textPrimary : root.textSecondary }
+                                Label {
+                                    text: label
+                                    color: navList.currentIndex === page ? root.textPrimary : root.textSecondary
+                                    font.pixelSize: 13
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                            }
+                        }
+                        MouseArea {
+                            id: sidebarItemHover
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                navList.currentIndex = page
+                                stack.currentIndex = page
+                            }
+                        }
+                    }
+                }
+                Label {
+                    text: "WireLab 0.1.0"
+                    color: root.textSecondary
+                    font.pixelSize: 11
+                    Layout.leftMargin: 18
+                }
+            }
         }
 
         StackLayout {
+            id: stack
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: tabs.currentIndex
 
+            // ============ DASHBOARD ============
             Item {
-                GridLayout {
+                ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
-                    columns: 4
-                    rowSpacing: 12
-                    columnSpacing: 12
+                    anchors.margins: 22
+                    spacing: 14
+                    Label { text: "Dashboard"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 4
+                        rowSpacing: 12
+                        columnSpacing: 12
 
-                    Repeater {
-                        model: [
-                            { label: "THROUGHPUT", value: root.lastMetric("throughputMbps").toFixed(3) + " Mbps", color: root.accent },
-                            { label: "AVG LATENCY", value: root.lastMetric("latencyMs").toFixed(2) + " ms", color: root.warning },
-                            { label: "PACKET LOSS", value: root.lastMetric("lossPercent").toFixed(2) + "%", color: root.danger },
-                            { label: "ACTIVE FAULTS", value: wirelab.activeFaults.length.toString(), color: root.good }
-                        ]
-                        delegate: Rectangle {
-                            required property var modelData
+                        Repeater {
+                            model: [
+                                { label: "THROUGHPUT", value: root.lastMetric("throughputMbps").toFixed(3) + " Mbps", color: root.accent },
+                                { label: "AVG LATENCY", value: root.lastMetric("latencyMs").toFixed(2) + " ms", color: root.warning },
+                                { label: "PACKET LOSS", value: root.lastMetric("lossPercent").toFixed(2) + "%", color: root.danger },
+                                { label: "ACTIVE FAULTS", value: wirelab.activeFaults.length.toString(), color: root.good }
+                            ]
+                            delegate: Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 96
+                                radius: 10
+                                color: root.cardBg
+                                Column {
+                                    anchors.fill: parent
+                                    anchors.margins: 16
+                                    spacing: 6
+                                    Label { text: modelData.label; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                    Label { text: modelData.value; color: modelData.color; font.pixelSize: 26; font.weight: Font.Bold }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.columnSpan: 3
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 100
-                            radius: 8
-                            color: root.panel
-                            border.color: root.border
-                            Column {
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
                                 anchors.fill: parent
                                 anchors.margins: 16
-                                spacing: 8
-                                Label { text: modelData.label; color: root.textMuted; font.pixelSize: 11; font.bold: true }
-                                Label { text: modelData.value; color: modelData.color; font.pixelSize: 24; font.bold: true }
+                                Label { text: "LIVE TELEMETRY · LAST 30 SECONDS"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                Canvas {
+                                    id: dashboardChart
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    onPaint: {
+                                        const ctx = getContext("2d")
+                                        ctx.reset()
+                                        ctx.strokeStyle = root.separator
+                                        ctx.lineWidth = 1
+                                        for (let grid = 1; grid < 5; ++grid) {
+                                            const y = height * grid / 5
+                                            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke()
+                                        }
+                                        const rows = wirelab.metricsHistory
+                                        if (rows.length < 2)
+                                            return
+                                        function plot(field, color, maximum) {
+                                            ctx.strokeStyle = color
+                                            ctx.lineWidth = 2
+                                            ctx.beginPath()
+                                            for (let i = 0; i < rows.length; ++i) {
+                                                const x = i * width / 59
+                                                const y = height - Math.min(1, rows[i][field] / maximum) * (height - 12) - 6
+                                                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+                                            }
+                                            ctx.stroke()
+                                        }
+                                        let throughputMax = 1
+                                        for (let i = 0; i < rows.length; ++i)
+                                            throughputMax = Math.max(throughputMax, rows[i].throughputMbps)
+                                        plot("throughputMbps", root.accent, throughputMax)
+                                        plot("latencyMs", root.good, 100)
+                                        plot("lossPercent", root.danger, 100)
+                                    }
+                                    Connections {
+                                        target: wirelab
+                                        function onTelemetryChanged() { dashboardChart.requestPaint() }
+                                    }
+                                }
+                                RowLayout {
+                                    spacing: 14
+                                    Rectangle { width: 14; height: 3; radius: 1.5; color: root.accent }
+                                    Label { text: "Throughput"; color: root.textSecondary; font.pixelSize: 11 }
+                                    Rectangle { width: 14; height: 3; radius: 1.5; color: root.good }
+                                    Label { text: "Latency (100 ms scale)"; color: root.textSecondary; font.pixelSize: 11 }
+                                    Rectangle { width: 14; height: 3; radius: 1.5; color: root.danger }
+                                    Label { text: "Loss (100% scale)"; color: root.textSecondary; font.pixelSize: 11 }
+                                    Item { Layout.fillWidth: true }
+                                }
                             }
                         }
-                    }
 
-                    Rectangle {
-                        Layout.columnSpan: 3
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            Label { text: "LIVE TELEMETRY · LAST 30 SECONDS"; color: root.textMuted; font.bold: true }
-                            Canvas {
-                                id: dashboardChart
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                onPaint: {
-                                    const ctx = getContext("2d")
-                                    ctx.reset()
-                                    ctx.strokeStyle = root.border
-                                    ctx.lineWidth = 1
-                                    for (let grid = 1; grid < 5; ++grid) {
-                                        const y = height * grid / 5
-                                        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke()
-                                    }
-                                    const rows = wirelab.metricsHistory
-                                    if (rows.length < 2)
-                                        return
-                                    function plot(field, color, maximum) {
-                                        ctx.strokeStyle = color
-                                        ctx.lineWidth = 2
-                                        ctx.beginPath()
-                                        for (let i = 0; i < rows.length; ++i) {
-                                            const x = i * width / 59
-                                            const y = height - Math.min(1, rows[i][field] / maximum) * (height - 12) - 6
-                                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                Label { text: "PORT STATE"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                ListView {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    clip: true
+                                    model: wirelab.portStates
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        width: ListView.view.width
+                                        height: 52
+                                        color: index % 2 ? "transparent" : root.cardAltBg
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: 1
+                                            color: root.separator
                                         }
-                                        ctx.stroke()
-                                    }
-                                    let throughputMax = 1
-                                    for (let i = 0; i < rows.length; ++i)
-                                        throughputMax = Math.max(throughputMax, rows[i].throughputMbps)
-                                    plot("throughputMbps", root.accent, throughputMax)
-                                    plot("latencyMs", root.warning, 100)
-                                    plot("lossPercent", root.danger, 100)
-                                }
-                                Connections {
-                                    target: wirelab
-                                    function onTelemetryChanged() { dashboardChart.requestPaint() }
-                                }
-                            }
-                            RowLayout {
-                                Label { text: "━ Throughput"; color: root.accent }
-                                Label { text: "━ Latency (100 ms scale)"; color: root.warning }
-                                Label { text: "━ Loss (100% scale)"; color: root.danger }
-                                Item { Layout.fillWidth: true }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            Label { text: "PORT STATE"; color: root.textMuted; font.bold: true }
-                            ListView {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                clip: true
-                                model: wirelab.portStates
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: ListView.view.width
-                                    height: 58
-                                    color: index % 2 ? root.panelRaised : "transparent"
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: 8
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            Label { text: modelData.id; color: root.textPrimary; font.bold: true }
-                                            Label { text: modelData.received + " rx · " + modelData.forwarded + " tx · " + modelData.dropped + " drop"; color: root.textMuted; font.pixelSize: 11 }
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 10
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 2
+                                                Label { text: modelData.id; color: root.textPrimary; font.weight: Font.DemiBold }
+                                                Label { text: modelData.received + " rx · " + modelData.forwarded + " tx · " + modelData.dropped + " drop"; color: root.textSecondary; font.pixelSize: 11 }
+                                            }
+                                            Label { text: modelData.state; color: root.good; font.weight: Font.DemiBold; font.pixelSize: 12 }
                                         }
-                                        Label { text: modelData.state; color: root.good; font.bold: true }
                                     }
-                                }
-                                Label {
-                                    anchors.centerIn: parent
-                                    visible: parent.count === 0
-                                    text: "Run traffic to populate port counters"
-                                    color: root.textMuted
-                                    wrapMode: Text.Wrap
-                                    width: parent.width - 24
+                                    Label {
+                                        anchors.centerIn: parent
+                                        visible: parent.count === 0
+                                        text: "Run traffic to populate port counters"
+                                        color: root.textSecondary
+                                        wrapMode: Text.Wrap
+                                        width: parent.width - 24
+                                    }
                                 }
                             }
                         }
@@ -324,125 +501,132 @@ ApplicationWindow {
                 }
             }
 
+            // ============ TOPOLOGY ============
             Item {
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 22
                     spacing: 14
-                    Rectangle {
-                        id: graphPanel
+                    ColumnLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
+                        spacing: 14
+                        Label { text: "Topology"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
 
-                        Item {
-                            id: graphArea
-                            anchors.fill: parent
-                            anchors.margins: 20
-                            Canvas {
-                                id: topologyCanvas
+                            Item {
+                                id: graphArea
                                 anchors.fill: parent
-                                onPaint: {
-                                    const ctx = getContext("2d")
-                                    ctx.reset()
-                                    ctx.lineWidth = 3
-                                    for (let i = 0; i < wirelab.topologyLinks.length; ++i) {
-                                        const link = wirelab.topologyLinks[i]
-                                        const a = root.nodePoint(link.from, graphArea)
-                                        const b = root.nodePoint(link.to, graphArea)
-                                        const selected = wirelab.selectedType === "link"
-                                                         && wirelab.selectedId.indexOf(link.from) >= 0
-                                                         && wirelab.selectedId.indexOf(link.to) >= 0
-                                        ctx.strokeStyle = selected ? root.accent : "#4d6482"
-                                        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
-                                        const mx = (a.x + b.x) / 2
-                                        const my = (a.y + b.y) / 2
-                                        ctx.fillStyle = root.panel
-                                        ctx.fillRect(mx - 20, my - 10, 40, 20)
-                                        ctx.fillStyle = root.textMuted
-                                        ctx.font = "11px sans-serif"
-                                        ctx.textAlign = "center"
-                                        ctx.fillText(link.latencyMs + " ms", mx, my + 4)
+                                anchors.margins: 20
+                                Canvas {
+                                    id: topologyCanvas
+                                    anchors.fill: parent
+                                    onPaint: {
+                                        const ctx = getContext("2d")
+                                        ctx.reset()
+                                        ctx.lineWidth = 2.5
+                                        for (let i = 0; i < wirelab.topologyLinks.length; ++i) {
+                                            const link = wirelab.topologyLinks[i]
+                                            const a = root.nodePoint(link.from, graphArea)
+                                            const b = root.nodePoint(link.to, graphArea)
+                                            const selected = wirelab.selectedType === "link"
+                                                             && wirelab.selectedId.indexOf(link.from) >= 0
+                                                             && wirelab.selectedId.indexOf(link.to) >= 0
+                                            ctx.strokeStyle = selected ? root.accent : root.separator
+                                            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke()
+                                            const mx = (a.x + b.x) / 2
+                                            const my = (a.y + b.y) / 2
+                                            ctx.fillStyle = root.cardBg
+                                            ctx.fillRect(mx - 20, my - 10, 40, 20)
+                                            ctx.fillStyle = root.textSecondary
+                                            ctx.font = "11px system-ui, sans-serif"
+                                            ctx.textAlign = "center"
+                                            ctx.fillText(link.latencyMs + " ms", mx, my + 4)
+                                        }
+                                    }
+                                    Connections {
+                                        target: wirelab
+                                        function onTopologyChanged() { topologyCanvas.requestPaint() }
+                                        function onSelectionChanged() { topologyCanvas.requestPaint() }
                                     }
                                 }
-                                Connections {
-                                    target: wirelab
-                                    function onTopologyChanged() { topologyCanvas.requestPaint() }
-                                    function onSelectionChanged() { topologyCanvas.requestPaint() }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: function(mouse) { root.selectGraphLink(mouse.x, mouse.y, graphArea) }
                                 }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: function(mouse) { root.selectGraphLink(mouse.x, mouse.y, graphArea) }
-                            }
-                            Repeater {
-                                model: wirelab.topologyNodes
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: modelData.type === "switch" ? 118 : 98
-                                    height: 58
-                                    x: modelData.x * graphArea.width - width / 2
-                                    y: modelData.y * graphArea.height - height / 2
-                                    radius: modelData.type === "switch" ? 8 : 29
-                                    color: wirelab.selectedType === "node" && wirelab.selectedId === modelData.id ? "#17466a" : root.panelRaised
-                                    border.width: 2
-                                    border.color: wirelab.selectedType === "node" && wirelab.selectedId === modelData.id ? root.accent
+                                Repeater {
+                                    model: wirelab.topologyNodes
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        width: modelData.type === "switch" ? 116 : 96
+                                        height: 56
+                                        x: modelData.x * graphArea.width - width / 2
+                                        y: modelData.y * graphArea.height - height / 2
+                                        radius: modelData.type === "switch" ? 9 : 28
+                                        color: wirelab.selectedType === "node" && wirelab.selectedId === modelData.id
+                                               ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18)
+                                               : root.cardAltBg
+                                        border.width: 1.5
+                                        border.color: wirelab.selectedType === "node" && wirelab.selectedId === modelData.id ? root.accent
                                                                                                                           : modelData.type === "switch" ? root.warning : root.good
-                                    z: 2
-                                    Column {
-                                        anchors.centerIn: parent
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.id; color: root.textPrimary; font.bold: true }
-                                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.type.toUpperCase(); color: root.textMuted; font.pixelSize: 10 }
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: wirelab.selectNode(modelData.id)
+                                        z: 2
+                                        Column {
+                                            anchors.centerIn: parent
+                                            Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.id; color: root.textPrimary; font.weight: Font.DemiBold }
+                                            Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData.type.toUpperCase(); color: root.textSecondary; font.pixelSize: 10 }
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: wirelab.selectNode(modelData.id)
+                                        }
                                     }
                                 }
-                            }
-                            Label {
-                                anchors.centerIn: parent
-                                visible: !wirelab.hasTopology
-                                text: "Open a topology YAML to render the network"
-                                color: root.textMuted
-                                font.pixelSize: 16
+                                Label {
+                                    anchors.centerIn: parent
+                                    visible: !wirelab.hasTopology
+                                    text: "Open a topology YAML to render the network"
+                                    color: root.textSecondary
+                                    font.pixelSize: 15
+                                }
                             }
                         }
                     }
 
+                    // Inspector
                     Rectangle {
-                        Layout.preferredWidth: 340
+                        Layout.preferredWidth: 320
                         Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
+                        radius: 10
+                        color: root.cardBg
                         ScrollView {
                             anchors.fill: parent
-                            anchors.margins: 14
+                            anchors.margins: 16
                             contentWidth: availableWidth
                             ColumnLayout {
                                 width: parent.width
                                 spacing: 12
-                                Label { text: "INSPECTOR"; color: root.textMuted; font.bold: true }
+                                Label { text: "INSPECTOR"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                                 Label {
                                     text: wirelab.selectedId === "" ? "Nothing selected" : wirelab.selectedId
                                     color: root.textPrimary
                                     font.pixelSize: 20
-                                    font.bold: true
+                                    font.weight: Font.Bold
                                     Layout.fillWidth: true
                                     wrapMode: Text.Wrap
                                 }
-                                Label { text: wirelab.selectedSummary; color: root.textMuted; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                                Label { text: wirelab.selectedSummary; color: root.textSecondary; Layout.fillWidth: true; wrapMode: Text.Wrap }
                                 Button {
                                     text: "Remove selected"
                                     enabled: wirelab.selectedType !== ""
                                     Layout.fillWidth: true
                                     onClicked: wirelab.removeSelected()
                                 }
-                                Rectangle { Layout.fillWidth: true; height: 1; color: root.border }
-                                Label { text: "ADD NODE"; color: root.textMuted; font.bold: true }
+                                Rectangle { Layout.fillWidth: true; height: 1; color: root.separator }
+                                Label { text: "ADD NODE"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                                 TextField { id: nodeId; placeholderText: "Node ID"; Layout.fillWidth: true }
                                 ComboBox { id: nodeType; model: ["host", "switch"]; Layout.fillWidth: true }
                                 Button {
@@ -454,8 +638,8 @@ ApplicationWindow {
                                         nodeId.clear()
                                     }
                                 }
-                                Rectangle { Layout.fillWidth: true; height: 1; color: root.border }
-                                Label { text: "ADD LINK"; color: root.textMuted; font.bold: true }
+                                Rectangle { Layout.fillWidth: true; height: 1; color: root.separator }
+                                Label { text: "ADD LINK"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                                 ComboBox {
                                     id: linkFrom
                                     Layout.fillWidth: true
@@ -471,9 +655,9 @@ ApplicationWindow {
                                     valueRole: "id"
                                 }
                                 RowLayout {
-                                    Label { text: "Latency" }
+                                    Label { text: "Latency"; color: root.textPrimary }
                                     SpinBox { id: linkLatency; from: 0; to: 60000; value: 1; Layout.fillWidth: true }
-                                    Label { text: "ms"; color: root.textMuted }
+                                    Label { text: "ms"; color: root.textSecondary }
                                 }
                                 Button {
                                     text: "Add link"
@@ -487,26 +671,27 @@ ApplicationWindow {
                 }
             }
 
+            // ============ TRAFFIC ============
             Item {
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 22
                     spacing: 14
+                    Label { text: "Traffic"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: 132
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
+                        implicitHeight: 124
+                        radius: 10
+                        color: root.cardBg
                         GridLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
+                            anchors.margins: 16
                             columns: 7
-                            Label { text: "Scenario"; color: root.textMuted }
-                            Label { text: "Packets / 500 ms"; color: root.textMuted }
-                            Label { text: "Frame bytes"; color: root.textMuted }
-                            Label { text: "Seed"; color: root.textMuted }
-                            Label { text: "Analyzer"; color: root.textMuted }
+                            Label { text: "Scenario"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Packets / 500 ms"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Frame bytes"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Seed"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Analyzer"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                             Item { Layout.fillWidth: true }
                             Item {}
                             ComboBox { id: scenario; model: ["mixed-traffic", "known-unicast", "broadcast", "unknown-unicast"] }
@@ -515,7 +700,7 @@ ApplicationWindow {
                             SpinBox { id: trafficSeed; from: 1; to: 2147483647; value: 42; editable: true }
                             ComboBox {
                                 id: backend
-                                model: wirelab.cudaAvailable ? ["CPU", "CUDA"] : ["CPU"]
+                                model: wirelab.availableBackends
                             }
                             Item { Layout.fillWidth: true }
                             Button {
@@ -534,6 +719,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 text: wirelab.trafficResult
                                 color: root.textPrimary
+                                font.pixelSize: 12
                             }
                         }
                     }
@@ -545,16 +731,15 @@ ApplicationWindow {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            radius: 8
-                            color: root.panel
-                            border.color: root.border
+                            radius: 10
+                            color: root.cardBg
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 14
-                                Label { text: "FORWARDING / MAC TABLE"; color: root.textMuted; font.bold: true }
+                                anchors.margins: 16
+                                Label { text: "FORWARDING / MAC TABLE"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                                 RowLayout {
-                                    Label { text: "MAC ADDRESS"; color: root.textMuted; Layout.fillWidth: true }
-                                    Label { text: "LEARNED PORT"; color: root.textMuted; Layout.preferredWidth: 160 }
+                                    Label { text: "MAC ADDRESS"; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
+                                    Label { text: "LEARNED PORT"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150 }
                                 }
                                 ListView {
                                     Layout.fillWidth: true
@@ -564,35 +749,41 @@ ApplicationWindow {
                                     delegate: Rectangle {
                                         required property var modelData
                                         width: ListView.view.width
-                                        height: 36
-                                        color: index % 2 ? root.panelRaised : "transparent"
+                                        height: 34
+                                        color: index % 2 ? "transparent" : root.cardAltBg
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: 1
+                                            color: root.separator
+                                        }
                                         RowLayout {
                                             anchors.fill: parent
                                             anchors.leftMargin: 8
                                             anchors.rightMargin: 8
-                                            Label { text: modelData.mac; font.family: "monospace"; Layout.fillWidth: true }
-                                            Label { text: modelData.port; color: root.good; Layout.preferredWidth: 160 }
+                                            Label { text: modelData.mac; font.family: "Menlo"; font.pixelSize: 12; Layout.fillWidth: true }
+                                            Label { text: modelData.port; color: root.good; Layout.preferredWidth: 150 }
                                         }
                                     }
-                                    Label { anchors.centerIn: parent; visible: parent.count === 0; text: "No learned addresses"; color: root.textMuted }
+                                    Label { anchors.centerIn: parent; visible: parent.count === 0; text: "No learned addresses"; color: root.textSecondary }
                                 }
                             }
                         }
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            radius: 8
-                            color: root.panel
-                            border.color: root.border
+                            radius: 10
+                            color: root.cardBg
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 14
-                                Label { text: "PORT COUNTERS"; color: root.textMuted; font.bold: true }
+                                anchors.margins: 16
+                                Label { text: "PORT COUNTERS"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                                 RowLayout {
-                                    Label { text: "PORT"; color: root.textMuted; Layout.fillWidth: true }
-                                    Label { text: "RX"; color: root.textMuted; Layout.preferredWidth: 90 }
-                                    Label { text: "TX"; color: root.textMuted; Layout.preferredWidth: 90 }
-                                    Label { text: "DROP"; color: root.textMuted; Layout.preferredWidth: 90 }
+                                    Label { text: "PORT"; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
+                                    Label { text: "RX"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 84 }
+                                    Label { text: "TX"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 84 }
+                                    Label { text: "DROP"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 84 }
                                 }
                                 ListView {
                                     Layout.fillWidth: true
@@ -602,16 +793,23 @@ ApplicationWindow {
                                     delegate: Rectangle {
                                         required property var modelData
                                         width: ListView.view.width
-                                        height: 36
-                                        color: index % 2 ? root.panelRaised : "transparent"
+                                        height: 34
+                                        color: index % 2 ? "transparent" : root.cardAltBg
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: 1
+                                            color: root.separator
+                                        }
                                         RowLayout {
                                             anchors.fill: parent
                                             anchors.leftMargin: 8
                                             anchors.rightMargin: 8
                                             Label { text: modelData.id; Layout.fillWidth: true }
-                                            Label { text: modelData.received; Layout.preferredWidth: 90 }
-                                            Label { text: modelData.forwarded; color: root.good; Layout.preferredWidth: 90 }
-                                            Label { text: modelData.dropped; color: root.danger; Layout.preferredWidth: 90 }
+                                            Label { text: modelData.received; Layout.preferredWidth: 84 }
+                                            Label { text: modelData.forwarded; color: root.good; Layout.preferredWidth: 84 }
+                                            Label { text: modelData.dropped; color: root.danger; Layout.preferredWidth: 84 }
                                         }
                                     }
                                 }
@@ -621,29 +819,30 @@ ApplicationWindow {
                 }
             }
 
+            // ============ PACKETS & SECURITY ============
             Item {
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 22
                     spacing: 14
+                    Label { text: "Packets & Security"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
+                        radius: 10
+                        color: root.cardBg
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
-                            Label { text: "PACKET ANALYSIS · MOST RECENT BATCH"; color: root.textMuted; font.bold: true }
+                            anchors.margins: 16
+                            Label { text: "PACKET ANALYSIS · MOST RECENT BATCH"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                             RowLayout {
-                                Label { text: "INGRESS"; color: root.textMuted; Layout.preferredWidth: 100 }
-                                Label { text: "SOURCE MAC"; color: root.textMuted; Layout.preferredWidth: 150 }
-                                Label { text: "DESTINATION MAC"; color: root.textMuted; Layout.preferredWidth: 150 }
-                                Label { text: "SOURCE IP"; color: root.textMuted; Layout.preferredWidth: 120 }
-                                Label { text: "DESTINATION IP"; color: root.textMuted; Layout.preferredWidth: 120 }
-                                Label { text: "CLASSIFICATION"; color: root.textMuted; Layout.fillWidth: true }
-                                Label { text: "VALIDITY"; color: root.textMuted; Layout.preferredWidth: 160 }
+                                Label { text: "INGRESS"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 96 }
+                                Label { text: "SOURCE MAC"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150 }
+                                Label { text: "DESTINATION MAC"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150 }
+                                Label { text: "SOURCE IP"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 116 }
+                                Label { text: "DESTINATION IP"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 116 }
+                                Label { text: "CLASSIFICATION"; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
+                                Label { text: "VALIDITY"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150 }
                             }
                             ListView {
                                 Layout.fillWidth: true
@@ -653,35 +852,41 @@ ApplicationWindow {
                                 delegate: Rectangle {
                                     required property var modelData
                                     width: ListView.view.width
-                                    height: 34
-                                    color: index % 2 ? root.panelRaised : "transparent"
+                                    height: 32
+                                    color: index % 2 ? "transparent" : root.cardAltBg
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.bottom: parent.bottom
+                                        height: 1
+                                        color: root.separator
+                                    }
                                     RowLayout {
                                         anchors.fill: parent
                                         anchors.leftMargin: 6
                                         anchors.rightMargin: 6
-                                        Label { text: modelData.ingress; Layout.preferredWidth: 100 }
-                                        Label { text: modelData.source; font.family: "monospace"; Layout.preferredWidth: 150 }
-                                        Label { text: modelData.destination; font.family: "monospace"; Layout.preferredWidth: 150 }
-                                        Label { text: modelData.sourceIp; Layout.preferredWidth: 120 }
-                                        Label { text: modelData.destinationIp; Layout.preferredWidth: 120 }
+                                        Label { text: modelData.ingress; Layout.preferredWidth: 96 }
+                                        Label { text: modelData.source; font.family: "Menlo"; font.pixelSize: 11; Layout.preferredWidth: 150 }
+                                        Label { text: modelData.destination; font.family: "Menlo"; font.pixelSize: 11; Layout.preferredWidth: 150 }
+                                        Label { text: modelData.sourceIp; Layout.preferredWidth: 116 }
+                                        Label { text: modelData.destinationIp; Layout.preferredWidth: 116 }
                                         Label { text: modelData.classification; color: modelData.classification === "Malformed" ? root.danger : root.accent; Layout.fillWidth: true }
-                                        Label { text: modelData.validity; Layout.preferredWidth: 160 }
+                                        Label { text: modelData.validity; Layout.preferredWidth: 150 }
                                     }
                                 }
-                                Label { anchors.centerIn: parent; visible: parent.count === 0; text: "Start traffic to inspect parsed packets"; color: root.textMuted }
+                                Label { anchors.centerIn: parent; visible: parent.count === 0; text: "Start traffic to inspect parsed packets"; color: root.textSecondary }
                             }
                         }
                     }
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 210
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
+                        Layout.preferredHeight: 190
+                        radius: 10
+                        color: root.cardBg
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
-                            Label { text: "ACTIVE ANOMALIES"; color: root.textMuted; font.bold: true }
+                            anchors.margins: 16
+                            Label { text: "ACTIVE ANOMALIES"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                             ListView {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -691,11 +896,12 @@ ApplicationWindow {
                                     required property var modelData
                                     width: ListView.view.width
                                     height: 38
-                                    color: "#321d2a"
+                                    radius: 6
+                                    color: Qt.rgba(root.danger.r, root.danger.g, root.danger.b, dark ? 0.16 : 0.08)
                                     RowLayout {
                                         anchors.fill: parent
-                                        anchors.margins: 8
-                                        Label { text: modelData.type; color: root.danger; font.bold: true; Layout.preferredWidth: 220 }
+                                        anchors.margins: 10
+                                        Label { text: modelData.type; color: root.danger; font.weight: Font.DemiBold; Layout.preferredWidth: 220 }
                                         Label { text: modelData.source + " · " + modelData.sourceIp; Layout.fillWidth: true }
                                         Label { text: modelData.observed + " observed / " + modelData.threshold + " threshold"; color: root.warning }
                                     }
@@ -707,82 +913,89 @@ ApplicationWindow {
                 }
             }
 
+            // ============ FAULTS ============
             Item {
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 22
                     spacing: 14
-                    Rectangle {
-                        Layout.preferredWidth: 390
+                    ColumnLayout {
+                        Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            Label { text: "FAULT INJECTION"; color: root.textMuted; font.bold: true }
-                            Label {
-                                text: wirelab.selectedId === "" ? "Select a host or link on the Topology tab" : wirelab.selectedId
-                                color: wirelab.selectedId === "" ? root.textMuted : root.accent
-                                font.pixelSize: 18
-                                font.bold: true
-                                Layout.fillWidth: true
-                                wrapMode: Text.Wrap
-                            }
-                            Label { text: wirelab.selectedSummary; color: root.textMuted; Layout.fillWidth: true; wrapMode: Text.Wrap }
-                            RowLayout {
-                                Label { text: "Extra latency"; Layout.fillWidth: true }
-                                SpinBox { id: faultLatency; from: 0; to: 60000; value: 100; editable: true }
-                                Label { text: "ms"; color: root.textMuted }
-                            }
-                            RowLayout {
-                                Label { text: "Packet loss"; Layout.fillWidth: true }
-                                SpinBox {
-                                    id: faultLoss
-                                    from: 0
-                                    to: 10000
-                                    value: 0
-                                    editable: true
-                                    textFromValue: function(value) { return (value / 100).toFixed(2) }
-                                    valueFromText: function(text) { return Math.round(parseFloat(text) * 100) }
+                        spacing: 14
+                        Label { text: "Faults"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
+                        Rectangle {
+                            Layout.preferredWidth: 380
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 18
+                                spacing: 12
+                                Label { text: "FAULT INJECTION"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                Label {
+                                    text: wirelab.selectedId === "" ? "Select a host or link on the Topology tab" : wirelab.selectedId
+                                    color: wirelab.selectedId === "" ? root.textSecondary : root.accent
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
                                 }
-                                Label { text: "%"; color: root.textMuted }
-                            }
-                            CheckBox { id: faultBlackhole; text: "Blackhole all traffic" }
-                            Button {
-                                text: "Apply to selection"
-                                highlighted: true
-                                enabled: wirelab.selectedType !== ""
-                                Layout.fillWidth: true
-                                onClicked: wirelab.applySelectedFault(faultLatency.value, faultLoss.value / 100,
-                                                                      faultBlackhole.checked)
-                            }
-                            Item { Layout.fillHeight: true }
-                            Label {
-                                text: "Fault decisions are evaluated for every generated frame before packet analysis. Link base latency remains active in addition to injected latency."
-                                color: root.textMuted
-                                Layout.fillWidth: true
-                                wrapMode: Text.Wrap
+                                Label { text: wirelab.selectedSummary; color: root.textSecondary; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                                RowLayout {
+                                    Label { text: "Extra latency"; Layout.fillWidth: true }
+                                    SpinBox { id: faultLatency; from: 0; to: 60000; value: 100; editable: true }
+                                    Label { text: "ms"; color: root.textSecondary }
+                                }
+                                RowLayout {
+                                    Label { text: "Packet loss"; Layout.fillWidth: true }
+                                    SpinBox {
+                                        id: faultLoss
+                                        from: 0
+                                        to: 10000
+                                        value: 0
+                                        editable: true
+                                        textFromValue: function(value) { return (value / 100).toFixed(2) }
+                                        valueFromText: function(text) { return Math.round(parseFloat(text) * 100) }
+                                    }
+                                    Label { text: "%"; color: root.textSecondary }
+                                }
+                                CheckBox { id: faultBlackhole; text: "Blackhole all traffic" }
+                                Button {
+                                    text: "Apply to selection"
+                                    highlighted: true
+                                    enabled: wirelab.selectedType !== ""
+                                    Layout.fillWidth: true
+                                    onClicked: wirelab.applySelectedFault(faultLatency.value, faultLoss.value / 100,
+                                                                          faultBlackhole.checked)
+                                }
+                                Item { Layout.fillHeight: true }
+                                Label {
+                                    text: "Fault decisions are evaluated for every generated frame before packet analysis. Link base latency remains active in addition to injected latency."
+                                    color: root.textSecondary
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
+                                    font.pixelSize: 11
+                                }
                             }
                         }
                     }
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: 8
-                        color: root.panel
-                        border.color: root.border
+                        radius: 10
+                        color: root.cardBg
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
-                            Label { text: "ACTIVE FAULTS"; color: root.textMuted; font.bold: true }
+                            anchors.margins: 16
+                            Label { text: "ACTIVE FAULTS"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
                             RowLayout {
-                                Label { text: "TARGET"; color: root.textMuted; Layout.fillWidth: true }
-                                Label { text: "TYPE"; color: root.textMuted; Layout.preferredWidth: 100 }
-                                Label { text: "LATENCY"; color: root.textMuted; Layout.preferredWidth: 110 }
-                                Label { text: "LOSS"; color: root.textMuted; Layout.preferredWidth: 100 }
-                                Item { Layout.preferredWidth: 80 }
+                                Label { text: "TARGET"; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
+                                Label { text: "TYPE"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 96 }
+                                Label { text: "LATENCY"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 104 }
+                                Label { text: "LOSS"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 96 }
+                                Item { Layout.preferredWidth: 76 }
                             }
                             ListView {
                                 Layout.fillWidth: true
@@ -792,19 +1005,26 @@ ApplicationWindow {
                                 delegate: Rectangle {
                                     required property var modelData
                                     width: ListView.view.width
-                                    height: 48
-                                    color: index % 2 ? root.panelRaised : "transparent"
+                                    height: 46
+                                    color: index % 2 ? "transparent" : root.cardAltBg
+                                    Rectangle {
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.bottom: parent.bottom
+                                        height: 1
+                                        color: root.separator
+                                    }
                                     RowLayout {
                                         anchors.fill: parent
                                         anchors.leftMargin: 8
                                         anchors.rightMargin: 8
-                                        Label { text: modelData.target; Layout.fillWidth: true; font.bold: true }
-                                        Label { text: modelData.kind; Layout.preferredWidth: 100 }
-                                        Label { text: modelData.latencyMs + " ms"; color: root.warning; Layout.preferredWidth: 110 }
-                                        Label { text: modelData.blackhole ? "BLACKHOLE" : modelData.lossPercent.toFixed(2) + "%"; color: root.danger; Layout.preferredWidth: 100 }
+                                        Label { text: modelData.target; Layout.fillWidth: true; font.weight: Font.DemiBold }
+                                        Label { text: modelData.kind; Layout.preferredWidth: 96 }
+                                        Label { text: modelData.latencyMs + " ms"; color: root.warning; Layout.preferredWidth: 104 }
+                                        Label { text: modelData.blackhole ? "BLACKHOLE" : modelData.lossPercent.toFixed(2) + "%"; color: root.danger; Layout.preferredWidth: 96 }
                                         Button {
                                             text: "Clear"
-                                            Layout.preferredWidth: 80
+                                            Layout.preferredWidth: 76
                                             onClicked: wirelab.clearFault(modelData.first, modelData.second)
                                         }
                                     }

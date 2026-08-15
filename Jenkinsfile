@@ -59,8 +59,8 @@ pipeline {
                             sh '''
                                 cmake -B build \
                                     -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-                                    -DProject_ENABLE_UNIT_TESTING=ON \
-                                    -DProject_ENABLE_CCACHE=OFF \
+                                    -DWireLab_ENABLE_UNIT_TESTING=ON \
+                                    -DWireLab_ENABLE_CCACHE=OFF \
                                     -G Ninja
                             '''
                             sh 'cmake --build build --config ${BUILD_TYPE}'
@@ -130,9 +130,9 @@ pipeline {
                         sh '''
                             cmake -B build \
                                 -DCMAKE_BUILD_TYPE=Debug \
-                                -DProject_ENABLE_UNIT_TESTING=ON \
-                                -DProject_ENABLE_CLANG_TIDY=ON \
-                                -DProject_ENABLE_CCACHE=OFF \
+                                -DWireLab_ENABLE_UNIT_TESTING=ON \
+                                -DWireLab_ENABLE_CLANG_TIDY=ON \
+                                -DWireLab_ENABLE_CCACHE=OFF \
                                 -G Ninja
                         '''
                         sh 'cmake --build build --config Debug'
@@ -161,9 +161,9 @@ pipeline {
                         sh '''
                             cmake -B build \
                                 -DCMAKE_BUILD_TYPE=Debug \
-                                -DProject_ENABLE_UNIT_TESTING=ON \
-                                -DProject_ENABLE_CODE_COVERAGE=ON \
-                                -DProject_ENABLE_CCACHE=OFF \
+                                -DWireLab_ENABLE_UNIT_TESTING=ON \
+                                -DWireLab_ENABLE_CODE_COVERAGE=ON \
+                                -DWireLab_ENABLE_CCACHE=OFF \
                                 -G Ninja
                         '''
                         sh 'cmake --build build --config Debug'
@@ -211,9 +211,9 @@ pipeline {
                         sh '''
                             cmake -B build \
                                 -DCMAKE_BUILD_TYPE=Debug \
-                                -DProject_ENABLE_UNIT_TESTING=ON \
-                                -DProject_ENABLE_ASAN=ON \
-                                -DProject_ENABLE_CCACHE=OFF \
+                                -DWireLab_ENABLE_UNIT_TESTING=ON \
+                                -DWireLab_ENABLE_ASAN=ON \
+                                -DWireLab_ENABLE_CCACHE=OFF \
                                 -G Ninja
                         '''
                         sh 'cmake --build build --config Debug'

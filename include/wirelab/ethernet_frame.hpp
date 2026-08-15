@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-namespace project
+namespace wirelab
 {
   constexpr size_t MAC_ADDRESS_SIZE = 6;
   constexpr size_t ETHERNET_HEADER_SIZE = 14;
@@ -126,13 +126,13 @@ namespace project
 namespace std
 {
   template<>
-  struct hash<project::MacAddress>
+  struct hash<wirelab::MacAddress>
   {
-    size_t operator()(const project::MacAddress& mac) const noexcept
+    size_t operator()(const wirelab::MacAddress& mac) const noexcept
     {
       const auto& bytes = mac.bytes();
       size_t hash = 0;
-      for (size_t i = 0; i < project::MAC_ADDRESS_SIZE; ++i)
+      for (size_t i = 0; i < wirelab::MAC_ADDRESS_SIZE; ++i)
       {
         hash ^= static_cast<size_t>(bytes[i]) << (i * 8);
       }

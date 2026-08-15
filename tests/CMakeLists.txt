@@ -27,13 +27,13 @@ if(${CMAKE_PROJECT_NAME}_USE_GTEST)
   endif()
 
   if(TARGET GTest::gtest)
-    set(PROJECT_GTEST_LIBRARIES GTest::gtest GTest::gtest_main)
+    set(WIRELAB_GTEST_LIBRARIES GTest::gtest GTest::gtest_main)
   else()
-    set(PROJECT_GTEST_LIBRARIES GTest::GTest GTest::Main)
+    set(WIRELAB_GTEST_LIBRARIES GTest::GTest GTest::Main)
   endif()
 
   if(${CMAKE_PROJECT_NAME}_USE_GOOGLE_MOCK)
-    list(APPEND PROJECT_GTEST_LIBRARIES GTest::gmock GTest::gmock_main)
+    list(APPEND WIRELAB_GTEST_LIBRARIES GTest::gmock GTest::gmock_main)
   endif()
 endif()
 
@@ -71,7 +71,7 @@ foreach(file ${test_sources})
     target_link_libraries(
       ${test_name}_Tests
       PUBLIC
-        ${PROJECT_GTEST_LIBRARIES}
+        ${WIRELAB_GTEST_LIBRARIES}
         ${${CMAKE_PROJECT_NAME}_TEST_LIB}
     )
   elseif(${CMAKE_PROJECT_NAME}_USE_CATCH2)
@@ -98,14 +98,21 @@ foreach(file ${test_sources})
   )
 endforeach()
 
-if(TARGET project_cuda)
+if(TARGET wirelab_cuda)
   add_executable(packet_cuda_test_Tests src/cuda_packet_parser_test.cu)
   target_compile_features(packet_cuda_test_Tests PUBLIC cxx_std_17)
-  target_link_libraries(packet_cuda_test_Tests PRIVATE ${PROJECT_GTEST_LIBRARIES} project_cuda)
+  target_link_libraries(packet_cuda_test_Tests PRIVATE ${WIRELAB_GTEST_LIBRARIES} wirelab_cuda)
   set_target_properties(packet_cuda_test_Tests PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
     CUDA_RESOLVE_DEVICE_SYMBOLS ON)
   add_test(NAME packet_cuda_test COMMAND packet_cuda_test_Tests)
+endif()
+
+if(TARGET wirelab_metal)
+  add_executable(packet_metal_test_Tests src/metal_packet_parser_test.cpp)
+  target_compile_features(packet_metal_test_Tests PUBLIC cxx_std_17)
+  target_link_libraries(packet_metal_test_Tests PRIVATE ${WIRELAB_GTEST_LIBRARIES} wirelab_metal)
+  add_test(NAME packet_metal_test COMMAND packet_metal_test_Tests)
 endif()
 
 add_test(
@@ -119,7 +126,7 @@ add_test(
     --seed 42
 )
 
-if(NOT TARGET project_cuda)
+if(NOT TARGET wirelab_cuda)
   add_test(
     NAME wirelab_bench_cuda_requires_enabled_backend
     COMMAND $<TARGET_FILE:wirelab_bench>
@@ -129,19 +136,35 @@ if(NOT TARGET project_cuda)
   set_tests_properties(wirelab_bench_cuda_requires_enabled_backend PROPERTIES WILL_FAIL TRUE)
 endif()
 
+if(TARGET wirelab_metal)
+  add_test(
+    NAME wirelab_bench_metal_smoke
+    COMMAND $<TARGET_FILE:wirelab_bench>
+      --analyzer metal
+      --scenario mixed-traffic
+      --packets 32
+      --batch-size 8
+      --frame-size 64
+      --seed 42
+  )
+endif()
+
 if(TARGET wirelab_gui)
   add_executable(wirelab_view_model_test_Tests
     src/wirelab_view_model_test.cpp
     ${CMAKE_SOURCE_DIR}/src/wirelab_view_model.cpp
-    ${CMAKE_SOURCE_DIR}/include/project/wirelab_view_model.hpp)
+    ${CMAKE_SOURCE_DIR}/include/wirelab/wirelab_view_model.hpp)
   set_target_properties(wirelab_view_model_test_Tests PROPERTIES AUTOMOC ON)
   target_compile_features(wirelab_view_model_test_Tests PRIVATE cxx_std_17)
   target_compile_definitions(wirelab_view_model_test_Tests
     PRIVATE PROJECT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
   target_link_libraries(wirelab_view_model_test_Tests PRIVATE
-    ${PROJECT_GTEST_LIBRARIES}
+    ${WIRELAB_GTEST_LIBRARIES}
     ${CMAKE_PROJECT_NAME}
     Qt6::Core)
+  if(TARGET wirelab_metal)
+    target_link_libraries(wirelab_view_model_test_Tests PRIVATE wirelab_metal)
+  endif()
   add_test(NAME wirelab_view_model_test COMMAND wirelab_view_model_test_Tests)
 endif()
 

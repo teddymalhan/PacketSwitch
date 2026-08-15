@@ -5,13 +5,13 @@
 #include <string>
 #include <string_view>
 
-#include "project/ethernet_frame.hpp"
-#include "project/expected.hpp"
-#include "project/joining_thread.hpp"
-#include "project/tap_device.hpp"
-#include "project/udp_socket.hpp"
+#include "wirelab/ethernet_frame.hpp"
+#include "wirelab/expected.hpp"
+#include "wirelab/joining_thread.hpp"
+#include "wirelab/tap_device.hpp"
+#include "wirelab/udp_socket.hpp"
 
-namespace project
+namespace wirelab
 {
   enum class VPortError
   {

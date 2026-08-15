@@ -5,11 +5,11 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include "project/control_protocol.hpp"
-#include "project/topology_controller.hpp"
-#include "project/vswitch.hpp"
+#include "wirelab/control_protocol.hpp"
+#include "wirelab/topology_controller.hpp"
+#include "wirelab/vswitch.hpp"
 
-namespace project
+namespace wirelab
 {
   struct AnalysisEventDispatch
   {

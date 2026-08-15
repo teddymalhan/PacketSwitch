@@ -6,9 +6,9 @@
 #include <set>
 #include <vector>
 
-#include "project/packet_analyzer.hpp"
+#include "wirelab/packet_analyzer.hpp"
 
-namespace project
+namespace wirelab
 {
   enum class AnomalyType
   {

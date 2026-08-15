@@ -3,51 +3,51 @@
 
 #include <gtest/gtest.h>
 
-#include "project/topology_controller.hpp"
+#include "wirelab/topology_controller.hpp"
 
 namespace
 {
-  project::Topology make_topology()
+  wirelab::Topology make_topology()
   {
-    project::TopologyConfiguration configuration;
+    wirelab::TopologyConfiguration configuration;
     configuration.name = "security-lab";
     configuration.nodes = {
-      { "client-a", project::TopologyNodeType::Host },
-      { "client-b", project::TopologyNodeType::Host },
-      { "core-switch", project::TopologyNodeType::Switch },
+      { "client-a", wirelab::TopologyNodeType::Host },
+      { "client-b", wirelab::TopologyNodeType::Host },
+      { "core-switch", wirelab::TopologyNodeType::Switch },
     };
     configuration.links = {
       { "client-a", "core-switch", std::chrono::milliseconds(1) },
       { "client-b", "core-switch", std::chrono::milliseconds(1) },
     };
 
-    auto topology = project::Topology::create(std::move(configuration));
+    auto topology = wirelab::Topology::create(std::move(configuration));
     EXPECT_TRUE(topology.has_value());
     return std::move(topology.value());
   }
 
   TEST(TopologyControllerTest, RequiresALoadedTopology)
   {
-    project::TopologyController controller;
+    wirelab::TopologyController controller;
     const auto decision = controller.evaluate_port("client-a", 64, std::chrono::steady_clock::time_point{});
 
     EXPECT_FALSE(decision.has_value());
-    EXPECT_EQ(decision.error(), project::TopologyControllerError::NoTopology);
+    EXPECT_EQ(decision.error(), wirelab::TopologyControllerError::NoTopology);
   }
 
   TEST(TopologyControllerTest, AppliesFaultsOnlyToTopologyTargets)
   {
-    project::TopologyController controller(42);
+    wirelab::TopologyController controller(42);
     controller.load(make_topology());
 
-    project::FaultConfiguration configuration;
+    wirelab::FaultConfiguration configuration;
     configuration.blackhole = true;
 
-    project::FaultConfiguration invalid_configuration;
+    wirelab::FaultConfiguration invalid_configuration;
     invalid_configuration.loss_basis_points = 10001;
     const auto invalid_fault = controller.set_port_fault("client-b", invalid_configuration);
     EXPECT_FALSE(invalid_fault.has_value());
-    EXPECT_EQ(invalid_fault.error(), project::TopologyControllerError::InvalidFaultConfiguration);
+    EXPECT_EQ(invalid_fault.error(), wirelab::TopologyControllerError::InvalidFaultConfiguration);
 
     EXPECT_EQ(controller.topology_revision(), 1U);
     EXPECT_TRUE(controller.set_port_fault("client-a", configuration).has_value());
@@ -67,10 +67,10 @@ namespace
 
   TEST(TopologyControllerTest, LinkFaultsAreDirectionIndependentAndClearedOnReload)
   {
-    project::TopologyController controller(99);
+    wirelab::TopologyController controller(99);
     controller.load(make_topology());
 
-    project::FaultConfiguration configuration;
+    wirelab::FaultConfiguration configuration;
     configuration.duplication_basis_points = 10000;
     ASSERT_TRUE(controller.set_link_fault("client-a", "core-switch", configuration).has_value());
 
@@ -96,7 +96,7 @@ namespace
 
   TEST(TopologyControllerTest, PreservesTopologyLinkLatencyAlongsideInjectedFaults)
   {
-    project::TopologyController controller;
+    wirelab::TopologyController controller;
     controller.load(make_topology());
     const auto arrival = std::chrono::steady_clock::time_point(std::chrono::seconds(5));
 
@@ -105,7 +105,7 @@ namespace
     ASSERT_EQ(baseline->delivery_count, 1U);
     EXPECT_EQ(baseline->delivery_times[0], arrival + std::chrono::milliseconds(1));
 
-    project::FaultConfiguration configuration;
+    wirelab::FaultConfiguration configuration;
     configuration.latency = std::chrono::milliseconds(2);
     ASSERT_TRUE(controller.set_link_fault("core-switch", "client-a", configuration).has_value());
 
@@ -123,13 +123,13 @@ namespace
 
   TEST(TopologyControllerTest, ReportsOnlyPublicTopologyFaultIdentifiers)
   {
-    project::TopologyController controller;
-    EXPECT_EQ(controller.active_faults().error(), project::TopologyControllerError::NoTopology);
+    wirelab::TopologyController controller;
+    EXPECT_EQ(controller.active_faults().error(), wirelab::TopologyControllerError::NoTopology);
 
     controller.load(make_topology());
-    project::FaultConfiguration port_configuration;
+    wirelab::FaultConfiguration port_configuration;
     port_configuration.blackhole = true;
-    project::FaultConfiguration link_configuration;
+    wirelab::FaultConfiguration link_configuration;
     link_configuration.loss_basis_points = 500;
     ASSERT_TRUE(controller.set_port_fault("client-b", port_configuration).has_value());
     ASSERT_TRUE(controller.set_link_fault("client-a", "core-switch", link_configuration).has_value());

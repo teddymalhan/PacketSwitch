@@ -7,10 +7,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "project/anomaly_detector.hpp"
-#include "project/expected.hpp"
+#include "wirelab/anomaly_detector.hpp"
+#include "wirelab/expected.hpp"
 
-namespace project
+namespace wirelab
 {
   enum class PolicyAction
   {

@@ -13,13 +13,13 @@
 
 #include <thread>
 
-#include "project/ethernet_frame.hpp"
-#include "project/mac_table.hpp"
-#include "project/udp_socket.hpp"
-#include "project/vport.hpp"
-#include "project/vswitch.hpp"
+#include "wirelab/ethernet_frame.hpp"
+#include "wirelab/mac_table.hpp"
+#include "wirelab/udp_socket.hpp"
+#include "wirelab/vport.hpp"
+#include "wirelab/vswitch.hpp"
 
-using namespace project;
+using namespace wirelab;
 
 
 std::vector<uint8_t>

@@ -6,10 +6,10 @@
 #include <shared_mutex>
 #include <unordered_map>
 
-#include "project/ethernet_frame.hpp"
-#include "project/udp_socket.hpp"
+#include "wirelab/ethernet_frame.hpp"
+#include "wirelab/udp_socket.hpp"
 
-namespace project
+namespace wirelab
 {
   class MacTable
   {

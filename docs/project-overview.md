@@ -16,8 +16,8 @@ A modern C++17 implementation of a Layer 2 Virtual Private Network (VPN) / Virtu
 ## Project Structure
 
 ```
-modern-cpp-template/
-├── include/project/         # Header files
+wirelab/
+├── include/wirelab/         # Header files
 │   ├── expected.hpp         # std::expected implementation
 │   ├── joining_thread.hpp   # RAII thread wrapper
 │   ├── sys_utils.hpp        # System utilities
@@ -105,7 +105,7 @@ Thread-safe MAC address learning table:
 ### 1. Build
 
 ```bash
-cd /path/to/modern-cpp-template
+cd /path/to/wirelab
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```

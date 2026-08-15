@@ -5,13 +5,13 @@
 #include <string>
 #include <string_view>
 
-#include "project/anomaly_detector.hpp"
-#include "project/fault_engine.hpp"
-#include "project/policy_engine.hpp"
-#include "project/switch_metrics.hpp"
-#include "project/topology.hpp"
+#include "wirelab/anomaly_detector.hpp"
+#include "wirelab/fault_engine.hpp"
+#include "wirelab/policy_engine.hpp"
+#include "wirelab/switch_metrics.hpp"
+#include "wirelab/topology.hpp"
 
-namespace project
+namespace wirelab
 {
   constexpr uint32_t WIRELAB_CONTROL_API_VERSION = 1;
 

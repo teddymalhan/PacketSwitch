@@ -1,4 +1,4 @@
-#include "project/topology_controller.hpp"
+#include "wirelab/topology_controller.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -6,7 +6,7 @@
 #include <tuple>
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   TopologyController::TopologyController(uint64_t fault_seed) noexcept
       : fault_seed_(fault_seed), fault_engine_(fault_seed)

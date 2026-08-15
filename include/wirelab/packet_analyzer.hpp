@@ -7,9 +7,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "project/ethernet_frame.hpp"
+#include "wirelab/ethernet_frame.hpp"
 
-namespace project
+namespace wirelab
 {
   struct PacketBatch;
 

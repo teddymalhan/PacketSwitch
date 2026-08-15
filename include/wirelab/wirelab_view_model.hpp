@@ -8,14 +8,15 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVariantList>
 
-#include "project/anomaly_detector.hpp"
-#include "project/packet_analyzer.hpp"
-#include "project/topology_controller.hpp"
-#include "project/traffic_generator.hpp"
+#include "wirelab/anomaly_detector.hpp"
+#include "wirelab/packet_analyzer.hpp"
+#include "wirelab/topology_controller.hpp"
+#include "wirelab/traffic_generator.hpp"
 
-namespace project
+namespace wirelab
 {
   class WireLabViewModel final : public QObject
   {
@@ -30,7 +31,7 @@ namespace project
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(bool trafficRunning READ trafficRunning NOTIFY trafficStateChanged)
     Q_PROPERTY(QString activeBackend READ activeBackend NOTIFY trafficStateChanged)
-    Q_PROPERTY(bool cudaAvailable READ cudaAvailable CONSTANT)
+    Q_PROPERTY(QStringList availableBackends READ availableBackends CONSTANT)
     Q_PROPERTY(QString trafficResult READ trafficResult NOTIFY telemetryChanged)
     Q_PROPERTY(QVariantList metricsHistory READ metricsHistory NOTIFY telemetryChanged)
     Q_PROPERTY(QVariantList macTable READ macTable NOTIFY telemetryChanged)
@@ -52,7 +53,7 @@ namespace project
     [[nodiscard]] QString statusMessage() const;
     [[nodiscard]] bool trafficRunning() const noexcept;
     [[nodiscard]] QString activeBackend() const;
-    [[nodiscard]] bool cudaAvailable() const noexcept;
+    [[nodiscard]] QStringList availableBackends() const;
     [[nodiscard]] QString trafficResult() const;
     [[nodiscard]] QVariantList metricsHistory() const;
     [[nodiscard]] QVariantList macTable() const;

@@ -3,13 +3,13 @@
 
 
 
-#include "project/ethernet_frame.hpp"
+#include "wirelab/ethernet_frame.hpp"
 
 #include <gtest/gtest.h>
 
 #include <sstream>
 
-using namespace project;
+using namespace wirelab;
 
 
 

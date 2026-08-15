@@ -7,7 +7,7 @@ Get the VPN system running in 5 minutes!
 ### Step 1: Build Docker Image
 
 ```bash
-cd /path/to/modern-cpp-template
+cd /path/to/wirelab
 docker build -t vpn-alpine -f tests/Dockerfile .
 ```
 
@@ -27,7 +27,7 @@ chmod +x tests/test_in_docker.sh
 ### Step 1: Build
 
 ```bash
-cd /path/to/modern-cpp-template
+cd /path/to/wirelab
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build .

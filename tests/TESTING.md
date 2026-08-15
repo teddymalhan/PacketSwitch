@@ -66,7 +66,7 @@ Same as unit tests - integration tests are included in the test suite.
 ### Step 1: Start VSwitch
 
 ```bash
-cd /path/to/modern-cpp-template/build
+cd /path/to/wirelab/build
 ./vswitch 8080
 ```
 
@@ -80,7 +80,7 @@ Output:
 ### Step 2: Start VPort 1 (Terminal 2)
 
 ```bash
-cd /path/to/modern-cpp-template/build
+cd /path/to/wirelab/build
 sudo ./vport 127.0.0.1 8080
 ```
 
@@ -96,7 +96,7 @@ VPort is running! Press Ctrl+C to stop.
 ### Step 3: Start VPort 2 (Terminal 3)
 
 ```bash
-cd /path/to/modern-cpp-template/build
+cd /path/to/wirelab/build
 sudo ./vport 127.0.0.1 8080 tap1
 ```
 
@@ -165,7 +165,7 @@ Test in isolated Alpine Linux containers with proper TAP support.
 ### Quick Test Script
 
 ```bash
-cd /path/to/modern-cpp-template
+cd /path/to/wirelab
 chmod +x tests/test_in_docker.sh
 ./tests/test_in_docker.sh
 ```
@@ -184,7 +184,7 @@ This script will:
 #### Build Docker Image
 
 ```bash
-cd /path/to/modern-cpp-template
+cd /path/to/wirelab
 docker build -t vpn-alpine -f tests/Dockerfile .
 ```
 

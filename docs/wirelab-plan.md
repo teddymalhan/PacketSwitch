@@ -361,7 +361,7 @@ apps/
   wirelab_bench.cpp
   wirelab_gui.cpp
 
-include/project/
+include/wirelab/
   control/
   dataplane/
   telemetry/
@@ -445,14 +445,14 @@ The CPU and CUDA implementations must produce equivalent observable classificati
 CUDA is optional and CPU-only builds remain the default:
 
 ```cmake
-option(PROJECT_ENABLE_CUDA "Build the optional WireLab CUDA backend" OFF)
+option(WIRELAB_ENABLE_CUDA "Build the optional WireLab CUDA backend" OFF)
 
-if(PROJECT_ENABLE_CUDA)
+if(WIRELAB_ENABLE_CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
-  add_library(project_cuda src/cuda/packet_parser.cu)
-  target_link_libraries(project_cuda PRIVATE CUDA::cudart)
-  set_target_properties(project_cuda PROPERTIES
+  add_library(wirelab_cuda src/cuda/packet_parser.cu)
+  target_link_libraries(wirelab_cuda PRIVATE CUDA::cudart)
+  set_target_properties(wirelab_cuda PROPERTIES
     CUDA_STANDARD 17
     CUDA_SEPARABLE_COMPILATION ON)
 endif()

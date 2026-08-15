@@ -1,10 +1,10 @@
-#include "project/policy_engine.hpp"
+#include "wirelab/policy_engine.hpp"
 
 #include <algorithm>
 #include <unordered_set>
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   const char* to_string(PolicyAction action) noexcept
   {

@@ -1,11 +1,11 @@
-#include "project/packet_analyzer.hpp"
-#include "project/packet_batch.hpp"
+#include "wirelab/packet_analyzer.hpp"
+#include "wirelab/packet_batch.hpp"
 
 
 #include <algorithm>
 #include <limits>
 
-namespace project
+namespace wirelab
 {
   namespace
   {

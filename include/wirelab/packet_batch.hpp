@@ -5,10 +5,10 @@
 #include <cstdint>
 #include <vector>
 
-#include "project/expected.hpp"
-#include "project/packet_analyzer.hpp"
+#include "wirelab/expected.hpp"
+#include "wirelab/packet_analyzer.hpp"
 
-namespace project
+namespace wirelab
 {
   enum class PacketBatchError
   {

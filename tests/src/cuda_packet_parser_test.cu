@@ -5,23 +5,23 @@
 
 #include <gtest/gtest.h>
 
-#include "project/cuda_packet_parser.hpp"
+#include "wirelab/cuda_packet_parser.hpp"
 
 namespace
 {
   std::vector<uint8_t> make_ipv4_udp_frame()
   {
-    std::vector<uint8_t> bytes(project::ETHERNET_HEADER_SIZE + 20 + 8, 0);
-    const std::array<uint8_t, project::MAC_ADDRESS_SIZE> destination = { 0, 1, 2, 3, 4, 5 };
-    const std::array<uint8_t, project::MAC_ADDRESS_SIZE> source = { 6, 7, 8, 9, 10, 11 };
-    for (size_t index = 0; index < project::MAC_ADDRESS_SIZE; ++index)
+    std::vector<uint8_t> bytes(wirelab::ETHERNET_HEADER_SIZE + 20 + 8, 0);
+    const std::array<uint8_t, wirelab::MAC_ADDRESS_SIZE> destination = { 0, 1, 2, 3, 4, 5 };
+    const std::array<uint8_t, wirelab::MAC_ADDRESS_SIZE> source = { 6, 7, 8, 9, 10, 11 };
+    for (size_t index = 0; index < wirelab::MAC_ADDRESS_SIZE; ++index)
     {
       bytes[index] = destination[index];
-      bytes[project::MAC_ADDRESS_SIZE + index] = source[index];
+      bytes[wirelab::MAC_ADDRESS_SIZE + index] = source[index];
     }
     bytes[12] = 0x08;
     bytes[13] = 0x00;
-    const size_t ip = project::ETHERNET_HEADER_SIZE;
+    const size_t ip = wirelab::ETHERNET_HEADER_SIZE;
     bytes[ip] = 0x45;
     bytes[ip + 2] = 0;
     bytes[ip + 3] = 28;
@@ -46,23 +46,23 @@ namespace
 
   TEST(CudaPacketParserTest, MatchesCpuParsingForValidAndMalformedFrames)
   {
-    if (!project::CudaPacketParser::is_available())
+    if (!wirelab::CudaPacketParser::is_available())
     {
       GTEST_SKIP() << "no compatible CUDA device is available";
     }
 
     const auto valid = make_ipv4_udp_frame();
-    const std::array<uint8_t, project::ETHERNET_HEADER_SIZE - 1> malformed{};
-    const project::PacketView views[] = {
+    const std::array<uint8_t, wirelab::ETHERNET_HEADER_SIZE - 1> malformed{};
+    const wirelab::PacketView views[] = {
       { valid.data(), valid.size(), 17 },
       { malformed.data(), malformed.size(), 18 },
       { nullptr, 0, 19 },
     };
-    const auto batch = project::PacketBatch::create(views, 3);
+    const auto batch = wirelab::PacketBatch::create(views, 3);
 
-    project::CpuPacketAnalyzer cpu;
+    wirelab::CpuPacketAnalyzer cpu;
     const auto cpu_result = cpu.analyze(*batch);
-    project::CudaPacketParser cuda;
+    wirelab::CudaPacketParser cuda;
     const auto cuda_parse_result = cuda.parse_with_timing(*batch);
     EXPECT_GT(cuda_parse_result.timing.host_to_device_ns + cuda_parse_result.timing.kernel_ns +
                   cuda_parse_result.timing.device_to_host_ns,
@@ -90,7 +90,7 @@ namespace
 
   TEST(CudaPacketAnalyzerTest, MatchesCpuAggregatesAndOrderedForwardingClassifications)
   {
-    if (!project::CudaPacketParser::is_available())
+    if (!wirelab::CudaPacketParser::is_available())
     {
       GTEST_SKIP() << "no compatible CUDA device is available";
     }
@@ -103,16 +103,16 @@ namespace
     second[3] = 9;
     second[4] = 10;
     second[5] = 11;
-    const project::PacketView views[] = {
+    const wirelab::PacketView views[] = {
       { first.data(), first.size(), 17 },
       { second.data(), second.size(), 18 },
       { first.data(), first.size(), 19 },
     };
-    const auto batch = project::PacketBatch::create(views, 3);
+    const auto batch = wirelab::PacketBatch::create(views, 3);
     ASSERT_TRUE(batch.has_value());
 
-    project::CpuPacketAnalyzer cpu;
-    project::CudaPacketAnalyzer cuda;
+    wirelab::CpuPacketAnalyzer cpu;
+    wirelab::CudaPacketAnalyzer cuda;
     const auto cpu_result = cpu.analyze(*batch);
     const auto cuda_result = cuda.analyze(*batch);
 
@@ -139,8 +139,8 @@ namespace
     ASSERT_EQ(cuda_result.source_mac_traffic.size(), cpu_result.source_mac_traffic.size());
     ASSERT_EQ(cuda_result.destination_mac_traffic.size(), cpu_result.destination_mac_traffic.size());
     ASSERT_EQ(cuda_result.mac_traffic_matrix.size(), cpu_result.mac_traffic_matrix.size());
-    const auto expect_histogram_equal = [](const std::vector<project::HistogramEntry>& actual,
-                                           const std::vector<project::HistogramEntry>& expected) {
+    const auto expect_histogram_equal = [](const std::vector<wirelab::HistogramEntry>& actual,
+                                           const std::vector<wirelab::HistogramEntry>& expected) {
       ASSERT_EQ(actual.size(), expected.size());
       for (size_t index = 0; index < actual.size(); ++index)
       {
@@ -190,23 +190,23 @@ namespace
 
   TEST(CudaPacketParserTest, PreservesPacketOrderAtKernelBoundaryBatchSizes)
   {
-    if (!project::CudaPacketParser::is_available())
+    if (!wirelab::CudaPacketParser::is_available())
     {
       GTEST_SKIP() << "no compatible CUDA device is available";
     }
 
     const auto frame = make_ipv4_udp_frame();
     const std::array<size_t, 12> batch_sizes = { 0, 1, 31, 32, 33, 127, 128, 129, 255, 256, 257, 1024 };
-    project::CudaPacketParser cuda;
+    wirelab::CudaPacketParser cuda;
     for (const size_t batch_size : batch_sizes)
     {
-      std::vector<project::PacketView> views;
+      std::vector<wirelab::PacketView> views;
       views.reserve(batch_size);
       for (size_t index = 0; index < batch_size; ++index)
       {
         views.push_back({ frame.data(), frame.size(), static_cast<uint32_t>(index) });
       }
-      const auto batch = project::PacketBatch::create(views.data(), views.size());
+      const auto batch = wirelab::PacketBatch::create(views.data(), views.size());
       ASSERT_TRUE(batch.has_value()) << "batch size " << batch_size;
 
       const auto result = cuda.parse(*batch);
@@ -214,7 +214,7 @@ namespace
       for (size_t index = 0; index < batch_size; ++index)
       {
         EXPECT_EQ(result[index].ingress_port, index) << "batch size " << batch_size;
-        EXPECT_EQ(result[index].validity, project::PacketValidity::Valid) << "batch size " << batch_size;
+        EXPECT_EQ(result[index].validity, wirelab::PacketValidity::Valid) << "batch size " << batch_size;
         EXPECT_EQ(result[index].source_port, 8080) << "batch size " << batch_size;
         EXPECT_EQ(result[index].destination_port, 53) << "batch size " << batch_size;
       }
@@ -223,11 +223,11 @@ namespace
 
   TEST(CudaPacketParserTest, RejectsMalformedContiguousBatchBeforeDeviceAccess)
   {
-    project::PacketBatch batch;
+    wirelab::PacketBatch batch;
     batch.packet_offsets = { 0 };
     batch.packet_lengths = { 0 };
 
-    project::CudaPacketParser cuda;
+    wirelab::CudaPacketParser cuda;
     EXPECT_THROW(
         {
           const auto analyses = cuda.parse(batch);

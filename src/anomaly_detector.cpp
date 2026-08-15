@@ -1,11 +1,11 @@
-#include "project/anomaly_detector.hpp"
+#include "wirelab/anomaly_detector.hpp"
 
 #include <algorithm>
 #include <map>
 #include <stdexcept>
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   namespace
   {

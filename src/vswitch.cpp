@@ -1,10 +1,10 @@
-#include "project/vswitch.hpp"
+#include "wirelab/vswitch.hpp"
 
 #include <iostream>
 #include <stdexcept>
 
 
-namespace project
+namespace wirelab
 {
   const char* to_string(VSwitchError error) noexcept
   {

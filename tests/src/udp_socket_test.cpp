@@ -3,14 +3,14 @@
 
 
 
-#include "project/udp_socket.hpp"
+#include "wirelab/udp_socket.hpp"
 
 #include <gtest/gtest.h>
 
 #include <sstream>
 #include <thread>
 
-using namespace project;
+using namespace wirelab;
 
 
 

@@ -18,7 +18,7 @@ COPY src/ ./src/
 
 RUN cmake -S . -B build \
       -DCMAKE_BUILD_TYPE=Release \
-      -DProject_ENABLE_UNIT_TESTING=OFF && \
+      -DWireLab_ENABLE_UNIT_TESTING=OFF && \
     cmake --build build --parallel && \
     test -x build/vport && \
     test -x build/vswitch

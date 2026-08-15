@@ -7,9 +7,9 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include "project/expected.hpp"
+#include "wirelab/expected.hpp"
 
-namespace project
+namespace wirelab
 {
   enum class TopologyNodeType
   {

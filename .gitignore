@@ -1,3 +1,4 @@
+.cache/
 # CMake build trees and generated metadata
 /build/
 /build-*/

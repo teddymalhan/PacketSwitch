@@ -4,30 +4,30 @@
 #include <array>
 #include <vector>
 
-#include "project/packet_analyzer.hpp"
-#include "project/packet_batch.hpp"
+#include "wirelab/packet_analyzer.hpp"
+#include "wirelab/packet_batch.hpp"
 
 
 namespace
 {
   std::vector<uint8_t> ethernet_frame(
-      const project::MacAddress& destination, const project::MacAddress& source, uint16_t ethertype)
+      const wirelab::MacAddress& destination, const wirelab::MacAddress& source, uint16_t ethertype)
   {
-    std::vector<uint8_t> bytes(project::ETHERNET_HEADER_SIZE);
+    std::vector<uint8_t> bytes(wirelab::ETHERNET_HEADER_SIZE);
     std::copy(destination.bytes().begin(), destination.bytes().end(), bytes.begin());
-    std::copy(source.bytes().begin(), source.bytes().end(), bytes.begin() + project::MAC_ADDRESS_SIZE);
+    std::copy(source.bytes().begin(), source.bytes().end(), bytes.begin() + wirelab::MAC_ADDRESS_SIZE);
     bytes[12] = static_cast<uint8_t>(ethertype >> 8U);
     bytes[13] = static_cast<uint8_t>(ethertype);
     return bytes;
   }
 
   std::vector<uint8_t> ipv4_frame(
-      const project::MacAddress& destination, const project::MacAddress& source, uint8_t protocol,
+      const wirelab::MacAddress& destination, const wirelab::MacAddress& source, uint8_t protocol,
       uint16_t transport_size)
   {
-    auto bytes = ethernet_frame(destination, source, project::EtherType::IPv4);
-    bytes.resize(project::ETHERNET_HEADER_SIZE + 20 + transport_size);
-    const size_t ipv4_offset = project::ETHERNET_HEADER_SIZE;
+    auto bytes = ethernet_frame(destination, source, wirelab::EtherType::IPv4);
+    bytes.resize(wirelab::ETHERNET_HEADER_SIZE + 20 + transport_size);
+    const size_t ipv4_offset = wirelab::ETHERNET_HEADER_SIZE;
     bytes[ipv4_offset] = 0x45;
     const uint16_t ipv4_size = static_cast<uint16_t>(20 + transport_size);
     bytes[ipv4_offset + 2] = static_cast<uint8_t>(ipv4_size >> 8U);
@@ -47,28 +47,28 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, ClassifiesPacketsAndLearnsSourcesInOrder)
   {
-    const project::MacAddress first_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress second_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
-    const auto first = ethernet_frame(second_source, first_source, project::EtherType::IPv4);
-    const auto second = ethernet_frame(first_source, second_source, project::EtherType::ARP);
-    const auto broadcast = ethernet_frame(project::MacAddress::broadcast(), first_source, project::EtherType::IPv4);
-    const std::array<project::PacketView, 3> packets = {
-      project::PacketView{ first.data(), first.size(), 7 },
-      project::PacketView{ second.data(), second.size() },
-      project::PacketView{ broadcast.data(), broadcast.size() },
+    const wirelab::MacAddress first_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress second_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const auto first = ethernet_frame(second_source, first_source, wirelab::EtherType::IPv4);
+    const auto second = ethernet_frame(first_source, second_source, wirelab::EtherType::ARP);
+    const auto broadcast = ethernet_frame(wirelab::MacAddress::broadcast(), first_source, wirelab::EtherType::IPv4);
+    const std::array<wirelab::PacketView, 3> packets = {
+      wirelab::PacketView{ first.data(), first.size(), 7 },
+      wirelab::PacketView{ second.data(), second.size() },
+      wirelab::PacketView{ broadcast.data(), broadcast.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.packets.size(), packets.size());
-    EXPECT_EQ(result.packets[0].classification, project::PacketClassification::UnknownUnicast);
-    EXPECT_EQ(result.packets[1].classification, project::PacketClassification::KnownUnicast);
-    EXPECT_EQ(result.packets[2].classification, project::PacketClassification::Broadcast);
-    EXPECT_EQ(result.packets[1].ethertype, project::EtherType::ARP);
+    EXPECT_EQ(result.packets[0].classification, wirelab::PacketClassification::UnknownUnicast);
+    EXPECT_EQ(result.packets[1].classification, wirelab::PacketClassification::KnownUnicast);
+    EXPECT_EQ(result.packets[2].classification, wirelab::PacketClassification::Broadcast);
+    EXPECT_EQ(result.packets[1].ethertype, wirelab::EtherType::ARP);
     EXPECT_EQ(result.packets[0].ingress_port, 7U);
     EXPECT_EQ(result.received_packets, 3U);
-    EXPECT_EQ(result.received_bytes, 3U * project::ETHERNET_HEADER_SIZE);
+    EXPECT_EQ(result.received_bytes, 3U * wirelab::ETHERNET_HEADER_SIZE);
     EXPECT_EQ(result.unknown_unicast_packets, 1U);
     EXPECT_EQ(result.known_unicast_packets, 1U);
     EXPECT_EQ(result.broadcast_packets, 1U);
@@ -76,21 +76,21 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, AnalyzesContiguousPacketBatchesWithEquivalentResults)
   {
-    const project::MacAddress first_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress second_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
-    const auto first = ethernet_frame(second_source, first_source, project::EtherType::IPv4);
-    const auto second = ethernet_frame(first_source, second_source, project::EtherType::ARP);
-    const auto broadcast = ethernet_frame(project::MacAddress::broadcast(), first_source, project::EtherType::IPv4);
-    const std::array<project::PacketView, 3> packets = {
-      project::PacketView{ first.data(), first.size(), 7 },
-      project::PacketView{ second.data(), second.size(), 8 },
-      project::PacketView{ broadcast.data(), broadcast.size(), 9 },
+    const wirelab::MacAddress first_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress second_source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const auto first = ethernet_frame(second_source, first_source, wirelab::EtherType::IPv4);
+    const auto second = ethernet_frame(first_source, second_source, wirelab::EtherType::ARP);
+    const auto broadcast = ethernet_frame(wirelab::MacAddress::broadcast(), first_source, wirelab::EtherType::IPv4);
+    const std::array<wirelab::PacketView, 3> packets = {
+      wirelab::PacketView{ first.data(), first.size(), 7 },
+      wirelab::PacketView{ second.data(), second.size(), 8 },
+      wirelab::PacketView{ broadcast.data(), broadcast.size(), 9 },
     };
-    const auto batch = project::PacketBatch::create(packets.data(), packets.size(), 1234);
+    const auto batch = wirelab::PacketBatch::create(packets.data(), packets.size(), 1234);
 
     ASSERT_TRUE(batch.has_value());
-    project::CpuPacketAnalyzer direct_analyzer;
-    project::CpuPacketAnalyzer batch_analyzer;
+    wirelab::CpuPacketAnalyzer direct_analyzer;
+    wirelab::CpuPacketAnalyzer batch_analyzer;
     const auto direct_result = direct_analyzer.analyze(packets.data(), packets.size());
     const auto batch_result = batch_analyzer.analyze(*batch);
 
@@ -113,35 +113,35 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, RecordsMalformedPacketsWithoutReadingTheirPayload)
   {
-    const std::array<uint8_t, project::ETHERNET_HEADER_SIZE - 1> truncated{};
-    const std::array<project::PacketView, 2> packets = {
-      project::PacketView{ nullptr, 0 },
-      project::PacketView{ truncated.data(), truncated.size() },
+    const std::array<uint8_t, wirelab::ETHERNET_HEADER_SIZE - 1> truncated{};
+    const std::array<wirelab::PacketView, 2> packets = {
+      wirelab::PacketView{ nullptr, 0 },
+      wirelab::PacketView{ truncated.data(), truncated.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.packets.size(), packets.size());
-    EXPECT_EQ(result.packets[0].classification, project::PacketClassification::Malformed);
-    EXPECT_EQ(result.packets[1].classification, project::PacketClassification::Malformed);
+    EXPECT_EQ(result.packets[0].classification, wirelab::PacketClassification::Malformed);
+    EXPECT_EQ(result.packets[1].classification, wirelab::PacketClassification::Malformed);
     EXPECT_EQ(result.malformed_packets, 2U);
     EXPECT_EQ(result.received_bytes, truncated.size());
   }
 
   TEST(CpuPacketAnalyzerTest, ResetClearsLearnedMacAddresses)
   {
-    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
-    const auto first = ethernet_frame(destination, source, project::EtherType::IPv4);
-    const auto second = ethernet_frame(source, destination, project::EtherType::IPv4);
-    const std::array<project::PacketView, 2> learn_packets = {
-      project::PacketView{ first.data(), first.size() },
-      project::PacketView{ second.data(), second.size() },
+    const wirelab::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const auto first = ethernet_frame(destination, source, wirelab::EtherType::IPv4);
+    const auto second = ethernet_frame(source, destination, wirelab::EtherType::IPv4);
+    const std::array<wirelab::PacketView, 2> learn_packets = {
+      wirelab::PacketView{ first.data(), first.size() },
+      wirelab::PacketView{ second.data(), second.size() },
     };
-    const std::array<project::PacketView, 1> known_packet = { project::PacketView{ first.data(), first.size() } };
+    const std::array<wirelab::PacketView, 1> known_packet = { wirelab::PacketView{ first.data(), first.size() } };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto learned = analyzer.analyze(learn_packets.data(), learn_packets.size());
     EXPECT_EQ(learned.unknown_unicast_packets, 1U);
     EXPECT_EQ(learned.known_unicast_packets, 1U);
@@ -153,37 +153,37 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, ExtractsIpv4UdpTcpAndIcmpMetadata)
   {
-    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const wirelab::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
     auto udp = ipv4_frame(destination, source, 17, 8);
     auto tcp = ipv4_frame(destination, source, 6, 20);
     auto icmp = ipv4_frame(destination, source, 1, 4);
-    const size_t udp_offset = project::ETHERNET_HEADER_SIZE + 20;
+    const size_t udp_offset = wirelab::ETHERNET_HEADER_SIZE + 20;
     udp[udp_offset] = 0x1f;
     udp[udp_offset + 1] = 0x90;
     udp[udp_offset + 2] = 0;
     udp[udp_offset + 3] = 53;
     udp[udp_offset + 4] = 0;
     udp[udp_offset + 5] = 8;
-    const size_t tcp_offset = project::ETHERNET_HEADER_SIZE + 20;
+    const size_t tcp_offset = wirelab::ETHERNET_HEADER_SIZE + 20;
     tcp[tcp_offset] = 0x01;
     tcp[tcp_offset + 1] = 0xbb;
     tcp[tcp_offset + 2] = 0x01;
     tcp[tcp_offset + 3] = 0xbd;
     tcp[tcp_offset + 12] = 0x50;
     tcp[tcp_offset + 13] = 0x12;
-    const std::array<project::PacketView, 3> packets = {
-      project::PacketView{ udp.data(), udp.size() },
-      project::PacketView{ tcp.data(), tcp.size() },
-      project::PacketView{ icmp.data(), icmp.size() },
+    const std::array<wirelab::PacketView, 3> packets = {
+      wirelab::PacketView{ udp.data(), udp.size() },
+      wirelab::PacketView{ tcp.data(), tcp.size() },
+      wirelab::PacketView{ icmp.data(), icmp.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.packets.size(), packets.size());
     EXPECT_EQ(result.malformed_packets, 0U);
-    EXPECT_EQ(result.packets[0].validity, project::PacketValidity::Valid);
+    EXPECT_EQ(result.packets[0].validity, wirelab::PacketValidity::Valid);
     EXPECT_EQ(result.packets[0].source_ipv4, 0xc0000201U);
     EXPECT_EQ(result.packets[0].destination_ipv4, 0xc6336402U);
     EXPECT_EQ(result.packets[0].protocol, 17);
@@ -198,41 +198,41 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, RejectsTruncatedIpv4AndInvalidUdpHeaders)
   {
-    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
-    auto truncated_ipv4 = ethernet_frame(destination, source, project::EtherType::IPv4);
-    truncated_ipv4.resize(project::ETHERNET_HEADER_SIZE + 20);
-    truncated_ipv4[project::ETHERNET_HEADER_SIZE] = 0x45;
-    truncated_ipv4[project::ETHERNET_HEADER_SIZE + 2] = 0;
-    truncated_ipv4[project::ETHERNET_HEADER_SIZE + 3] = 40;
+    const wirelab::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    auto truncated_ipv4 = ethernet_frame(destination, source, wirelab::EtherType::IPv4);
+    truncated_ipv4.resize(wirelab::ETHERNET_HEADER_SIZE + 20);
+    truncated_ipv4[wirelab::ETHERNET_HEADER_SIZE] = 0x45;
+    truncated_ipv4[wirelab::ETHERNET_HEADER_SIZE + 2] = 0;
+    truncated_ipv4[wirelab::ETHERNET_HEADER_SIZE + 3] = 40;
     auto invalid_udp = ipv4_frame(destination, source, 17, 8);
-    const size_t udp_offset = project::ETHERNET_HEADER_SIZE + 20;
+    const size_t udp_offset = wirelab::ETHERNET_HEADER_SIZE + 20;
     invalid_udp[udp_offset + 4] = 0;
     invalid_udp[udp_offset + 5] = 7;
-    const std::array<project::PacketView, 2> packets = {
-      project::PacketView{ truncated_ipv4.data(), truncated_ipv4.size() },
-      project::PacketView{ invalid_udp.data(), invalid_udp.size() },
+    const std::array<wirelab::PacketView, 2> packets = {
+      wirelab::PacketView{ truncated_ipv4.data(), truncated_ipv4.size() },
+      wirelab::PacketView{ invalid_udp.data(), invalid_udp.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.packets.size(), packets.size());
     EXPECT_EQ(result.malformed_packets, 2U);
-    EXPECT_EQ(result.packets[0].validity, project::PacketValidity::MalformedIpv4);
-    EXPECT_EQ(result.packets[1].validity, project::PacketValidity::MalformedTransport);
-    EXPECT_EQ(result.packets[0].classification, project::PacketClassification::UnknownUnicast);
-    EXPECT_EQ(result.packets[1].classification, project::PacketClassification::UnknownUnicast);
+    EXPECT_EQ(result.packets[0].validity, wirelab::PacketValidity::MalformedIpv4);
+    EXPECT_EQ(result.packets[1].validity, wirelab::PacketValidity::MalformedTransport);
+    EXPECT_EQ(result.packets[0].classification, wirelab::PacketClassification::UnknownUnicast);
+    EXPECT_EQ(result.packets[1].classification, wirelab::PacketClassification::UnknownUnicast);
   }
 
   TEST(CpuPacketAnalyzerTest, AggregatesValidIpv4PacketsByFiveTuple)
   {
-    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const wirelab::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress source({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
     auto first = ipv4_frame(destination, source, 17, 8);
     auto second = first;
     auto different_flow = ipv4_frame(destination, source, 17, 8);
-    const size_t transport_offset = project::ETHERNET_HEADER_SIZE + 20;
+    const size_t transport_offset = wirelab::ETHERNET_HEADER_SIZE + 20;
     first[transport_offset] = 0x1f;
     first[transport_offset + 1] = 0x90;
     first[transport_offset + 2] = 0;
@@ -246,13 +246,13 @@ namespace
     different_flow[transport_offset + 3] = 0xbb;
     different_flow[transport_offset + 4] = 0;
     different_flow[transport_offset + 5] = 8;
-    const std::array<project::PacketView, 3> packets = {
-      project::PacketView{ first.data(), first.size() },
-      project::PacketView{ second.data(), second.size() },
-      project::PacketView{ different_flow.data(), different_flow.size() },
+    const std::array<wirelab::PacketView, 3> packets = {
+      wirelab::PacketView{ first.data(), first.size() },
+      wirelab::PacketView{ second.data(), second.size() },
+      wirelab::PacketView{ different_flow.data(), different_flow.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.flows.size(), 2U);
@@ -270,7 +270,7 @@ namespace
     ASSERT_EQ(result.frame_size_histogram.size(), 7U);
     const auto frame_bucket = std::find_if(
         result.frame_size_histogram.begin(), result.frame_size_histogram.end(),
-        [&first](const project::PacketSizeHistogramBucket& bucket) {
+        [&first](const wirelab::PacketSizeHistogramBucket& bucket) {
           return first.size() >= bucket.inclusive_minimum && first.size() <= bucket.inclusive_maximum;
         });
     ASSERT_NE(frame_bucket, result.frame_size_histogram.end());
@@ -278,7 +278,7 @@ namespace
     EXPECT_EQ(frame_bucket->byte_count, first.size() + second.size() + different_flow.size());
 
     ASSERT_EQ(result.ethertype_histogram.size(), 1U);
-    EXPECT_EQ(result.ethertype_histogram[0].value, project::EtherType::IPv4);
+    EXPECT_EQ(result.ethertype_histogram[0].value, wirelab::EtherType::IPv4);
     EXPECT_EQ(result.ethertype_histogram[0].packet_count, 3U);
     EXPECT_EQ(result.ethertype_histogram[0].byte_count, first.size() + second.size() + different_flow.size());
 
@@ -296,22 +296,22 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, AggregatesMacTrafficAndTrafficMatrix)
   {
-    const project::MacAddress source_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress source_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
-    const project::MacAddress destination_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 });
-    const project::MacAddress destination_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x11 });
-    auto first = ethernet_frame(destination_a, source_a, project::EtherType::ARP);
-    auto second = ethernet_frame(destination_b, source_a, project::EtherType::ARP);
-    auto third = ethernet_frame(destination_a, source_b, project::EtherType::ARP);
+    const wirelab::MacAddress source_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress source_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const wirelab::MacAddress destination_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 });
+    const wirelab::MacAddress destination_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x11 });
+    auto first = ethernet_frame(destination_a, source_a, wirelab::EtherType::ARP);
+    auto second = ethernet_frame(destination_b, source_a, wirelab::EtherType::ARP);
+    auto third = ethernet_frame(destination_a, source_b, wirelab::EtherType::ARP);
     second.resize(second.size() + 7);
     third.resize(third.size() + 13);
-    const std::array<project::PacketView, 3> packets = {
-      project::PacketView{ first.data(), first.size() },
-      project::PacketView{ second.data(), second.size() },
-      project::PacketView{ third.data(), third.size() },
+    const std::array<wirelab::PacketView, 3> packets = {
+      wirelab::PacketView{ first.data(), first.size() },
+      wirelab::PacketView{ second.data(), second.size() },
+      wirelab::PacketView{ third.data(), third.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.source_mac_traffic.size(), 2U);
@@ -347,24 +347,24 @@ namespace
 
   TEST(CpuPacketAnalyzerTest, RanksMacTrafficByBytesPacketsAndMacAddress)
   {
-    const project::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 });
-    const project::MacAddress source_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
-    const project::MacAddress source_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
-    const project::MacAddress source_c({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x03 });
-    const auto first_a = ethernet_frame(destination, source_a, project::EtherType::ARP);
-    const auto second_a = ethernet_frame(destination, source_a, project::EtherType::ARP);
-    auto from_b = ethernet_frame(destination, source_b, project::EtherType::ARP);
-    auto from_c = ethernet_frame(destination, source_c, project::EtherType::ARP);
+    const wirelab::MacAddress destination({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 });
+    const wirelab::MacAddress source_a({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 });
+    const wirelab::MacAddress source_b({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 });
+    const wirelab::MacAddress source_c({ 0x00, 0x00, 0x00, 0x00, 0x00, 0x03 });
+    const auto first_a = ethernet_frame(destination, source_a, wirelab::EtherType::ARP);
+    const auto second_a = ethernet_frame(destination, source_a, wirelab::EtherType::ARP);
+    auto from_b = ethernet_frame(destination, source_b, wirelab::EtherType::ARP);
+    auto from_c = ethernet_frame(destination, source_c, wirelab::EtherType::ARP);
     from_b.resize(from_b.size() + 15);
     from_c.resize(from_c.size() + 15);
-    const std::array<project::PacketView, 4> packets = {
-      project::PacketView{ first_a.data(), first_a.size() },
-      project::PacketView{ second_a.data(), second_a.size() },
-      project::PacketView{ from_c.data(), from_c.size() },
-      project::PacketView{ from_b.data(), from_b.size() },
+    const std::array<wirelab::PacketView, 4> packets = {
+      wirelab::PacketView{ first_a.data(), first_a.size() },
+      wirelab::PacketView{ second_a.data(), second_a.size() },
+      wirelab::PacketView{ from_c.data(), from_c.size() },
+      wirelab::PacketView{ from_b.data(), from_b.size() },
     };
 
-    project::CpuPacketAnalyzer analyzer;
+    wirelab::CpuPacketAnalyzer analyzer;
     const auto result = analyzer.analyze(packets.data(), packets.size());
 
     ASSERT_EQ(result.source_mac_traffic.size(), 3U);

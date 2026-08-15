@@ -1,9 +1,9 @@
-#include "project/topology.hpp"
+#include "wirelab/topology.hpp"
 
 #include <unordered_set>
 #include <utility>
 
-namespace project
+namespace wirelab
 {
   namespace
   {

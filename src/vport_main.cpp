@@ -13,10 +13,10 @@
 #include <iostream>
 #include <memory>
 
-#include "project/vport.hpp"
+#include "wirelab/vport.hpp"
 
 
-std::unique_ptr<project::VPort> g_vport;
+std::unique_ptr<wirelab::VPort> g_vport;
 
 
 
@@ -106,13 +106,13 @@ int main(int argc, char* argv[])
 
     
     std::cout << "Creating VPort...\n";
-    auto vport_result = project::VPort::create(tap_device_name, vswitch_ip, vswitch_port);
+    auto vport_result = wirelab::VPort::create(tap_device_name, vswitch_ip, vswitch_port);
 
     if (!vport_result)
     {
-      std::cerr << "Error: Failed to create VPort: " << project::to_string(vport_result.error()) << "\n";
+      std::cerr << "Error: Failed to create VPort: " << wirelab::to_string(vport_result.error()) << "\n";
 
-      if (vport_result.error() == project::VPortError::TapDeviceCreationFailed)
+      if (vport_result.error() == wirelab::VPortError::TapDeviceCreationFailed)
       {
 #ifdef _WIN32
         std::cerr << "\nHint: Install the OpenVPN TAP-Windows6 component and create an adapter with tapctl.exe.\n";
@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
     }
 
     
-    g_vport = std::make_unique<project::VPort>(std::move(*vport_result));
+    g_vport = std::make_unique<wirelab::VPort>(std::move(*vport_result));
 
     std::cout << "\nVPort created successfully!\n";
     std::cout << "  Device: " << g_vport->device_name() << "\n";
@@ -139,7 +139,7 @@ int main(int argc, char* argv[])
 
     if (!start_result)
     {
-      std::cerr << "Error: Failed to start VPort: " << project::to_string(start_result.error()) << "\n";
+      std::cerr << "Error: Failed to start VPort: " << wirelab::to_string(start_result.error()) << "\n";
       return EXIT_FAILURE;
     }
 

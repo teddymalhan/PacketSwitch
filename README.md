@@ -1,4 +1,4 @@
-# PacketSwitch
+# WireLab
 
 <img width="1934" height="907" alt="Untitled-2026-08-13-0218" src="https://github.com/user-attachments/assets/0f61eb0d-bd69-4111-8d11-18adf71003a2" />
 
@@ -7,7 +7,7 @@ https://github.com/user-attachments/assets/72ed8775-c435-4837-953a-ee813c81396f
 
 Thread-safe Virtual Network Switch written in C++, briding TAP devices over UDP
 
-PacketSwitch implements a learning Ethernet switch as two cooperating programs: 
+WireLab implements a learning Ethernet switch as two cooperating programs: 
 1. **VSwitch**, a forwarding server to connect devices to (like a router or a switch in real life), and 
 2. **VPort**, a client that attaches to the switch via a TAP interface. 
 
@@ -53,8 +53,8 @@ GoogleTest is fetched automatically by CMake via `FetchContent` — no manual in
 ### Build with CMake
 
 ```bash
-git clone https://github.com/teddymalhan/PacketSwitch.git
-cd PacketSwitch
+git clone https://github.com/teddymalhan/WireLab.git
+cd WireLab
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
@@ -73,8 +73,8 @@ From PowerShell:
 
 ```powershell
 cmake -S . -B out/build/windows -A x64 `
-  -DProject_ENABLE_UNIT_TESTING=ON `
-  -DProject_ENABLE_CCACHE=OFF
+  -DWireLab_ENABLE_UNIT_TESTING=ON `
+  -DWireLab_ENABLE_CCACHE=OFF
 cmake --build out/build/windows --config Release --parallel
 ctest --test-dir out/build/windows -C Release --output-on-failure
 ```
@@ -86,19 +86,19 @@ Install the TAP component from the
 then create a dedicated adapter from an elevated PowerShell:
 
 ```powershell
-& "$env:ProgramFiles\OpenVPN\bin\tapctl.exe" create --name "PacketSwitch TAP"
-.\out\build\windows\bin\Release\vport.exe 127.0.0.1 8080 "PacketSwitch TAP"
+& "$env:ProgramFiles\OpenVPN\bin\tapctl.exe" create --name "WireLab TAP"
+.\out\build\windows\bin\Release\vport.exe 127.0.0.1 8080 "WireLab TAP"
 ```
 
 `vport` accepts the TAP connection name or adapter GUID. If exactly one
 TAP-Windows6 adapter is installed, the selector may be omitted. Wintun is not
-supported because it transports Layer-3 packets; PacketSwitch forwards complete
+supported because it transports Layer-3 packets; WireLab forwards complete
 Ethernet frames.
 
 ### Visual Studio
 
-Open `PacketSwitch.slnx` rather than opening an individual source file. The
-default `PacketSwitch` startup project builds and runs `vswitch.exe` on UDP
+Open `WireLab.slnx` rather than opening an individual source file. The
+default `WireLab` startup project builds and runs `vswitch.exe` on UDP
 port 8080 when you select **Debug > Start Without Debugging** (`Ctrl+F5`).
 
 The solution also contains `VPort`. Set it as the startup project only after
@@ -120,7 +120,7 @@ make install
 ### Docker (recommended for first-time testing)
 
 ```bash
-docker build -t packetswitch -f tests/Dockerfile .
+docker build -t wirelab -f tests/Dockerfile .
 chmod +x tests/test_in_docker.sh
 ./tests/test_in_docker.sh
 ```
@@ -207,7 +207,7 @@ vport <vswitch_ip> <vswitch_port> [tap_name]
 
 ## Architecture
 
-The three core components map directly to source files under `include/project/` and `src/`:
+The three core components map directly to source files under `include/wirelab/` and `src/`:
 
 | Component | Role |
 |---|---|
@@ -223,7 +223,7 @@ See [`docs/architecture-overview.md`](docs/architecture-overview.md) for Mermaid
 
 ```bash
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DProject_ENABLE_UNIT_TESTING=ON
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DWireLab_ENABLE_UNIT_TESTING=ON
 cmake --build . --parallel
 ctest --output-on-failure
 ```
@@ -233,7 +233,7 @@ There are 113+ unit tests across 9 suites covering `EthernetFrame`, `MacTable`, 
 ### AddressSanitizer
 
 ```bash
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DProject_ENABLE_ASAN=ON
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DWireLab_ENABLE_ASAN=ON
 cmake --build . --parallel
 ctest
 ```

@@ -6,12 +6,12 @@
 
 
 
-#include "project/tap_device.hpp"
+#include "wirelab/tap_device.hpp"
 
 #include <gtest/gtest.h>
 #include <unistd.h>
 
-using namespace project;
+using namespace wirelab;
 
 TEST(TapDeviceTest, DefaultConstruction)
 {

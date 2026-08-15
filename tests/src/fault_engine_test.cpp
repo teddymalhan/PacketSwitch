@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "project/fault_engine.hpp"
+#include "wirelab/fault_engine.hpp"
 
 namespace
 {
@@ -10,7 +10,7 @@ namespace
 
   TEST(FaultEngineTest, PassesUnconfiguredTargetsAtArrival)
   {
-    project::FaultEngine engine(42);
+    wirelab::FaultEngine engine(42);
     const auto arrival = Clock::time_point(std::chrono::seconds(5));
 
     const auto decision = engine.evaluate("client-a", 64, arrival);
@@ -22,24 +22,24 @@ namespace
 
   TEST(FaultEngineTest, RejectsInvalidConfiguration)
   {
-    project::FaultEngine engine;
+    wirelab::FaultEngine engine;
 
-    EXPECT_EQ(engine.set_fault("", {}).error(), project::FaultConfigurationError::MissingTarget);
+    EXPECT_EQ(engine.set_fault("", {}).error(), wirelab::FaultConfigurationError::MissingTarget);
     EXPECT_EQ(
         engine.set_fault("client-a", { std::chrono::nanoseconds(-1) }).error(),
-        project::FaultConfigurationError::NegativeLatency);
+        wirelab::FaultConfigurationError::NegativeLatency);
     EXPECT_EQ(
         engine.set_fault("client-a", { {}, {}, 10001 }).error(),
-        project::FaultConfigurationError::InvalidLossPercentage);
+        wirelab::FaultConfigurationError::InvalidLossPercentage);
     EXPECT_EQ(
         engine.set_fault("client-a", { {}, {}, 0, 10001 }).error(),
-        project::FaultConfigurationError::InvalidDuplicationPercentage);
+        wirelab::FaultConfigurationError::InvalidDuplicationPercentage);
   }
 
   TEST(FaultEngineTest, AppliesLatencyAndBandwidthInArrivalOrder)
   {
-    project::FaultEngine engine(42);
-    project::FaultConfiguration configuration;
+    wirelab::FaultEngine engine(42);
+    wirelab::FaultConfiguration configuration;
     configuration.latency = std::chrono::milliseconds(2);
     configuration.bandwidth_bits_per_second = 8000;
     ASSERT_TRUE(engine.set_fault("client-a", configuration));
@@ -58,11 +58,11 @@ namespace
 
   TEST(FaultEngineTest, DropsBlackholedAndIsolatedTargets)
   {
-    project::FaultEngine engine;
-    project::FaultConfiguration blackhole;
+    wirelab::FaultEngine engine;
+    wirelab::FaultConfiguration blackhole;
     blackhole.blackhole = true;
     ASSERT_TRUE(engine.set_fault("blackhole", blackhole));
-    project::FaultConfiguration isolated;
+    wirelab::FaultConfiguration isolated;
     isolated.isolated = true;
     ASSERT_TRUE(engine.set_fault("isolated", isolated));
 
@@ -72,11 +72,11 @@ namespace
 
   TEST(FaultEngineTest, AppliesCertainLossAndDuplication)
   {
-    project::FaultEngine engine;
-    project::FaultConfiguration loss;
+    wirelab::FaultEngine engine;
+    wirelab::FaultConfiguration loss;
     loss.loss_basis_points = 10000;
     ASSERT_TRUE(engine.set_fault("loss", loss));
-    project::FaultConfiguration duplicate;
+    wirelab::FaultConfiguration duplicate;
     duplicate.duplication_basis_points = 10000;
     ASSERT_TRUE(engine.set_fault("duplicate", duplicate));
 
@@ -88,12 +88,12 @@ namespace
 
   TEST(FaultEngineTest, ProducesRepeatableDecisionsForSameSeedAndConfiguration)
   {
-    project::FaultConfiguration configuration;
+    wirelab::FaultConfiguration configuration;
     configuration.jitter = std::chrono::microseconds(100);
     configuration.loss_basis_points = 2500;
     configuration.duplication_basis_points = 5000;
-    project::FaultEngine first(99);
-    project::FaultEngine second(99);
+    wirelab::FaultEngine first(99);
+    wirelab::FaultEngine second(99);
     ASSERT_TRUE(first.set_fault("client-a", configuration));
     ASSERT_TRUE(second.set_fault("client-a", configuration));
 
@@ -110,7 +110,7 @@ namespace
 
   TEST(FaultEngineTest, ClearsConfiguredFault)
   {
-    project::FaultEngine engine;
+    wirelab::FaultEngine engine;
     ASSERT_TRUE(engine.set_fault("client-a", {}));
 
     EXPECT_TRUE(engine.has_fault("client-a"));
@@ -121,10 +121,10 @@ namespace
 
   TEST(FaultEngineTest, ReportsActiveFaultsInStableTargetOrder)
   {
-    project::FaultEngine engine;
-    project::FaultConfiguration first_configuration;
+    wirelab::FaultEngine engine;
+    wirelab::FaultConfiguration first_configuration;
     first_configuration.blackhole = true;
-    project::FaultConfiguration second_configuration;
+    wirelab::FaultConfiguration second_configuration;
     second_configuration.loss_basis_points = 2500;
 
     ASSERT_TRUE(engine.set_fault("port:zeta", first_configuration).has_value());

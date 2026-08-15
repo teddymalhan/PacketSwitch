@@ -18,7 +18,7 @@ Welcome! This guide will get you up and running with the new CI pipeline in minu
 Edit `README.md` and replace `teddymalhan` with your GitHub username:
 
 ```markdown
-[![CI](https://github.com/teddymalhan/modern-cpp-template/workflows/CI/badge.svg)]...
+[![CI](https://github.com/teddymalhan/WireLab/workflows/CI/badge.svg)]...
 ```
 
 ### Step 2: Push to GitHub (1 minute)
@@ -99,7 +99,7 @@ cd build && ctest -C Release -VV
 
 ### Build with Static Analysis
 ```bash
-cmake -B build -DProject_ENABLE_CLANG_TIDY=ON
+cmake -B build -DWireLab_ENABLE_CLANG_TIDY=ON
 cmake --build build
 ```
 

@@ -1,22 +1,22 @@
-# Contributing to PacketSwitch
+# Contributing to WireLab
 
-Thank you for helping improve PacketSwitch. Bug reports, feature suggestions,
+Thank you for helping improve WireLab. Bug reports, feature suggestions,
 documentation fixes, tests, and code changes are welcome.
 
 ## Before you start
 
-Search the [existing issues](https://github.com/teddymalhan/PacketSwitch/issues)
+Search the [existing issues](https://github.com/teddymalhan/WireLab/issues)
 before opening a new one. For a larger change, open an issue first so the
 approach can be discussed before implementation.
 
 Good places to start are issues labeled
-[`good first issue`](https://github.com/teddymalhan/PacketSwitch/labels/good%20first%20issue)
-or [`help wanted`](https://github.com/teddymalhan/PacketSwitch/labels/help%20wanted).
+[`good first issue`](https://github.com/teddymalhan/WireLab/labels/good%20first%20issue)
+or [`help wanted`](https://github.com/teddymalhan/WireLab/labels/help%20wanted).
 Leave a comment on the issue you intend to address to avoid duplicated work.
 
 ## Reporting a bug
 
-Use the [bug report template](https://github.com/teddymalhan/PacketSwitch/issues/new?template=bug_report.md).
+Use the [bug report template](https://github.com/teddymalhan/WireLab/issues/new?template=bug_report.md).
 Include:
 
 - your operating system, compiler, and CMake versions;
@@ -29,24 +29,24 @@ Do not include credentials, private network details, or other sensitive data.
 
 ## Suggesting a feature
 
-Use the [feature request template](https://github.com/teddymalhan/PacketSwitch/issues/new?template=feature_request.md).
+Use the [feature request template](https://github.com/teddymalhan/WireLab/issues/new?template=feature_request.md).
 Describe the networking problem or use case, the proposed behavior, and any
 alternatives you considered.
 
 ## Development setup
 
-PacketSwitch requires CMake 3.15 or newer and a C++17 compiler. Linux provides
+WireLab requires CMake 3.15 or newer and a C++17 compiler. Linux provides
 native TAP support. macOS uses `utun`; tests that require Linux networking
 should be run through Docker.
 
 Clone and configure a development build:
 
 ```bash
-git clone https://github.com/teddymalhan/PacketSwitch.git
-cd PacketSwitch
+git clone https://github.com/teddymalhan/WireLab.git
+cd WireLab
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DProject_ENABLE_UNIT_TESTING=ON
+  -DWireLab_ENABLE_UNIT_TESTING=ON
 cmake --build build --parallel
 ```
 
@@ -86,7 +86,7 @@ Build and run the unit and integration tests:
 ```bash
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DProject_ENABLE_UNIT_TESTING=ON
+  -DWireLab_ENABLE_UNIT_TESTING=ON
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
@@ -96,8 +96,8 @@ For memory-safety checks, use AddressSanitizer:
 ```bash
 cmake -S . -B build-asan \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DProject_ENABLE_UNIT_TESTING=ON \
-  -DProject_ENABLE_ASAN=ON
+  -DWireLab_ENABLE_UNIT_TESTING=ON \
+  -DWireLab_ENABLE_ASAN=ON
 cmake --build build-asan --parallel
 ctest --test-dir build-asan --output-on-failure
 ```
