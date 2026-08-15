@@ -61,11 +61,27 @@ include(cmake/Vcpkg.cmake)
 
 include(cmake/SourcesAndHeaders.cmake)
 
+
 add_library(
   ${PROJECT_NAME}
   ${headers}
   ${sources}
 )
+
+option(PROJECT_ENABLE_CUDA "Build the optional WireLab CUDA packet parser" OFF)
+if(PROJECT_ENABLE_CUDA)
+  enable_language(CUDA)
+  find_package(CUDAToolkit REQUIRED)
+  add_library(project_cuda src/cuda_packet_parser.cu include/project/cuda_packet_parser.hpp)
+  target_compile_features(project_cuda PUBLIC cxx_std_17)
+  target_include_directories(project_cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(project_cuda PUBLIC ${PROJECT_NAME} CUDA::cudart)
+  target_compile_definitions(project_cuda PUBLIC PROJECT_HAS_CUDA=1)
+  set_target_properties(project_cuda PROPERTIES
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON
+    CUDA_SEPARABLE_COMPILATION ON)
+endif()
 
 if(${PROJECT_NAME}_VERBOSE_OUTPUT)
   verbose_message("Found the following sources:")

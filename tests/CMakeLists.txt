@@ -98,4 +98,14 @@ foreach(file ${test_sources})
   )
 endforeach()
 
+if(TARGET project_cuda)
+  add_executable(packet_cuda_test_Tests src/cuda_packet_parser_test.cu)
+  target_compile_features(packet_cuda_test_Tests PUBLIC cxx_std_17)
+  target_link_libraries(packet_cuda_test_Tests PRIVATE ${PROJECT_GTEST_LIBRARIES} project_cuda)
+  set_target_properties(packet_cuda_test_Tests PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+  add_test(NAME packet_cuda_test COMMAND packet_cuda_test_Tests)
+endif()
+
 verbose_message("Finished adding unit tests for ${CMAKE_PROJECT_NAME}.")
