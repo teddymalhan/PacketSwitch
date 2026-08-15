@@ -7,6 +7,7 @@ set(sources
     src/mac_table.cpp
     src/vswitch.cpp
     src/traffic_generator.cpp
+    src/packet_analyzer.cpp
     src/switch_metrics.cpp
     src/control_protocol.cpp
     src/control_service.cpp
@@ -28,6 +29,7 @@ set(headers
     include/project/mac_table.hpp
     include/project/vswitch.hpp
     include/project/traffic_generator.hpp
+    include/project/packet_analyzer.hpp
     include/project/switch_metrics.hpp
     include/project/control_protocol.hpp
     include/project/control_service.hpp
@@ -46,6 +48,7 @@ set(test_sources
   src/mac_table_test.cpp
   src/integration_test.cpp
   src/traffic_generator_test.cpp
+  src/packet_analyzer_test.cpp
   src/switch_metrics_test.cpp
   src/control_protocol_test.cpp
   src/control_service_test.cpp
