@@ -1,4 +1,6 @@
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <utility>
 
 #include <gtest/gtest.h>
@@ -74,6 +76,44 @@ namespace
     EXPECT_EQ(result.reply.error, "command is not implemented");
     EXPECT_FALSE(result.metrics_event.has_value());
   }
+  TEST(ControlServiceTest, LoadsYamlTopologyAndPublishesRevisionedState)
+  {
+    const auto path = std::filesystem::temp_directory_path() / "wirelab-control-service-topology.yaml";
+    {
+      std::ofstream output(path);
+      ASSERT_TRUE(output.is_open());
+      output << "network:\n"
+                "  name: loaded-lab\n"
+                "nodes:\n"
+                "  - { id: client-a, type: host }\n"
+                "  - { id: core-switch, type: switch }\n"
+                "links:\n"
+                "  - { from: client-a, to: core-switch, latency_ms: 1 }\n";
+    }
+
+    auto vswitch = make_switch();
+    project::TopologyController controller;
+    project::ControlService service(vswitch, controller);
+
+    const auto result = service.dispatch(
+        "{\"api_version\":1,\"request_id\":\"topology-1\",\"command\":\"load_topology\",\"topology_revision\":0,"
+        "\"parameters\":{\"topology_path\":\"" +
+        path.generic_string() + "\"}}");
+
+    ASSERT_TRUE(result.reply.accepted);
+    ASSERT_TRUE(result.topology_event.has_value());
+    EXPECT_EQ(result.reply.operation_id, "topology-loaded-1");
+    EXPECT_EQ(result.topology_event->topology_revision, 1U);
+    EXPECT_EQ(result.topology_event->name, "loaded-lab");
+    ASSERT_EQ(result.topology_event->nodes.size(), 2U);
+    EXPECT_EQ(result.topology_event->nodes[0].id, "client-a");
+    ASSERT_EQ(result.topology_event->links.size(), 1U);
+    EXPECT_EQ(result.topology_event->links[0].latency, std::chrono::milliseconds(1));
+    ASSERT_TRUE(controller.topology());
+    EXPECT_EQ(controller.topology()->name(), "loaded-lab");
+    EXPECT_TRUE(std::filesystem::remove(path));
+  }
+
   TEST(ControlServiceTest, AppliesFaultCommandsAndPublishesStateChanges)
   {
     auto vswitch = make_switch();

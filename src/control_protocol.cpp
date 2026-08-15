@@ -110,7 +110,8 @@ namespace project
         {
           return unexpected(ControlParseError::MissingRequiredField);
         }
-        const bool requires_parameters = request.command == ControlCommand::StartBenchmark ||
+        const bool requires_parameters = request.command == ControlCommand::LoadTopology ||
+                                         request.command == ControlCommand::StartBenchmark ||
                                          request.command == ControlCommand::SetPortFault ||
                                          request.command == ControlCommand::ClearPortFault ||
                                          request.command == ControlCommand::SetLinkFault ||
@@ -317,7 +318,8 @@ namespace project
         {
           return false;
         }
-        if (value == "get_switch_state") command = ControlCommand::GetSwitchState;
+        if (value == "load_topology") command = ControlCommand::LoadTopology;
+        else if (value == "get_switch_state") command = ControlCommand::GetSwitchState;
         else if (value == "start_benchmark") command = ControlCommand::StartBenchmark;
         else if (value == "stop_run") command = ControlCommand::StopRun;
         else if (value == "set_port_fault") command = ControlCommand::SetPortFault;
@@ -401,6 +403,12 @@ namespace project
             return false;
           }
           bool read = false;
+          if (key == "topology_path" && !parameters_.topology_path)
+          {
+            parameters_.topology_path = true;
+            read = read_string(request.topology.path);
+          }
+          else
           if (key == "scenario" && !parameters_.scenario)
           {
             parameters_.scenario = true;
@@ -511,21 +519,24 @@ namespace project
                                parameters_.isolated;
         switch (command)
         {
+          case ControlCommand::LoadTopology:
+            return parameters_.topology_path && !has_benchmark && !parameters_.port_id &&
+                   !parameters_.first_endpoint && !parameters_.second_endpoint && !has_fault;
           case ControlCommand::StartBenchmark:
-            return benchmark && !parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
-                   !has_fault;
+            return benchmark && !parameters_.topology_path && !parameters_.port_id &&
+                   !parameters_.first_endpoint && !parameters_.second_endpoint && !has_fault;
           case ControlCommand::SetPortFault:
-            return parameters_.port_id && fault && !parameters_.first_endpoint && !parameters_.second_endpoint &&
-                   !has_benchmark;
+            return parameters_.port_id && !parameters_.topology_path && fault &&
+                   !parameters_.first_endpoint && !parameters_.second_endpoint && !has_benchmark;
           case ControlCommand::ClearPortFault:
-            return parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
-                   !has_benchmark && !has_fault;
+            return parameters_.port_id && !parameters_.topology_path && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint && !has_benchmark && !has_fault;
           case ControlCommand::SetLinkFault:
-            return parameters_.first_endpoint && parameters_.second_endpoint && fault && !parameters_.port_id &&
-                   !has_benchmark;
+            return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.topology_path &&
+                   fault && !parameters_.port_id && !has_benchmark;
           case ControlCommand::ClearLinkFault:
-            return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.port_id &&
-                   !has_benchmark && !has_fault;
+            return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.topology_path &&
+                   !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
           case ControlCommand::StopRun: return false;
         }
@@ -541,18 +552,22 @@ namespace project
                                parameters_.isolated;
         switch (command)
         {
+          case ControlCommand::LoadTopology:
+            return !has_benchmark && !has_fault && !parameters_.port_id && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint;
           case ControlCommand::StartBenchmark:
-            return !parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
-                   !has_fault;
+            return !parameters_.topology_path && !parameters_.port_id && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint && !has_fault;
           case ControlCommand::SetPortFault:
-            return parameters_.port_id && !parameters_.first_endpoint && !parameters_.second_endpoint &&
-                   !has_benchmark;
+            return parameters_.port_id && !parameters_.topology_path && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint && !has_benchmark;
           case ControlCommand::ClearPortFault:
-            return !has_benchmark && !has_fault && !parameters_.first_endpoint && !parameters_.second_endpoint;
+            return !parameters_.topology_path && !has_benchmark && !has_fault && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint;
           case ControlCommand::SetLinkFault:
-            return !parameters_.port_id && !has_benchmark;
+            return !parameters_.topology_path && !parameters_.port_id && !has_benchmark;
           case ControlCommand::ClearLinkFault:
-            return !parameters_.port_id && !has_benchmark && !has_fault;
+            return !parameters_.topology_path && !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
           case ControlCommand::StopRun: return false;
         }
@@ -561,6 +576,7 @@ namespace project
 
       struct ParameterFields
       {
+        bool topology_path = false;
         bool scenario = false;
         bool backend = false;
         bool batch_size = false;
@@ -633,6 +649,7 @@ namespace project
   {
     switch (command)
     {
+      case ControlCommand::LoadTopology: return "load_topology";
       case ControlCommand::GetSwitchState: return "get_switch_state";
       case ControlCommand::StartBenchmark: return "start_benchmark";
       case ControlCommand::StopRun: return "stop_run";
@@ -694,7 +711,11 @@ namespace project
     result << "{\"api_version\":" << request.api_version << ",\"request_id\":" << json_string(request.request_id)
            << ",\"command\":" << json_string(to_string(request.command))
            << ",\"topology_revision\":" << request.topology_revision;
-    if (request.command == ControlCommand::StartBenchmark)
+    if (request.command == ControlCommand::LoadTopology)
+    {
+      result << ",\"parameters\":{\"topology_path\":" << json_string(request.topology.path) << '}';
+    }
+    else if (request.command == ControlCommand::StartBenchmark)
     {
       result << ",\"parameters\":{\"scenario\":" << json_string(request.benchmark.scenario)
              << ",\"backend\":" << json_string(to_string(request.benchmark.backend))
@@ -792,6 +813,29 @@ namespace project
              << ",\"isolated\":" << (configuration.isolated ? "true" : "false") << '}';
     }
     result << '}';
+    return result.str();
+  }
+  std::string to_json(const TopologyStateEvent& event)
+  {
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"topology_loaded\""
+           << ",\"name\":" << json_string(event.name) << ",\"nodes\":[";
+    for (size_t index = 0; index < event.nodes.size(); ++index)
+    {
+      if (index != 0) result << ',';
+      const auto& node = event.nodes[index];
+      result << "{\"id\":" << json_string(node.id) << ",\"type\":" << json_string(to_string(node.type)) << '}';
+    }
+    result << "],\"links\":[";
+    for (size_t index = 0; index < event.links.size(); ++index)
+    {
+      if (index != 0) result << ',';
+      const auto& link = event.links[index];
+      result << "{\"from\":" << json_string(link.from) << ",\"to\":" << json_string(link.to)
+             << ",\"latency_ms\":" << link.latency.count() << '}';
+    }
+    result << "]}";
     return result.str();
   }
 }

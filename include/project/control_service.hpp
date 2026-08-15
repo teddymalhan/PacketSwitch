@@ -16,6 +16,7 @@ namespace project
     ControlReply reply;
     std::optional<SwitchMetricsEvent> metrics_event;
     std::optional<FaultStateEvent> fault_event;
+    std::optional<TopologyStateEvent> topology_event;
   };
 
   class ControlService

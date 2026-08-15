@@ -7,6 +7,7 @@
 
 #include "project/fault_engine.hpp"
 #include "project/switch_metrics.hpp"
+#include "project/topology.hpp"
 
 namespace project
 {
@@ -20,6 +21,7 @@ namespace project
 
   enum class ControlCommand
   {
+    LoadTopology,
     GetSwitchState,
     StartBenchmark,
     StopRun,
@@ -52,6 +54,11 @@ namespace project
     uint64_t seed = 1;
   };
 
+  struct TopologyParameters
+  {
+    std::string path;
+  };
+
   struct FaultParameters
   {
     std::string port_id;
@@ -67,6 +74,7 @@ namespace project
     ControlCommand command = ControlCommand::GetSwitchState;
     uint64_t topology_revision = 0;
     BenchmarkParameters benchmark;
+    TopologyParameters topology;
     FaultParameters fault;
   };
 
@@ -98,6 +106,16 @@ namespace project
     bool active = false;
   };
 
+  struct TopologyStateEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    std::string name;
+    std::vector<TopologyNode> nodes;
+    std::vector<TopologyLink> links;
+  };
+
   [[nodiscard]] const char* to_string(AnalyzerBackend backend) noexcept;
   [[nodiscard]] const char* to_string(ControlCommand command) noexcept;
   [[nodiscard]] const char* to_string(ControlValidationError error) noexcept;
@@ -108,6 +126,7 @@ namespace project
   [[nodiscard]] std::string to_json(const ControlReply& reply);
   [[nodiscard]] std::string to_json(const SwitchMetricsEvent& event);
   [[nodiscard]] std::string to_json(const FaultStateEvent& event);
+  [[nodiscard]] std::string to_json(const TopologyStateEvent& event);
 }
 
 #endif

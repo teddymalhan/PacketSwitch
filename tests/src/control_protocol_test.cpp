@@ -23,6 +23,23 @@ namespace
               "{\"api_version\":1,\"request_id\":\"benchmark-42\",\"command\":\"start_benchmark\",\"topology_revision\":7,\"parameters\":{\"scenario\":\"mixed-traffic\",\"backend\":\"cpu\",\"batch_size\":2048,\"duration_seconds\":60,\"seed\":42}}");
   }
 
+  TEST(ControlProtocolTest, ParsesAndSerializesTopologyLoadCommand)
+  {
+    project::ControlRequest request;
+    request.request_id = "topology-42";
+    request.command = project::ControlCommand::LoadTopology;
+    request.topology.path = "scenarios/security-lab.yaml";
+
+    const auto json = project::to_json(request);
+    EXPECT_EQ(json,
+              "{\"api_version\":1,\"request_id\":\"topology-42\",\"command\":\"load_topology\",\"topology_revision\":0,\"parameters\":{\"topology_path\":\"scenarios/security-lab.yaml\"}}");
+
+    const auto parsed = project::control_request_from_json(json);
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->command, project::ControlCommand::LoadTopology);
+    EXPECT_EQ(parsed->topology.path, "scenarios/security-lab.yaml");
+  }
+
   TEST(ControlProtocolTest, RejectsUnsupportedVersionAndInvalidBenchmark)
   {
     project::ControlRequest request;
@@ -112,6 +129,20 @@ namespace
     ASSERT_FALSE(unexpected_parameters.has_value());
     EXPECT_EQ(unexpected_parameters.error(), project::ControlParseError::InvalidField);
   }
+  TEST(ControlProtocolTest, SerializesTopologyStateEvent)
+  {
+    project::TopologyStateEvent event;
+    event.event_sequence = 12;
+    event.topology_revision = 3;
+    event.name = "security-lab";
+    event.nodes = { { "client-a", project::TopologyNodeType::Host },
+                    { "core-switch", project::TopologyNodeType::Switch } };
+    event.links = { { "client-a", "core-switch", std::chrono::milliseconds(1) } };
+
+    EXPECT_EQ(project::to_json(event),
+              "{\"api_version\":1,\"event_sequence\":12,\"topology_revision\":3,\"event\":\"topology_loaded\",\"name\":\"security-lab\",\"nodes\":[{\"id\":\"client-a\",\"type\":\"host\"},{\"id\":\"core-switch\",\"type\":\"switch\"}],\"links\":[{\"from\":\"client-a\",\"to\":\"core-switch\",\"latency_ms\":1}]}");
+  }
+
   TEST(ControlProtocolTest, ParsesAndSerializesFaultCommands)
   {
     const auto parsed = project::control_request_from_json(
