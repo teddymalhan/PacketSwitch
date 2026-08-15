@@ -15,6 +15,7 @@ namespace project
   {
     const uint8_t* bytes = nullptr;
     size_t size = 0;
+    uint32_t ingress_port = 0;
   };
 
   enum class PacketClassification
@@ -59,6 +60,7 @@ namespace project
     uint16_t destination_port = 0;
     uint16_t ethertype = 0;
     uint16_t frame_length = 0;
+    uint32_t ingress_port = 0;
     uint8_t protocol = 0;
     uint8_t tcp_flags = 0;
     uint64_t flow_hash = 0;

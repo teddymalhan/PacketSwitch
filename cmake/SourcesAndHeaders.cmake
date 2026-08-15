@@ -8,6 +8,7 @@ set(sources
     src/vswitch.cpp
     src/traffic_generator.cpp
     src/packet_analyzer.cpp
+    src/anomaly_detector.cpp
     src/switch_metrics.cpp
     src/control_protocol.cpp
     src/control_service.cpp
@@ -30,6 +31,7 @@ set(headers
     include/project/vswitch.hpp
     include/project/traffic_generator.hpp
     include/project/packet_analyzer.hpp
+    include/project/anomaly_detector.hpp
     include/project/switch_metrics.hpp
     include/project/control_protocol.hpp
     include/project/control_service.hpp
@@ -49,6 +51,7 @@ set(test_sources
   src/integration_test.cpp
   src/traffic_generator_test.cpp
   src/packet_analyzer_test.cpp
+  src/anomaly_detector_test.cpp
   src/switch_metrics_test.cpp
   src/control_protocol_test.cpp
   src/control_service_test.cpp

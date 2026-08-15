@@ -280,6 +280,7 @@ namespace project
     {
       const PacketView& packet = packets[index];
       PacketAnalysis analysis;
+      analysis.ingress_port = packet.ingress_port;
       analysis.frame_length = static_cast<uint16_t>(std::min(packet.size, static_cast<size_t>(std::numeric_limits<uint16_t>::max())));
       batch.received_packets += 1;
       batch.received_bytes += packet.size;

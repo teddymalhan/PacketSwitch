@@ -51,7 +51,7 @@ namespace
     const auto second = ethernet_frame(first_source, second_source, project::EtherType::ARP);
     const auto broadcast = ethernet_frame(project::MacAddress::broadcast(), first_source, project::EtherType::IPv4);
     const std::array<project::PacketView, 3> packets = {
-      project::PacketView{ first.data(), first.size() },
+      project::PacketView{ first.data(), first.size(), 7 },
       project::PacketView{ second.data(), second.size() },
       project::PacketView{ broadcast.data(), broadcast.size() },
     };
@@ -64,6 +64,7 @@ namespace
     EXPECT_EQ(result.packets[1].classification, project::PacketClassification::KnownUnicast);
     EXPECT_EQ(result.packets[2].classification, project::PacketClassification::Broadcast);
     EXPECT_EQ(result.packets[1].ethertype, project::EtherType::ARP);
+    EXPECT_EQ(result.packets[0].ingress_port, 7U);
     EXPECT_EQ(result.received_packets, 3U);
     EXPECT_EQ(result.received_bytes, 3U * project::ETHERNET_HEADER_SIZE);
     EXPECT_EQ(result.unknown_unicast_packets, 1U);
