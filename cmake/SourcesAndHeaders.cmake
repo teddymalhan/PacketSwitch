@@ -8,6 +8,7 @@ set(sources
     src/vswitch.cpp
     src/traffic_generator.cpp
     src/switch_metrics.cpp
+    src/control_protocol.cpp
 )
 
 
@@ -23,6 +24,7 @@ set(headers
     include/project/vswitch.hpp
     include/project/traffic_generator.hpp
     include/project/switch_metrics.hpp
+    include/project/control_protocol.hpp
 )
 
 set(test_sources
@@ -36,4 +38,5 @@ set(test_sources
   src/integration_test.cpp
   src/traffic_generator_test.cpp
   src/switch_metrics_test.cpp
+  src/control_protocol_test.cpp
 )
