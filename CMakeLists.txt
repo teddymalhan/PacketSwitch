@@ -221,7 +221,9 @@ if(PROJECT_BUILD_WIRELAB_GUI)
       apps/wirelab_gui.cpp
       src/wirelab_view_model.cpp
       include/project/wirelab_view_model.hpp)
+    set_target_properties(wirelab_gui PROPERTIES AUTOMOC ON AUTORCC ON)
     qt_add_qml_module(wirelab_gui
+      RESOURCE_PREFIX "/qt/qml"
       URI WireLab
       VERSION 1.0
       QML_FILES src/gui/qml/Main.qml)
@@ -229,6 +231,9 @@ if(PROJECT_BUILD_WIRELAB_GUI)
       ${PROJECT_NAME}
       Qt6::Quick
       Qt6::QuickControls2)
+    if(TARGET project_cuda)
+      target_link_libraries(wirelab_gui PRIVATE project_cuda)
+    endif()
     target_compile_features(wirelab_gui PRIVATE cxx_std_17)
   else()
     message(WARNING "PROJECT_BUILD_WIRELAB_GUI is enabled, but Qt 6.5 Quick and QuickControls2 were not found.")

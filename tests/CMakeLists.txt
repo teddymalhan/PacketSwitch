@@ -129,4 +129,20 @@ if(NOT TARGET project_cuda)
   set_tests_properties(wirelab_bench_cuda_requires_enabled_backend PROPERTIES WILL_FAIL TRUE)
 endif()
 
+if(TARGET wirelab_gui)
+  add_executable(wirelab_view_model_test_Tests
+    src/wirelab_view_model_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/wirelab_view_model.cpp
+    ${CMAKE_SOURCE_DIR}/include/project/wirelab_view_model.hpp)
+  set_target_properties(wirelab_view_model_test_Tests PROPERTIES AUTOMOC ON)
+  target_compile_features(wirelab_view_model_test_Tests PRIVATE cxx_std_17)
+  target_compile_definitions(wirelab_view_model_test_Tests
+    PRIVATE PROJECT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
+  target_link_libraries(wirelab_view_model_test_Tests PRIVATE
+    ${PROJECT_GTEST_LIBRARIES}
+    ${CMAKE_PROJECT_NAME}
+    Qt6::Core)
+  add_test(NAME wirelab_view_model_test COMMAND wirelab_view_model_test_Tests)
+endif()
+
 verbose_message("Finished adding unit tests for ${CMAKE_PROJECT_NAME}.")
