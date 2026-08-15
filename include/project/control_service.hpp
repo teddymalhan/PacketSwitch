@@ -11,6 +11,12 @@
 
 namespace project
 {
+  struct AnalysisEventDispatch
+  {
+    std::vector<AnomalyDetectedEvent> anomaly_events;
+    std::vector<PolicyActionEvent> policy_events;
+  };
+
   struct ControlDispatch
   {
     ControlReply reply;
@@ -26,6 +32,8 @@ namespace project
     ControlService(VSwitch& vswitch, TopologyController& topology_controller) noexcept;
 
     [[nodiscard]] ControlDispatch dispatch(std::string_view json);
+    [[nodiscard]] AnalysisEventDispatch evaluate_analysis(const AnalysisBatch& batch, uint64_t timestamp_ns,
+                                                          AnomalyDetector& detector, PolicyEngine& policy_engine);
     [[nodiscard]] uint64_t topology_revision() const noexcept;
 
    private:

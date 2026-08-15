@@ -173,4 +173,42 @@ namespace
     EXPECT_TRUE(result.fault_events[1].second_endpoint.empty());
     EXPECT_TRUE(result.fault_events[1].configuration.blackhole);
   }
+  TEST(ControlServiceTest, PublishesRevisionedAnomalyAndPolicyEventsFromAnalysis)
+  {
+    auto vswitch = make_switch();
+    project::TopologyController controller;
+    controller.load(make_topology());
+    project::ControlService service(vswitch, controller);
+    project::AnomalyDetector detector({ 1'000'000'000, 1 });
+    project::PolicyEngine policy_engine;
+    ASSERT_TRUE(policy_engine.add_rule(
+        { "contain-broadcast-storm", project::AnomalyType::BroadcastStorm, project::PolicyAction::Quarantine }));
+
+    project::AnalysisBatch batch;
+    project::PacketAnalysis packet;
+    packet.source_mac = project::MacAddress::from_string("00:11:22:33:44:55");
+    packet.destination_mac = project::MacAddress::broadcast();
+    packet.frame_length = 64;
+    packet.ingress_port = 4;
+    packet.validity = project::PacketValidity::Valid;
+    packet.classification = project::PacketClassification::Broadcast;
+    batch.packets = { packet, packet };
+
+    const auto events = service.evaluate_analysis(batch, 500, detector, policy_engine);
+
+    ASSERT_EQ(events.anomaly_events.size(), 1U);
+    EXPECT_EQ(events.anomaly_events[0].event_sequence, 1U);
+    EXPECT_EQ(events.anomaly_events[0].topology_revision, 1U);
+    EXPECT_EQ(events.anomaly_events[0].anomaly.type, project::AnomalyType::BroadcastStorm);
+    EXPECT_EQ(events.anomaly_events[0].anomaly.observed_packets, 2U);
+    ASSERT_EQ(events.policy_events.size(), 1U);
+    EXPECT_EQ(events.policy_events[0].event_sequence, 2U);
+    EXPECT_EQ(events.policy_events[0].topology_revision, 1U);
+    EXPECT_EQ(events.policy_events[0].decision.rule_name, "contain-broadcast-storm");
+    EXPECT_EQ(events.policy_events[0].decision.action, project::PolicyAction::Quarantine);
+
+    const auto repeated = service.evaluate_analysis(batch, 501, detector, policy_engine);
+    EXPECT_TRUE(repeated.anomaly_events.empty());
+    EXPECT_TRUE(repeated.policy_events.empty());
+  }
 }

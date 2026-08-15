@@ -184,6 +184,30 @@ namespace project
     return { std::move(reply), std::nullopt, { std::move(fault_event) } };
   }
 
+  AnalysisEventDispatch ControlService::evaluate_analysis(const AnalysisBatch& batch, uint64_t timestamp_ns,
+                                                          AnomalyDetector& detector, PolicyEngine& policy_engine)
+  {
+    AnalysisEventDispatch dispatch;
+    const auto anomalies = detector.evaluate(batch, timestamp_ns);
+    const auto decisions = policy_engine.evaluate(anomalies);
+    const uint64_t revision = current_topology_revision();
+
+    dispatch.anomaly_events.reserve(anomalies.size());
+    for (const auto& anomaly : anomalies)
+    {
+      dispatch.anomaly_events.push_back(
+          { WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, anomaly });
+    }
+
+    dispatch.policy_events.reserve(decisions.size());
+    for (const auto& decision : decisions)
+    {
+      dispatch.policy_events.push_back(
+          { WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, decision });
+    }
+    return dispatch;
+  }
+
   uint64_t ControlService::topology_revision() const noexcept
   {
     return current_topology_revision();
