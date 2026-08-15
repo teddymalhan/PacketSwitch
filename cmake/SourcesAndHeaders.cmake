@@ -13,6 +13,7 @@ set(sources
     src/topology.cpp
     src/topology_yaml.cpp
     src/fault_engine.cpp
+    src/topology_controller.cpp
 )
 
 
@@ -32,6 +33,7 @@ set(headers
     include/project/control_service.hpp
     include/project/topology.hpp
     include/project/fault_engine.hpp
+    include/project/topology_controller.hpp
 )
 
 set(test_sources
@@ -50,4 +52,5 @@ set(test_sources
   src/topology_test.cpp
   src/topology_yaml_test.cpp
   src/fault_engine_test.cpp
+  src/topology_controller_test.cpp
 )
