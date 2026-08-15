@@ -55,4 +55,48 @@ namespace
     EXPECT_NE(json.find("\"received_packets\":10"), std::string::npos);
     EXPECT_NE(json.find("\"dropped_packets\":2"), std::string::npos);
   }
+
+  TEST(ControlProtocolTest, ParsesVersionedBenchmarkRequest)
+  {
+    const std::string json =
+      R"({"api_version":1,"request_id":"bench-\u03bb","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":2048,"duration_seconds":60,"seed":42}})";
+
+    const auto parsed = project::control_request_from_json(json);
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed.value().api_version, 1U);
+    EXPECT_EQ(parsed.value().request_id, "bench-\xCE\xBB");
+    EXPECT_EQ(parsed.value().command, project::ControlCommand::StartBenchmark);
+    EXPECT_EQ(parsed.value().topology_revision, 7U);
+    EXPECT_EQ(parsed.value().benchmark.scenario, "mixed-traffic");
+    EXPECT_EQ(parsed.value().benchmark.backend, project::AnalyzerBackend::Cpu);
+    EXPECT_EQ(parsed.value().benchmark.batch_size, 2048U);
+    EXPECT_EQ(parsed.value().benchmark.duration_seconds, 60U);
+    EXPECT_EQ(parsed.value().benchmark.seed, 42U);
+    EXPECT_EQ(project::to_json(parsed.value()),
+              R"({"api_version":1,"request_id":"bench-λ","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":2048,"duration_seconds":60,"seed":42}})");
+  }
+
+  TEST(ControlProtocolTest, RejectsMalformedAndIncompleteRequests)
+  {
+    const auto malformed = project::control_request_from_json(
+      R"({"api_version":1,"request_id":"request","command":"get_switch_state","topology_revision":0)");
+    ASSERT_FALSE(malformed.has_value());
+    EXPECT_EQ(malformed.error(), project::ControlParseError::MalformedJson);
+
+    const auto missing_parameters = project::control_request_from_json(
+      R"({"api_version":1,"request_id":"request","command":"start_benchmark","topology_revision":0})");
+    ASSERT_FALSE(missing_parameters.has_value());
+    EXPECT_EQ(missing_parameters.error(), project::ControlParseError::MissingRequiredField);
+
+    const auto invalid_backend = project::control_request_from_json(
+      R"({"api_version":1,"request_id":"request","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"automatic","batch_size":1,"duration_seconds":1,"seed":1}})");
+    ASSERT_FALSE(invalid_backend.has_value());
+    EXPECT_EQ(invalid_backend.error(), project::ControlParseError::InvalidField);
+
+    const auto unexpected_parameters = project::control_request_from_json(
+      R"({"api_version":1,"request_id":"request","command":"get_switch_state","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":1,"duration_seconds":1,"seed":1}})");
+    ASSERT_FALSE(unexpected_parameters.has_value());
+    EXPECT_EQ(unexpected_parameters.error(), project::ControlParseError::InvalidField);
+  }
 }

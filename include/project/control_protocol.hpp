@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "project/expected.hpp"
 #include "project/switch_metrics.hpp"
@@ -29,6 +30,13 @@ namespace project
     UnsupportedApiVersion,
     MissingRequestId,
     InvalidBenchmarkConfiguration
+  };
+
+  enum class ControlParseError
+  {
+    MalformedJson,
+    InvalidField,
+    MissingRequiredField
   };
 
   struct BenchmarkParameters
@@ -69,7 +77,9 @@ namespace project
   [[nodiscard]] const char* to_string(AnalyzerBackend backend) noexcept;
   [[nodiscard]] const char* to_string(ControlCommand command) noexcept;
   [[nodiscard]] const char* to_string(ControlValidationError error) noexcept;
+  [[nodiscard]] const char* to_string(ControlParseError error) noexcept;
   [[nodiscard]] expected<void, ControlValidationError> validate(const ControlRequest& request) noexcept;
+  [[nodiscard]] expected<ControlRequest, ControlParseError> control_request_from_json(std::string_view json);
   [[nodiscard]] std::string to_json(const ControlRequest& request);
   [[nodiscard]] std::string to_json(const ControlReply& reply);
   [[nodiscard]] std::string to_json(const SwitchMetricsEvent& event);
