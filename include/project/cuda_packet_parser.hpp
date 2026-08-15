@@ -23,7 +23,7 @@ namespace project
   {
    public:
     [[nodiscard]] AnalysisBatch analyze(const PacketView* packets, size_t packet_count) override;
-    [[nodiscard]] AnalysisBatch analyze(const PacketBatch& batch);
+    [[nodiscard]] AnalysisBatch analyze(const PacketBatch& batch) override;
     void reset() noexcept;
 
    private:

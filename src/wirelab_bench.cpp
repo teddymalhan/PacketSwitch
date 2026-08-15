@@ -3,12 +3,17 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "project/packet_analyzer.hpp"
 #include "project/packet_batch.hpp"
+#ifdef PROJECT_HAS_CUDA
+#include "project/cuda_packet_parser.hpp"
+#endif
+
 
 #include "project/traffic_generator.hpp"
 
@@ -26,7 +31,8 @@ namespace
   void print_usage(const char* program)
   {
     std::cerr << "Usage: " << program
-              << " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic]"
+              << " [--analyzer cpu|cuda]"
+                 " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic]"
                  " [--packets count] [--batch-size count] [--frame-size bytes] [--seed value]\n";
   }
 }
@@ -36,6 +42,7 @@ int main(int argc, char* argv[])
   project::TrafficGeneratorConfig config;
   size_t packet_count = 100000;
   size_t batch_size = 1;
+  std::string analyzer_name = "cpu";
 
   try
   {
@@ -49,7 +56,8 @@ int main(int argc, char* argv[])
 
       const std::string option = argv[index];
       const std::string value = argv[index + 1];
-      if (option == "--scenario") config.scenario = parse_scenario(value);
+      if (option == "--analyzer") analyzer_name = value;
+      else if (option == "--scenario") config.scenario = parse_scenario(value);
       else if (option == "--packets") packet_count = std::stoull(value);
       else if (option == "--batch-size") batch_size = std::stoull(value);
       else if (option == "--frame-size") config.frame_size = std::stoull(value);
@@ -66,8 +74,34 @@ int main(int argc, char* argv[])
       throw std::invalid_argument("batch-size must be greater than zero");
     }
 
+    std::unique_ptr<project::PacketAnalyzer> analyzer;
+    if (analyzer_name == "cpu")
+    {
+      analyzer = std::make_unique<project::CpuPacketAnalyzer>();
+    }
+#ifdef PROJECT_HAS_CUDA
+    else if (analyzer_name == "cuda")
+    {
+      if (!project::CudaPacketParser::is_available())
+      {
+        throw std::runtime_error("CUDA analyzer selected, but no compatible CUDA device is available");
+      }
+      analyzer = std::make_unique<project::CudaPacketAnalyzer>();
+    }
+#else
+    else if (analyzer_name == "cuda")
+    {
+      throw std::runtime_error(
+          "CUDA analyzer selected, but this wirelab_bench build has no CUDA backend; "
+          "reconfigure with -DPROJECT_ENABLE_CUDA=ON");
+    }
+#endif
+    else
+    {
+      throw std::invalid_argument("unknown analyzer: " + analyzer_name);
+    }
+
     project::DeterministicTrafficGenerator generator(config);
-    project::CpuPacketAnalyzer analyzer;
     uint64_t received_packets = 0;
     uint64_t received_bytes = 0;
     uint64_t malformed_packets = 0;
@@ -96,7 +130,7 @@ int main(int argc, char* argv[])
       }
 
       const auto analysis_started = std::chrono::steady_clock::now();
-      const project::AnalysisBatch result = analyzer.analyze(*batch);
+      const project::AnalysisBatch result = analyzer->analyze(*batch);
       const auto analysis_elapsed = std::chrono::steady_clock::now() - analysis_started;
       analysis_latency_ns.push_back(
           static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(analysis_elapsed).count()));
@@ -120,8 +154,7 @@ int main(int argc, char* argv[])
         received_packets == 0 ? 0.0 : static_cast<double>(malformed_packets) * 100.0 / received_packets;
 
     std::cout << std::fixed << std::setprecision(2);
-    std::cout << "backend=cpu packets=" << packet_count << " batch_size=" << batch_size
-              << " frame_size=" << config.frame_size << " seed=" << config.seed
+    std::cout << "backend=" << analyzer_name << " packets=" << packet_count << " batch_size=" << batch_size
               << " elapsed_seconds=" << elapsed_seconds
               << " packets_per_second=" << (elapsed_seconds == 0.0 ? 0.0 : received_packets / elapsed_seconds)
               << " goodput_bits_per_second=" << (elapsed_seconds == 0.0 ? 0.0 : received_bytes * 8.0 / elapsed_seconds)

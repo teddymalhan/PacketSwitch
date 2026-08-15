@@ -108,4 +108,25 @@ if(TARGET project_cuda)
   add_test(NAME packet_cuda_test COMMAND packet_cuda_test_Tests)
 endif()
 
+add_test(
+  NAME wirelab_bench_cpu_smoke
+  COMMAND $<TARGET_FILE:wirelab_bench>
+    --analyzer cpu
+    --scenario mixed-traffic
+    --packets 32
+    --batch-size 8
+    --frame-size 64
+    --seed 42
+)
+
+if(NOT TARGET project_cuda)
+  add_test(
+    NAME wirelab_bench_cuda_requires_enabled_backend
+    COMMAND $<TARGET_FILE:wirelab_bench>
+      --analyzer cuda
+      --packets 1
+  )
+  set_tests_properties(wirelab_bench_cuda_requires_enabled_backend PROPERTIES WILL_FAIL TRUE)
+endif()
+
 verbose_message("Finished adding unit tests for ${CMAKE_PROJECT_NAME}.")

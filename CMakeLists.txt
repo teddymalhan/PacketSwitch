@@ -203,6 +203,15 @@ target_compile_features(vswitch PRIVATE cxx_std_17)
 add_executable(wirelab_bench src/wirelab_bench.cpp)
 target_link_libraries(wirelab_bench PRIVATE ${PROJECT_NAME})
 target_compile_features(wirelab_bench PRIVATE cxx_std_17)
+if(TARGET project_cuda)
+  # CMake needs a CUDA translation unit in this executable to schedule the
+  # device-link step required by the separably compiled static CUDA backend.
+  set_source_files_properties(src/wirelab_bench.cpp PROPERTIES LANGUAGE CUDA)
+  target_link_libraries(wirelab_bench PRIVATE project_cuda)
+  set_target_properties(wirelab_bench PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+endif()
 set_target_properties(
   vport vswitch wirelab_bench
   PROPERTIES

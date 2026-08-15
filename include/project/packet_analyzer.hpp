@@ -135,6 +135,7 @@ namespace project
    public:
     virtual ~PacketAnalyzer() = default;
     [[nodiscard]] virtual AnalysisBatch analyze(const PacketView* packets, size_t packet_count) = 0;
+    [[nodiscard]] virtual AnalysisBatch analyze(const PacketBatch& batch) = 0;
   };
 
   class PacketAnalysisAggregator final
@@ -152,7 +153,7 @@ namespace project
   {
    public:
     [[nodiscard]] AnalysisBatch analyze(const PacketView* packets, size_t packet_count) override;
-    [[nodiscard]] AnalysisBatch analyze(const PacketBatch& batch);
+    [[nodiscard]] AnalysisBatch analyze(const PacketBatch& batch) override;
     void reset() noexcept;
 
    private:
