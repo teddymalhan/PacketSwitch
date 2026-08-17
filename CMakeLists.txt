@@ -223,12 +223,29 @@ verbose_message("Project is now aliased as ${PROJECT_NAME}::${PROJECT_NAME}.\n")
 
 
 
+# Backend selection is compiled once, with whichever accelerators this build
+# has, and linked by every host that runs benchmarks: the CLI and the switch
+# serving the control API.
+add_library(wirelab_backends STATIC src/accelerated_backends.cpp include/wirelab/accelerated_backends.hpp)
+target_link_libraries(wirelab_backends PUBLIC ${PROJECT_NAME})
+target_compile_features(wirelab_backends PUBLIC cxx_std_17)
+if(TARGET wirelab_cuda)
+  set_source_files_properties(src/accelerated_backends.cpp PROPERTIES LANGUAGE CUDA)
+  target_link_libraries(wirelab_backends PUBLIC wirelab_cuda)
+  set_target_properties(wirelab_backends PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+endif()
+if(TARGET wirelab_metal)
+  target_link_libraries(wirelab_backends PUBLIC wirelab_metal)
+endif()
+
 add_executable(vport src/vport_main.cpp)
 target_link_libraries(vport PRIVATE ${PROJECT_NAME})
 target_compile_features(vport PRIVATE cxx_std_17)
 
 add_executable(vswitch src/vswitch_main.cpp)
-target_link_libraries(vswitch PRIVATE ${PROJECT_NAME})
+target_link_libraries(vswitch PRIVATE wirelab_backends)
 target_compile_features(vswitch PRIVATE cxx_std_17)
 
 add_executable(wirelab_pcap src/wirelab_pcap_main.cpp)
@@ -236,7 +253,7 @@ target_link_libraries(wirelab_pcap PRIVATE ${PROJECT_NAME})
 target_compile_features(wirelab_pcap PRIVATE cxx_std_17)
 
 add_executable(wirelab_bench src/wirelab_bench.cpp)
-target_link_libraries(wirelab_bench PRIVATE ${PROJECT_NAME})
+target_link_libraries(wirelab_bench PRIVATE wirelab_backends)
 target_compile_features(wirelab_bench PRIVATE cxx_std_17)
 if(TARGET wirelab_cuda)
   # CMake needs a CUDA translation unit in this executable to schedule the

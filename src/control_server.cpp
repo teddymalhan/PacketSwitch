@@ -315,6 +315,11 @@ namespace wirelab
       return served;
     }
 
+    // Before waiting on sockets: an active benchmark must keep moving even
+    // while every client is quiet, and its events must reach them on the same
+    // pass rather than a poll later.
+    advance_benchmark();
+
     // A client that owes more than it will ever read is dropped here rather
     // than when it next says something: it stopped reading, so waiting for it
     // to become readable is waiting forever.
@@ -454,6 +459,14 @@ namespace wirelab
     {
       broadcast(to_json(*dispatch.supervision_event));
     }
+    if (dispatch.benchmark_progress_event)
+    {
+      broadcast(to_json(*dispatch.benchmark_progress_event));
+    }
+    if (dispatch.benchmark_result_event)
+    {
+      broadcast(to_json(*dispatch.benchmark_result_event));
+    }
   }
 
   bool ControlServer::flush(Client& client)
@@ -500,6 +513,24 @@ namespace wirelab
         // enforcement a client is watching for is worth a write attempt now.
         (void)flush(client);
       }
+    }
+  }
+
+  void ControlServer::advance_benchmark()
+  {
+    if (!service_.get().benchmark_active())
+    {
+      return;
+    }
+
+    auto dispatch = service_.get().advance_benchmark(config_.benchmark_packets_per_poll);
+    if (dispatch.progress_event)
+    {
+      broadcast(to_json(*dispatch.progress_event));
+    }
+    if (dispatch.result_event)
+    {
+      broadcast(to_json(*dispatch.result_event));
     }
   }
 

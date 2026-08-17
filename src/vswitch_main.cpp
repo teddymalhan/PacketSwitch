@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "wirelab/accelerated_backends.hpp"
 #include "wirelab/analysis_pipeline.hpp"
 #include "wirelab/control_server.hpp"
 #include "wirelab/switch_supervisor.hpp"
@@ -233,6 +234,9 @@ int main(int argc, char* argv[])
         // which is the only thing that knows how much traffic was analysed and
         // which sender took which port.
         control_service->set_supervision_source([&supervisor] { return supervisor->supervision_snapshot(); });
+        // A benchmark asked for over the control channel runs on this process,
+        // so it must reach the same accelerators the CLI benchmark can.
+        control_service->set_benchmark_backends(wirelab::accelerated_benchmark_backend_factory());
         supervisor->attach_control(*control_server);
         std::cout << "Control channel on " << control_address << ':' << control_server->port()
                   << "; newline-delimited JSON, one control message per line.\n";

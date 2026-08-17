@@ -40,6 +40,10 @@ namespace wirelab
     // memory without bound.
     size_t max_request_bytes = 64 * 1024;
     size_t max_pending_bytes = 1024 * 1024;
+    // How much of an active benchmark one poll may run. The switch loop polls
+    // between frames, so a slice is a bound on how long forwarding waits for a
+    // benchmark that a client asked for.
+    size_t benchmark_packets_per_poll = 4096;
   };
 
   // The switch's control plane, on a socket.
@@ -104,6 +108,7 @@ namespace wirelab
     void handle(Client& client, std::string_view request);
     [[nodiscard]] bool flush(Client& client);
     void enqueue(Client& client, const std::string& message);
+    void advance_benchmark();
     void broadcast(const std::string& message);
 
     std::reference_wrapper<ControlService> service_;

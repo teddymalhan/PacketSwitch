@@ -9,6 +9,7 @@ set(sources
     src/traffic_generator.cpp
     src/packet_analyzer.cpp
     src/packet_batch.cpp
+    src/benchmark.cpp
     src/pcap.cpp
     src/anomaly_detector.cpp
     src/policy_engine.cpp
@@ -39,6 +40,7 @@ set(headers
     include/wirelab/traffic_generator.hpp
     include/wirelab/packet_analyzer.hpp
     include/wirelab/packet_batch.hpp
+    include/wirelab/benchmark.hpp
     include/wirelab/pcap.hpp
     include/wirelab/anomaly_detector.hpp
     include/wirelab/policy_engine.hpp
@@ -66,6 +68,7 @@ set(test_sources
   src/traffic_generator_test.cpp
   src/packet_analyzer_test.cpp
   src/packet_batch_test.cpp
+  src/benchmark_test.cpp
   src/pcap_test.cpp
   src/anomaly_detector_test.cpp
   src/policy_engine_test.cpp

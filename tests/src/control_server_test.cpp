@@ -129,6 +129,37 @@ namespace
     EXPECT_TRUE(contains(messages[1], R"("topology_revision":3)"));
   }
 
+  TEST(ControlServerTest, RunsABenchmarkAcrossPollsAndFansTheResultOut)
+  {
+    auto vswitch = make_switch();
+    wirelab::ControlService service(vswitch, 0);
+    wirelab::ControlServerConfig config;
+    // A budget well below the run forces the server to slice it over several
+    // polls, which is the property the switch loop depends on.
+    config.benchmark_packets_per_poll = 16;
+    auto server = make_server(service, config);
+    auto client = make_client(server);
+
+    ASSERT_TRUE(client.send(
+        R"({"api_version":1,"request_id":"bench-1","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":8,"duration_seconds":60,"seed":42,"packets":64,"frame_size":64}})"));
+
+    // reply, zero progress, four progress slices, result.
+    const auto messages = collect(server, client, 7);
+    ASSERT_GE(messages.size(), 3U);
+    EXPECT_TRUE(contains(messages[0], R"("request_id":"bench-1")"));
+    EXPECT_TRUE(contains(messages[0], R"("accepted":true)"));
+    EXPECT_TRUE(contains(messages[0], R"("operation_id":"benchmark-1")"));
+    EXPECT_TRUE(contains(messages[1], R"("event":"benchmark_progress")"));
+    EXPECT_TRUE(contains(messages[1], R"("completed_packets":0)"));
+
+    const auto& last = messages.back();
+    EXPECT_TRUE(contains(last, R"("event":"benchmark_result")"));
+    EXPECT_TRUE(contains(last, R"("completed":true)"));
+    EXPECT_TRUE(contains(last, R"("operation_id":"benchmark-1")"));
+    EXPECT_TRUE(contains(last, R"("completed_packets":64)"));
+    EXPECT_FALSE(service.benchmark_active());
+  }
+
   TEST(ControlServerTest, RejectsAMalformedRequestWithoutDroppingTheConnection)
   {
     auto vswitch = make_switch();

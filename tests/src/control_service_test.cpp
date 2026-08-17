@@ -64,18 +64,81 @@ namespace
     EXPECT_EQ(stale.reply.error, "stale topology revision");
   }
 
-  TEST(ControlServiceTest, RejectsCommandsWithoutAnImplementation)
+  // 64 packets in batches of 8, so a slice budget below the total leaves the
+  // run unfinished and a client sees progress before a result.
+  constexpr const char* kBenchmarkRequest =
+      R"({"api_version":1,"request_id":"bench-1","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":8,"duration_seconds":60,"seed":42,"packets":64,"frame_size":64}})";
+
+  TEST(ControlServiceTest, RunsABenchmarkInSlicesAndPublishesItsResult)
+  {
+    auto vswitch = make_switch();
+    wirelab::ControlService service(vswitch);
+
+    const auto started = service.dispatch(kBenchmarkRequest);
+    ASSERT_TRUE(started.reply.accepted);
+    EXPECT_EQ(started.reply.operation_id, "benchmark-1");
+    ASSERT_TRUE(started.benchmark_progress_event.has_value());
+    EXPECT_EQ(started.benchmark_progress_event->completed_packets, 0U);
+    EXPECT_EQ(started.benchmark_progress_event->total_packets, 64U);
+    EXPECT_TRUE(service.benchmark_active());
+
+    const auto partial = service.advance_benchmark(16);
+    ASSERT_TRUE(partial.progress_event.has_value());
+    EXPECT_EQ(partial.progress_event->completed_packets, 16U);
+    EXPECT_FALSE(partial.result_event.has_value());
+    EXPECT_TRUE(service.benchmark_active());
+
+    const auto finished = service.advance_benchmark(64);
+    ASSERT_TRUE(finished.result_event.has_value());
+    EXPECT_TRUE(finished.result_event->completed);
+    EXPECT_EQ(finished.result_event->operation_id, "benchmark-1");
+    EXPECT_EQ(finished.result_event->result.completed_packets, 64U);
+    EXPECT_EQ(finished.result_event->result.received_packets, 64U);
+    EXPECT_EQ(finished.result_event->result.backend, "cpu");
+    // The run is gone once it reported, so the next slice has nothing to say.
+    EXPECT_FALSE(service.benchmark_active());
+    EXPECT_FALSE(service.advance_benchmark(64).progress_event.has_value());
+  }
+
+  TEST(ControlServiceTest, RefusesASecondRunAndReportsWhatAStoppedRunMeasured)
+  {
+    auto vswitch = make_switch();
+    wirelab::ControlService service(vswitch);
+
+    ASSERT_TRUE(service.dispatch(kBenchmarkRequest).reply.accepted);
+    const auto second = service.dispatch(kBenchmarkRequest);
+    EXPECT_FALSE(second.reply.accepted);
+    EXPECT_EQ(second.reply.error, "a benchmark run is already active");
+
+    EXPECT_EQ(service.advance_benchmark(16).progress_event->completed_packets, 16U);
+
+    const auto stopped =
+        service.dispatch(R"({"api_version":1,"request_id":"stop-1","command":"stop_run","topology_revision":0})");
+    ASSERT_TRUE(stopped.reply.accepted);
+    ASSERT_TRUE(stopped.benchmark_result_event.has_value());
+    EXPECT_FALSE(stopped.benchmark_result_event->completed);
+    EXPECT_EQ(stopped.benchmark_result_event->result.completed_packets, 16U);
+    EXPECT_FALSE(service.benchmark_active());
+
+    const auto nothing_to_stop =
+        service.dispatch(R"({"api_version":1,"request_id":"stop-2","command":"stop_run","topology_revision":0})");
+    EXPECT_FALSE(nothing_to_stop.reply.accepted);
+    EXPECT_EQ(nothing_to_stop.reply.error, "no run is active");
+  }
+
+  TEST(ControlServiceTest, RefusesABackendItCannotBuild)
   {
     auto vswitch = make_switch();
     wirelab::ControlService service(vswitch);
 
     const auto result = service.dispatch(
-        R"({"api_version":1,"request_id":"bench-1","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":1,"duration_seconds":1,"seed":42}})");
+        R"({"api_version":1,"request_id":"bench-2","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cuda","batch_size":8,"duration_seconds":60,"seed":42,"packets":64,"frame_size":64}})");
 
     EXPECT_FALSE(result.reply.accepted);
-    EXPECT_EQ(result.reply.error, "command is not implemented");
-    EXPECT_FALSE(result.metrics_event.has_value());
+    EXPECT_EQ(result.reply.error, wirelab::to_string(wirelab::BenchmarkError::UnknownBackend));
+    EXPECT_FALSE(service.benchmark_active());
   }
+
   TEST(ControlServiceTest, LoadsYamlTopologyAndPublishesRevisionedState)
   {
     const auto path = std::filesystem::temp_directory_path() / "wirelab-control-service-topology.yaml";

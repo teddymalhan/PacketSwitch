@@ -104,6 +104,16 @@ namespace wirelab
       return dispatch;
     }
 
+    if (request.value().command == ControlCommand::StartBenchmark)
+    {
+      return start_benchmark(request.value());
+    }
+
+    if (request.value().command == ControlCommand::StopRun)
+    {
+      return stop_run(request.value());
+    }
+
     if (request.value().command != ControlCommand::GetActiveFaults &&
         request.value().command != ControlCommand::SetPortFault &&
         request.value().command != ControlCommand::ClearPortFault &&
@@ -278,6 +288,122 @@ namespace wirelab
     event.analysed_frames = snapshot.analysed_frames;
     event.blocked_frames = snapshot.blocked_frames;
     event.bindings = std::move(snapshot.bindings);
+    return event;
+  }
+
+  void ControlService::set_benchmark_backends(BenchmarkBackendFactory factory)
+  {
+    benchmark_backends_ = std::move(factory);
+  }
+
+  ControlDispatch ControlService::start_benchmark(const ControlRequest& request)
+  {
+    if (benchmark_run_)
+    {
+      // One run at a time: two runs would interleave their analysis on the same
+      // thread and neither would measure the machine the client asked about.
+      return reject(request.request_id, "a benchmark run is already active");
+    }
+
+    const auto scenario = traffic_scenario_from_string(request.benchmark.scenario);
+    if (!scenario)
+    {
+      return reject(request.request_id, to_string(scenario.error()));
+    }
+
+    BenchmarkConfig config;
+    config.traffic.scenario = scenario.value();
+    config.traffic.seed = request.benchmark.seed;
+    config.traffic.frame_size = request.benchmark.frame_size;
+    config.packet_count = static_cast<size_t>(request.benchmark.packet_count);
+    config.batch_size = request.benchmark.batch_size;
+    config.backend = to_string(request.benchmark.backend);
+
+    auto run = benchmark_backends_ ? BenchmarkRun::create(std::move(config), benchmark_backends_)
+                                   : BenchmarkRun::create(std::move(config));
+    if (!run)
+    {
+      return reject(request.request_id, to_string(run.error()));
+    }
+
+    benchmark_run_ = std::move(run.value());
+    benchmark_operation_id_ = "benchmark-" + std::to_string(next_benchmark_id_++);
+    benchmark_deadline_ns_ = static_cast<uint64_t>(request.benchmark.duration_seconds) * 1'000'000'000ULL;
+
+    ControlDispatch dispatch;
+    dispatch.reply = accept(request.request_id, benchmark_operation_id_);
+    // The run has measured nothing yet; the zero-progress event tells a client
+    // which operation it is now following and how much work that operation is.
+    dispatch.benchmark_progress_event = progress_event();
+    return dispatch;
+  }
+
+  ControlDispatch ControlService::stop_run(const ControlRequest& request)
+  {
+    if (!benchmark_run_)
+    {
+      return reject(request.request_id, "no run is active");
+    }
+
+    ControlDispatch dispatch;
+    dispatch.reply = accept(request.request_id, benchmark_operation_id_);
+    // A stopped run still reports what it measured before it was stopped: the
+    // partial numbers are why a client stops a run rather than abandoning it.
+    dispatch.benchmark_result_event = result_event(false);
+    benchmark_run_.reset();
+    return dispatch;
+  }
+
+  BenchmarkEventDispatch ControlService::advance_benchmark(size_t max_packets)
+  {
+    BenchmarkEventDispatch dispatch;
+    if (!benchmark_run_)
+    {
+      return dispatch;
+    }
+
+    const size_t advanced = benchmark_run_->advance(max_packets);
+    if (advanced == 0 && !benchmark_run_->finished())
+    {
+      return dispatch;
+    }
+
+    dispatch.progress_event = progress_event();
+    const bool out_of_time = benchmark_deadline_ns_ != 0 && benchmark_run_->result().elapsed_ns >= benchmark_deadline_ns_;
+    if (benchmark_run_->finished() || out_of_time)
+    {
+      // A duration-limited run that ran out of time completed the work it was
+      // given, so it is reported as completed rather than as a stop.
+      dispatch.result_event = result_event(true);
+      benchmark_run_.reset();
+    }
+    return dispatch;
+  }
+
+  bool ControlService::benchmark_active() const noexcept
+  {
+    return benchmark_run_.has_value();
+  }
+
+  BenchmarkProgressEvent ControlService::progress_event()
+  {
+    BenchmarkProgressEvent event;
+    event.event_sequence = next_event_sequence_++;
+    event.topology_revision = current_topology_revision();
+    event.operation_id = benchmark_operation_id_;
+    event.completed_packets = benchmark_run_->completed_packets();
+    event.total_packets = benchmark_run_->total_packets();
+    return event;
+  }
+
+  BenchmarkResultEvent ControlService::result_event(bool completed)
+  {
+    BenchmarkResultEvent event;
+    event.event_sequence = next_event_sequence_++;
+    event.topology_revision = current_topology_revision();
+    event.operation_id = benchmark_operation_id_;
+    event.completed = completed;
+    event.result = benchmark_run_->result();
     return event;
   }
 

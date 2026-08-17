@@ -1,6 +1,7 @@
 #include "wirelab/control_protocol.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -460,6 +461,16 @@ namespace wirelab
             parameters_.seed = true;
             read = read_uint(request.benchmark.seed);
           }
+          else if (key == "packets" && !parameters_.packet_count)
+          {
+            parameters_.packet_count = true;
+            read = read_uint(request.benchmark.packet_count);
+          }
+          else if (key == "frame_size" && !parameters_.frame_size)
+          {
+            parameters_.frame_size = true;
+            read = read_uint(request.benchmark.frame_size);
+          }
           else if (key == "port_id" && !parameters_.port_id)
           {
             parameters_.port_id = true;
@@ -538,7 +549,8 @@ namespace wirelab
         const bool fault = parameters_.latency && parameters_.jitter && parameters_.loss && parameters_.duplication &&
                            parameters_.bandwidth && parameters_.blackhole && parameters_.isolated;
         const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
-                                   parameters_.duration_seconds || parameters_.seed;
+                                   parameters_.duration_seconds || parameters_.seed || parameters_.packet_count ||
+                                   parameters_.frame_size;
         const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss || parameters_.duplication ||
                                parameters_.bandwidth || parameters_.blackhole || parameters_.isolated;
         switch (command)
@@ -572,7 +584,8 @@ namespace wirelab
       bool parameters_missing_required_for(ControlCommand command) const noexcept
       {
         const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
-                                   parameters_.duration_seconds || parameters_.seed;
+                                   parameters_.duration_seconds || parameters_.seed || parameters_.packet_count ||
+                                   parameters_.frame_size;
         const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss || parameters_.duplication ||
                                parameters_.bandwidth || parameters_.blackhole || parameters_.isolated;
         switch (command)
@@ -608,6 +621,8 @@ namespace wirelab
         bool batch_size = false;
         bool duration_seconds = false;
         bool seed = false;
+        bool packet_count = false;
+        bool frame_size = false;
         bool port_id = false;
         bool first_endpoint = false;
         bool second_endpoint = false;
@@ -776,11 +791,26 @@ namespace wirelab
              << ",\"threshold\":" << anomaly.threshold << ",\"window_duration_ns\":" << anomaly.window_duration_ns << '}';
     }
 
+    // JSON carries no encoding for NaN or infinity, so a rate computed over a
+    // window that had not advanced yet would leave the client unable to parse
+    // the event at all. Such a rate is reported as zero instead.
+    std::string json_number(double value)
+    {
+      std::ostringstream result;
+      result << std::fixed << std::setprecision(6) << (std::isfinite(value) ? value : 0.0);
+      return result.str();
+    }
+
     bool is_valid_benchmark(const BenchmarkParameters& benchmark) noexcept
     {
       constexpr uint32_t MAX_BATCH_SIZE = 8192;
+      // A frame shorter than an Ethernet header carries no addresses to switch
+      // on, and one longer than a jumbo frame cannot be put on a wire.
+      constexpr uint32_t MIN_FRAME_SIZE = 14;
+      constexpr uint32_t MAX_FRAME_SIZE = 9000;
       return !benchmark.scenario.empty() && benchmark.batch_size > 0 && benchmark.batch_size <= MAX_BATCH_SIZE &&
-             benchmark.duration_seconds > 0;
+             benchmark.duration_seconds > 0 && benchmark.packet_count > 0 && benchmark.frame_size >= MIN_FRAME_SIZE &&
+             benchmark.frame_size <= MAX_FRAME_SIZE;
     }
   }  // namespace
 
@@ -872,6 +902,7 @@ namespace wirelab
              << ",\"backend\":" << json_string(to_string(request.benchmark.backend))
              << ",\"batch_size\":" << request.benchmark.batch_size
              << ",\"duration_seconds\":" << request.benchmark.duration_seconds << ",\"seed\":" << request.benchmark.seed
+             << ",\"packets\":" << request.benchmark.packet_count << ",\"frame_size\":" << request.benchmark.frame_size
              << '}';
     }
     else if (request.command == ControlCommand::SetPortFault || request.command == ControlCommand::SetLinkFault)
@@ -1032,6 +1063,48 @@ namespace wirelab
       result << "{\"port_id\":" << json_string(binding.port_id) << ",\"endpoint\":" << json_string(binding.endpoint) << '}';
     }
     result << "]}";
+    return result.str();
+  }
+
+  std::string to_json(const BenchmarkProgressEvent& event)
+  {
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"benchmark_progress\""
+           << ",\"operation_id\":" << json_string(event.operation_id)
+           << ",\"completed_packets\":" << event.completed_packets << ",\"total_packets\":" << event.total_packets << '}';
+    return result.str();
+  }
+
+  std::string to_json(const BenchmarkResultEvent& event)
+  {
+    const auto& benchmark = event.result;
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"benchmark_result\""
+           << ",\"operation_id\":" << json_string(event.operation_id)
+           << ",\"completed\":" << (event.completed ? "true" : "false")
+           << ",\"result\":{\"backend\":" << json_string(benchmark.backend)
+           << ",\"scenario\":" << json_string(benchmark.scenario) << ",\"seed\":" << benchmark.seed
+           << ",\"frame_size\":" << benchmark.frame_size << ",\"batch_size\":" << benchmark.batch_size
+           << ",\"total_packets\":" << benchmark.total_packets
+           << ",\"completed_packets\":" << benchmark.completed_packets
+           << ",\"received_packets\":" << benchmark.received_packets
+           << ",\"received_bytes\":" << benchmark.received_bytes
+           << ",\"malformed_packets\":" << benchmark.malformed_packets
+           << ",\"broadcast_packets\":" << benchmark.broadcast_packets
+           << ",\"unknown_unicast_packets\":" << benchmark.unknown_unicast_packets
+           << ",\"known_unicast_packets\":" << benchmark.known_unicast_packets
+           << ",\"elapsed_ns\":" << benchmark.elapsed_ns
+           << ",\"packets_per_second\":" << json_number(benchmark.packets_per_second)
+           << ",\"goodput_bits_per_second\":" << json_number(benchmark.goodput_bits_per_second)
+           << ",\"loss_percentage\":" << json_number(benchmark.loss_percentage)
+           << ",\"batch_analysis_latency_p50_ns\":" << benchmark.batch_analysis_latency_p50_ns
+           << ",\"batch_analysis_latency_p95_ns\":" << benchmark.batch_analysis_latency_p95_ns
+           << ",\"batch_analysis_latency_p99_ns\":" << benchmark.batch_analysis_latency_p99_ns
+           << ",\"timing\":{\"host_to_device_ns\":" << benchmark.timing.host_to_device_ns
+           << ",\"kernel_ns\":" << benchmark.timing.kernel_ns
+           << ",\"device_to_host_ns\":" << benchmark.timing.device_to_host_ns << "}}}";
     return result.str();
   }
 

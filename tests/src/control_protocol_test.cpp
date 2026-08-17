@@ -1,4 +1,6 @@
 #include <chrono>
+#include <limits>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -17,10 +19,12 @@ namespace
     request.benchmark.batch_size = 2048;
     request.benchmark.duration_seconds = 60;
     request.benchmark.seed = 42;
+    request.benchmark.packet_count = 100000;
+    request.benchmark.frame_size = 64;
 
     EXPECT_TRUE(wirelab::validate(request).has_value());
     EXPECT_EQ(wirelab::to_json(request),
-              "{\"api_version\":1,\"request_id\":\"benchmark-42\",\"command\":\"start_benchmark\",\"topology_revision\":7,\"parameters\":{\"scenario\":\"mixed-traffic\",\"backend\":\"cpu\",\"batch_size\":2048,\"duration_seconds\":60,\"seed\":42}}");
+              "{\"api_version\":1,\"request_id\":\"benchmark-42\",\"command\":\"start_benchmark\",\"topology_revision\":7,\"parameters\":{\"scenario\":\"mixed-traffic\",\"backend\":\"cpu\",\"batch_size\":2048,\"duration_seconds\":60,\"seed\":42,\"packets\":100000,\"frame_size\":64}}");
   }
 
   TEST(ControlProtocolTest, ParsesAndSerializesTopologyLoadCommand)
@@ -90,6 +94,7 @@ namespace
     request.command = wirelab::ControlCommand::StartBenchmark;
     request.benchmark.scenario = "mixed-traffic";
     request.benchmark.duration_seconds = 1;
+    request.benchmark.packet_count = 1000;
     request.benchmark.batch_size = 0;
     EXPECT_EQ(wirelab::validate(request).error(), wirelab::ControlValidationError::InvalidBenchmarkConfiguration);
   }
@@ -144,7 +149,7 @@ namespace
     EXPECT_EQ(parsed.value().benchmark.duration_seconds, 60U);
     EXPECT_EQ(parsed.value().benchmark.seed, 42U);
     EXPECT_EQ(wirelab::to_json(parsed.value()),
-              R"({"api_version":1,"request_id":"bench-λ","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":2048,"duration_seconds":60,"seed":42}})");
+              R"({"api_version":1,"request_id":"bench-λ","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":2048,"duration_seconds":60,"seed":42,"packets":0,"frame_size":64}})");
   }
 
   TEST(ControlProtocolTest, RejectsMalformedAndIncompleteRequests)
@@ -271,5 +276,146 @@ namespace
     event.event_sequence = 3;
     event.topology_revision = 4;
     EXPECT_FALSE(wirelab::control_reply_from_json(wirelab::to_json(event)).has_value());
+  }
+
+  TEST(ControlProtocolTest, RoundTripsBenchmarkPacketCountAndFrameSize)
+  {
+    const std::string json =
+      R"({"api_version":1,"request_id":"bench-2","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"broadcast","backend":"cuda","batch_size":256,"duration_seconds":30,"seed":7,"packets":250000,"frame_size":1500}})";
+
+    const auto parsed = wirelab::control_request_from_json(json);
+
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->benchmark.packet_count, 250000U);
+    EXPECT_EQ(parsed->benchmark.frame_size, 1500U);
+    EXPECT_TRUE(wirelab::validate(parsed.value()).has_value());
+    EXPECT_EQ(wirelab::to_json(parsed.value()), json);
+
+    // The two new parameters are read like every other one: a value of the
+    // wrong type is a field error, not a missing field.
+    const auto invalid_packets = wirelab::control_request_from_json(
+      R"({"api_version":1,"request_id":"bench-3","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"broadcast","backend":"cpu","batch_size":1,"duration_seconds":1,"seed":1,"packets":"many"}})");
+    ASSERT_FALSE(invalid_packets.has_value());
+    EXPECT_EQ(invalid_packets.error(), wirelab::ControlParseError::InvalidField);
+
+    // A benchmark parameter on a command that takes none is still refused,
+    // which is what keeps a typo from being silently ignored.
+    const auto unexpected_frame_size = wirelab::control_request_from_json(
+      R"({"api_version":1,"request_id":"bench-4","command":"get_switch_state","topology_revision":0,"parameters":{"frame_size":64}})");
+    ASSERT_FALSE(unexpected_frame_size.has_value());
+    EXPECT_EQ(unexpected_frame_size.error(), wirelab::ControlParseError::InvalidField);
+  }
+
+  TEST(ControlProtocolTest, RejectsBenchmarkConfigurationsThatCannotBeRun)
+  {
+    wirelab::ControlRequest request;
+    request.request_id = "bench-5";
+    request.command = wirelab::ControlCommand::StartBenchmark;
+    request.benchmark.scenario = "mixed-traffic";
+    request.benchmark.duration_seconds = 10;
+    request.benchmark.batch_size = 64;
+    request.benchmark.frame_size = 64;
+    request.benchmark.packet_count = 1000;
+    ASSERT_TRUE(wirelab::validate(request).has_value());
+
+    auto without_packets = request;
+    without_packets.benchmark.packet_count = 0;
+    EXPECT_EQ(wirelab::validate(without_packets).error(), wirelab::ControlValidationError::InvalidBenchmarkConfiguration);
+
+    auto without_batches = request;
+    without_batches.benchmark.batch_size = 0;
+    EXPECT_EQ(wirelab::validate(without_batches).error(), wirelab::ControlValidationError::InvalidBenchmarkConfiguration);
+
+    auto undersized_frame = request;
+    undersized_frame.benchmark.frame_size = 13;
+    EXPECT_EQ(wirelab::validate(undersized_frame).error(), wirelab::ControlValidationError::InvalidBenchmarkConfiguration);
+
+    auto oversized_frame = request;
+    oversized_frame.benchmark.frame_size = 9001;
+    EXPECT_EQ(wirelab::validate(oversized_frame).error(), wirelab::ControlValidationError::InvalidBenchmarkConfiguration);
+
+    // The frame bounds are inclusive: an Ethernet header and a jumbo frame are
+    // both runnable.
+    auto smallest_frame = request;
+    smallest_frame.benchmark.frame_size = 14;
+    EXPECT_TRUE(wirelab::validate(smallest_frame).has_value());
+
+    auto largest_frame = request;
+    largest_frame.benchmark.frame_size = 9000;
+    EXPECT_TRUE(wirelab::validate(largest_frame).has_value());
+
+    // A stale api_version still outranks a benchmark that cannot be run.
+    auto stale = without_packets;
+    stale.api_version = wirelab::WIRELAB_CONTROL_API_VERSION + 1;
+    EXPECT_EQ(wirelab::validate(stale).error(), wirelab::ControlValidationError::UnsupportedApiVersion);
+  }
+
+  TEST(ControlProtocolTest, SerializesBenchmarkProgressEvent)
+  {
+    wirelab::BenchmarkProgressEvent event;
+    event.event_sequence = 21;
+    event.topology_revision = 4;
+    event.operation_id = "benchmark-9";
+    event.completed_packets = 40000;
+    event.total_packets = 100000;
+
+    EXPECT_EQ(wirelab::to_json(event),
+              "{\"api_version\":1,\"event_sequence\":21,\"topology_revision\":4,\"event\":\"benchmark_progress\",\"operation_id\":\"benchmark-9\",\"completed_packets\":40000,\"total_packets\":100000}");
+  }
+
+  TEST(ControlProtocolTest, SerializesBenchmarkResultEvent)
+  {
+    wirelab::BenchmarkResultEvent event;
+    event.event_sequence = 22;
+    event.topology_revision = 4;
+    event.operation_id = "benchmark-9";
+    event.completed = true;
+    event.result.backend = "cpu";
+    event.result.scenario = "mixed-traffic";
+    event.result.seed = 42;
+    event.result.frame_size = 64;
+    event.result.batch_size = 256;
+    event.result.total_packets = 100000;
+    event.result.completed_packets = 100000;
+    event.result.received_packets = 99000;
+    event.result.received_bytes = 6336000;
+    event.result.malformed_packets = 10;
+    event.result.broadcast_packets = 1000;
+    event.result.unknown_unicast_packets = 2000;
+    event.result.known_unicast_packets = 96000;
+    event.result.elapsed_ns = 2000000000;
+    event.result.packets_per_second = 50000.5;
+    event.result.goodput_bits_per_second = 25344000.25;
+    event.result.loss_percentage = 1.125;
+    event.result.batch_analysis_latency_p50_ns = 1200;
+    event.result.batch_analysis_latency_p95_ns = 2400;
+    event.result.batch_analysis_latency_p99_ns = 4800;
+    event.result.timing.host_to_device_ns = 100;
+    event.result.timing.kernel_ns = 200;
+    event.result.timing.device_to_host_ns = 300;
+
+    EXPECT_EQ(wirelab::to_json(event),
+              "{\"api_version\":1,\"event_sequence\":22,\"topology_revision\":4,\"event\":\"benchmark_result\",\"operation_id\":\"benchmark-9\",\"completed\":true,\"result\":{\"backend\":\"cpu\",\"scenario\":\"mixed-traffic\",\"seed\":42,\"frame_size\":64,\"batch_size\":256,\"total_packets\":100000,\"completed_packets\":100000,\"received_packets\":99000,\"received_bytes\":6336000,\"malformed_packets\":10,\"broadcast_packets\":1000,\"unknown_unicast_packets\":2000,\"known_unicast_packets\":96000,\"elapsed_ns\":2000000000,\"packets_per_second\":50000.500000,\"goodput_bits_per_second\":25344000.250000,\"loss_percentage\":1.125000,\"batch_analysis_latency_p50_ns\":1200,\"batch_analysis_latency_p95_ns\":2400,\"batch_analysis_latency_p99_ns\":4800,\"timing\":{\"host_to_device_ns\":100,\"kernel_ns\":200,\"device_to_host_ns\":300}}}");
+
+    // A run that was stopped reports what it managed, and says so; a rate that
+    // no elapsed time could be divided by is reported as zero rather than as a
+    // number no JSON parser accepts.
+    wirelab::BenchmarkResultEvent stopped;
+    stopped.event_sequence = 23;
+    stopped.topology_revision = 4;
+    stopped.operation_id = "benchmark-10";
+    stopped.result.backend = "cpu";
+    stopped.result.scenario = "broadcast";
+    stopped.result.total_packets = 100000;
+    stopped.result.completed_packets = 512;
+    stopped.result.packets_per_second = std::numeric_limits<double>::infinity();
+    stopped.result.loss_percentage = std::numeric_limits<double>::quiet_NaN();
+
+    const auto stopped_json = wirelab::to_json(stopped);
+    EXPECT_NE(stopped_json.find("\"event\":\"benchmark_result\""), std::string::npos);
+    EXPECT_NE(stopped_json.find("\"completed\":false"), std::string::npos);
+    EXPECT_NE(stopped_json.find("\"completed_packets\":512"), std::string::npos);
+    EXPECT_NE(stopped_json.find("\"packets_per_second\":0.000000"), std::string::npos);
+    EXPECT_NE(stopped_json.find("\"loss_percentage\":0.000000"), std::string::npos);
   }
 }

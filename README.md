@@ -293,6 +293,40 @@ anyone who can reach it can quarantine a port or blackhole a link.
 the switch says so on startup when it is used. Do not put it on a network you
 would not hand a root shell to.
 
+### Benchmarks over the control channel
+
+`start_benchmark` runs the same analyzer benchmark `wirelab_bench` runs, on the
+running switch, and reports it as events rather than as CLI output. The run is
+advanced in slices from the same poll that serves control clients, at most
+`ControlServerConfig::benchmark_packets_per_poll` packets per poll, so a
+benchmark a client asked for never stops the switch from forwarding.
+
+```jsonc
+// in: 200k mixed frames through the CPU analyzer, in batches of 64
+{"api_version":1,"request_id":"bench-1","command":"start_benchmark","topology_revision":1,
+ "parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":64,
+               "seed":7,"packets":200000,"frame_size":128,"duration_seconds":60}}
+
+// out: the reply names the operation, then progress until the run finishes
+{"api_version":1,"request_id":"bench-1","accepted":true,"topology_revision":1,
+ "operation_id":"benchmark-1"}
+{"event":"benchmark_progress","operation_id":"benchmark-1",
+ "completed_packets":0,"total_packets":200000}
+{"event":"benchmark_progress","operation_id":"benchmark-1","completed_packets":4096, ...}
+{"event":"benchmark_result","operation_id":"benchmark-1","completed":true,
+ "result":{"backend":"cpu","packets_per_second":157746.8,"loss_percentage":0.0,
+           "batch_analysis_latency_p99_ns":156292, "timing":{"kernel_ns":0, ...}, ...}}
+```
+
+`stop_run` ends an active run early and still publishes a `benchmark_result`,
+with `completed:false` and the counters measured so far: partial numbers are
+the reason to stop a run rather than abandon it. A second `start_benchmark`
+while one is running is refused, because two runs sharing this thread would
+each measure the other. The backend names this build accepts are the ones
+`wirelab_bench` accepts - `cuda` and `metal` exist only in a build configured
+with `-DWIRELAB_ENABLE_CUDA=ON` or `-DWIRELAB_ENABLE_METAL=ON`, and a backend
+that is compiled in but has no device is refused rather than run on the CPU.
+
 ### Replaying a capture
 
 `wirelab_pcap` runs a packet capture through the same analysis, detection, and

@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "wirelab/anomaly_detector.hpp"
+#include "wirelab/benchmark.hpp"
 #include "wirelab/fault_engine.hpp"
 #include "wirelab/policy_engine.hpp"
 #include "wirelab/switch_metrics.hpp"
@@ -53,6 +54,8 @@ namespace wirelab
   {
     std::string scenario;
     AnalyzerBackend backend = AnalyzerBackend::Cpu;
+    uint64_t packet_count = 0;
+    uint32_t frame_size = 64;
     uint32_t batch_size = 1;
     uint32_t duration_seconds = 0;
     uint64_t seed = 1;
@@ -140,6 +143,29 @@ namespace wirelab
     PolicyDecision decision;
   };
 
+  struct BenchmarkProgressEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    std::string operation_id;
+    uint64_t completed_packets = 0;
+    uint64_t total_packets = 0;
+  };
+
+  // A run reports its counters once it ends, whether it exhausted its packets
+  // or a client stopped it early; `completed` is how the client tells the two
+  // apart without having to compare the counters itself.
+  struct BenchmarkResultEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    std::string operation_id;
+    bool completed = false;
+    BenchmarkResult result;
+  };
+
   // Which client the switch decided owns a topology port. A UDP dataplane
   // offers no stable identity, so the binding is reported rather than assumed.
   struct PortBinding
@@ -183,6 +209,8 @@ namespace wirelab
   [[nodiscard]] std::string to_json(const AnomalyDetectedEvent& event);
   [[nodiscard]] std::string to_json(const PolicyActionEvent& event);
   [[nodiscard]] std::string to_json(const SupervisionStateEvent& event);
+  [[nodiscard]] std::string to_json(const BenchmarkProgressEvent& event);
+  [[nodiscard]] std::string to_json(const BenchmarkResultEvent& event);
 }  // namespace wirelab
 
 #endif
