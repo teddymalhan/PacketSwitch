@@ -18,22 +18,27 @@ namespace wirelab
   {
   }
 
+  void ControlService::set_supervision_source(SupervisionSource source)
+  {
+    supervision_source_ = std::move(source);
+  }
+
   ControlDispatch ControlService::dispatch(std::string_view json)
   {
     const auto request = control_request_from_json(json);
     if (!request)
     {
-      return { reject({}, to_string(request.error())) };
+      return reject({}, to_string(request.error()));
     }
 
     const auto validation = validate(request.value());
     if (!validation)
     {
-      return { reject(request.value().request_id, to_string(validation.error())) };
+      return reject(request.value().request_id, to_string(validation.error()));
     }
     if (request.value().topology_revision != current_topology_revision())
     {
-      return { reject(request.value().request_id, "stale topology revision") };
+      return reject(request.value().request_id, "stale topology revision");
     }
 
     if (request.value().command == ControlCommand::GetSwitchState)
@@ -43,29 +48,43 @@ namespace wirelab
       metrics_event.topology_revision = current_topology_revision();
       metrics_event.metrics = vswitch_.metrics();
 
-      ControlReply reply;
-      reply.request_id = request.value().request_id;
-      reply.accepted = true;
-      reply.operation_id = "switch-state-" + std::to_string(metrics_event.event_sequence);
-      return { std::move(reply), std::move(metrics_event) };
+      ControlDispatch dispatch;
+      dispatch.reply = accept(request.value().request_id, "switch-state-" + std::to_string(metrics_event.event_sequence));
+      dispatch.metrics_event = std::move(metrics_event);
+      return dispatch;
+    }
+
+    if (request.value().command == ControlCommand::GetSupervisionState)
+    {
+      if (!supervision_source_)
+      {
+        return reject(request.value().request_id, "supervision state is unavailable");
+      }
+
+      auto event = supervision_event(supervision_source_());
+
+      ControlDispatch dispatch;
+      dispatch.reply = accept(request.value().request_id, "supervision-state-" + std::to_string(event.event_sequence));
+      dispatch.supervision_event = std::move(event);
+      return dispatch;
     }
 
     if (request.value().command == ControlCommand::LoadTopology)
     {
       if (!topology_controller_)
       {
-        return { reject(request.value().request_id, "topology loading is unavailable") };
+        return reject(request.value().request_id, "topology loading is unavailable");
       }
 
       const auto configuration = topology_configuration_from_yaml_file(request.value().topology.path);
       if (!configuration)
       {
-        return { reject(request.value().request_id, to_string(configuration.error())) };
+        return reject(request.value().request_id, to_string(configuration.error()));
       }
       const auto topology = Topology::create(configuration.value());
       if (!topology)
       {
-        return { reject(request.value().request_id, to_string(topology.error())) };
+        return reject(request.value().request_id, to_string(topology.error()));
       }
 
       auto& controller = topology_controller_->get();
@@ -78,11 +97,11 @@ namespace wirelab
       topology_event.nodes = topology.value().nodes();
       topology_event.links = topology.value().links();
 
-      ControlReply reply;
-      reply.request_id = request.value().request_id;
-      reply.accepted = true;
-      reply.operation_id = "topology-loaded-" + std::to_string(topology_event.event_sequence);
-      return { std::move(reply), std::nullopt, {}, std::move(topology_event) };
+      ControlDispatch dispatch;
+      dispatch.reply =
+          accept(request.value().request_id, "topology-loaded-" + std::to_string(topology_event.event_sequence));
+      dispatch.topology_event = std::move(topology_event);
+      return dispatch;
     }
 
     if (request.value().command != ControlCommand::GetActiveFaults &&
@@ -90,11 +109,11 @@ namespace wirelab
         request.value().command != ControlCommand::ClearPortFault &&
         request.value().command != ControlCommand::SetLinkFault && request.value().command != ControlCommand::ClearLinkFault)
     {
-      return { reject(request.value().request_id, "command is not implemented") };
+      return reject(request.value().request_id, "command is not implemented");
     }
     if (!topology_controller_)
     {
-      return { reject(request.value().request_id, "topology fault control is unavailable") };
+      return reject(request.value().request_id, "topology fault control is unavailable");
     }
 
     auto& controller = topology_controller_->get();
@@ -103,13 +122,11 @@ namespace wirelab
       const auto faults = controller.active_faults();
       if (!faults)
       {
-        return { reject(request.value().request_id, to_string(faults.error())) };
+        return reject(request.value().request_id, to_string(faults.error()));
       }
 
       ControlDispatch dispatch;
-      dispatch.reply.request_id = request.value().request_id;
-      dispatch.reply.accepted = true;
-      dispatch.reply.operation_id = "active-faults-" + std::to_string(next_event_sequence_);
+      dispatch.reply = accept(request.value().request_id, "active-faults-" + std::to_string(next_event_sequence_));
       dispatch.fault_events.reserve(faults->size());
       for (const auto& active_fault : faults.value())
       {
@@ -149,24 +166,25 @@ namespace wirelab
       case ControlCommand::ClearPortFault:
         if (!controller.clear_port_fault(fault.port_id))
         {
-          return { reject(request.value().request_id, "fault target has no active configuration") };
+          return reject(request.value().request_id, "fault target has no active configuration");
         }
         break;
       case ControlCommand::ClearLinkFault:
         if (!controller.clear_link_fault(fault.first_endpoint, fault.second_endpoint))
         {
-          return { reject(request.value().request_id, "fault target has no active configuration") };
+          return reject(request.value().request_id, "fault target has no active configuration");
         }
         break;
       case ControlCommand::LoadTopology:
       case ControlCommand::GetSwitchState:
       case ControlCommand::GetActiveFaults:
+      case ControlCommand::GetSupervisionState:
       case ControlCommand::StartBenchmark:
       case ControlCommand::StopRun: break;
     }
     if (fault_error)
     {
-      return { reject(request.value().request_id, to_string(*fault_error)) };
+      return reject(request.value().request_id, to_string(*fault_error));
     }
 
     FaultStateEvent fault_event;
@@ -179,11 +197,12 @@ namespace wirelab
     fault_event.configuration = fault.configuration;
     fault_event.active = active;
 
-    ControlReply reply;
-    reply.request_id = request.value().request_id;
-    reply.accepted = true;
-    reply.operation_id = std::string(active ? "fault-set-" : "fault-cleared-") + std::to_string(fault_event.event_sequence);
-    return { std::move(reply), std::nullopt, { std::move(fault_event) } };
+    ControlDispatch dispatch;
+    dispatch.reply = accept(
+        request.value().request_id,
+        std::string(active ? "fault-set-" : "fault-cleared-") + std::to_string(fault_event.event_sequence));
+    dispatch.fault_events.push_back(std::move(fault_event));
+    return dispatch;
   }
 
   AnalysisEventDispatch ControlService::analysis_events(AnalysisOutcome outcome)
@@ -251,15 +270,14 @@ namespace wirelab
     return dispatch;
   }
 
-  SupervisionStateEvent
-  ControlService::supervision_event(uint64_t analysed_frames, uint64_t blocked_frames, std::vector<PortBinding> bindings)
+  SupervisionStateEvent ControlService::supervision_event(SupervisionSnapshot snapshot)
   {
     SupervisionStateEvent event;
     event.event_sequence = next_event_sequence_++;
     event.topology_revision = current_topology_revision();
-    event.analysed_frames = analysed_frames;
-    event.blocked_frames = blocked_frames;
-    event.bindings = std::move(bindings);
+    event.analysed_frames = snapshot.analysed_frames;
+    event.blocked_frames = snapshot.blocked_frames;
+    event.bindings = std::move(snapshot.bindings);
     return event;
   }
 
@@ -273,11 +291,22 @@ namespace wirelab
     return topology_controller_ ? topology_controller_->get().topology_revision() : topology_revision_;
   }
 
-  ControlReply ControlService::reject(std::string request_id, std::string error) const
+  ControlReply ControlService::accept(std::string request_id, std::string operation_id) const
   {
     ControlReply reply;
     reply.request_id = std::move(request_id);
-    reply.error = std::move(error);
+    reply.accepted = true;
+    reply.topology_revision = current_topology_revision();
+    reply.operation_id = std::move(operation_id);
     return reply;
+  }
+
+  ControlDispatch ControlService::reject(std::string request_id, std::string error) const
+  {
+    ControlDispatch dispatch;
+    dispatch.reply.request_id = std::move(request_id);
+    dispatch.reply.topology_revision = current_topology_revision();
+    dispatch.reply.error = std::move(error);
+    return dispatch;
   }
 }  // namespace wirelab

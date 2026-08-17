@@ -26,6 +26,7 @@ namespace wirelab
     LoadTopology,
     GetSwitchState,
     GetActiveFaults,
+    GetSupervisionState,
     StartBenchmark,
     StopRun,
     SetPortFault,
@@ -86,6 +87,10 @@ namespace wirelab
     uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
     std::string request_id;
     bool accepted = false;
+    // Every reply carries the revision the switch acted on, including a
+    // rejection, so a client that reconnected without knowing the topology can
+    // learn it from the answer instead of guessing.
+    uint64_t topology_revision = 0;
     std::string operation_id;
     std::string error;
   };
@@ -153,12 +158,23 @@ namespace wirelab
     std::vector<PortBinding> bindings;
   };
 
+  // Live supervision state, independent of when it is asked for. The supervisor
+  // owns these counters; the service stamps a snapshot into an event, whether a
+  // client asked for one or the switch published one that moved.
+  struct SupervisionSnapshot
+  {
+    uint64_t analysed_frames = 0;
+    uint64_t blocked_frames = 0;
+    std::vector<PortBinding> bindings;
+  };
+
   [[nodiscard]] const char* to_string(AnalyzerBackend backend) noexcept;
   [[nodiscard]] const char* to_string(ControlCommand command) noexcept;
   [[nodiscard]] const char* to_string(ControlValidationError error) noexcept;
   [[nodiscard]] const char* to_string(ControlParseError error) noexcept;
   [[nodiscard]] expected<void, ControlValidationError> validate(const ControlRequest& request) noexcept;
   [[nodiscard]] expected<ControlRequest, ControlParseError> control_request_from_json(std::string_view json);
+  [[nodiscard]] expected<ControlReply, ControlParseError> control_reply_from_json(std::string_view json);
   [[nodiscard]] std::string to_json(const ControlRequest& request);
   [[nodiscard]] std::string to_json(const ControlReply& reply);
   [[nodiscard]] std::string to_json(const SwitchMetricsEvent& event);

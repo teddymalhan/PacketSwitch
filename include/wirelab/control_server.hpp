@@ -25,7 +25,8 @@ namespace wirelab
     ReceiveFailed,
     AddressResolutionFailed,
     InvalidSocket,
-    Disconnected
+    Disconnected,
+    Timeout
   };
 
   [[nodiscard]] const char* to_string(ControlTransportError error) noexcept;
@@ -69,7 +70,7 @@ namespace wirelab
     size_t poll(std::chrono::milliseconds timeout = std::chrono::milliseconds{ 0 });
 
     void publish_analysis(AnalysisOutcome outcome);
-    void publish_supervision(uint64_t analysed_frames, uint64_t blocked_frames, std::vector<PortBinding> bindings);
+    void publish_supervision(SupervisionSnapshot snapshot);
 
     [[nodiscard]] uint16_t port() const noexcept
     {
@@ -112,12 +113,31 @@ namespace wirelab
     std::vector<Client> clients_;
   };
 
+  // What a client learned by asking the switch to describe itself again.
+  struct ControlResync
+  {
+    uint64_t topology_revision = 0;
+    // The events the queries produced, in arrival order. Replies are the
+    // client's own bookkeeping and are not repeated here: what rebuilds a view
+    // is the same event stream the client reads when it is not resynchronising.
+    std::vector<std::string> messages;
+  };
+
   // The other end of the control channel: what a GUI, a script or a test uses
   // to drive a running switch.
   class ControlClient
   {
    public:
     [[nodiscard]] static expected<ControlClient, ControlTransportError> connect(std::string_view address, uint16_t port);
+    // Dials the switch again on the endpoint this client was created with. The
+    // connection is the only thing restored; what the client knew about the
+    // switch is re-established by resync().
+    [[nodiscard]] expected<void, ControlTransportError> reconnect();
+    // Asks the switch to describe itself: its metrics, its active faults and
+    // its supervision state. A switch that reloaded its topology rejects the
+    // first query as stale, and the rejection carries the revision that
+    // replaces it, so the query is repeated once against the truth.
+    [[nodiscard]] expected<ControlResync, ControlTransportError> resync(std::chrono::milliseconds timeout);
 
     ControlClient(ControlClient&&) noexcept = default;
     ControlClient& operator=(ControlClient&&) noexcept = default;
@@ -135,14 +155,31 @@ namespace wirelab
     {
       return socket_.is_valid();
     }
+    // The revision every command must carry, as last seen on a reply.
+    [[nodiscard]] uint64_t topology_revision() const noexcept
+    {
+      return topology_revision_;
+    }
     void close() noexcept;
 
    private:
-    explicit ControlClient(SocketHandle socket) noexcept : socket_(std::move(socket))
+    ControlClient(SocketHandle socket, std::string address, uint16_t port) noexcept
+        : socket_(std::move(socket)),
+          address_(std::move(address)),
+          port_(port)
     {
     }
 
+    [[nodiscard]] expected<ControlReply, ControlTransportError> query(
+        ControlCommand command,
+        const std::string& request_id,
+        std::chrono::steady_clock::time_point deadline,
+        std::vector<std::string>& events);
+
     SocketHandle socket_;
+    std::string address_;
+    uint16_t port_ = 0;
+    uint64_t topology_revision_ = 0;
     std::string inbox_;
   };
 }  // namespace wirelab

@@ -61,7 +61,8 @@ void install_default_policies(wirelab::AnalysisPipeline& pipeline)
 
 void print_usage(const char* program_name)
 {
-  std::cerr << "Usage: " << program_name << " <port> [--verbose] [--topology <file>] [--control-port <port>]\n";
+  std::cerr << "Usage: " << program_name
+            << " <port> [--verbose] [--topology <file>] [--control-port <port>] [--control-address <address>]\n";
   std::cerr << "\n";
   std::cerr << "Arguments:\n";
   std::cerr << "  port     UDP port to listen on (0 for ephemeral)\n";
@@ -71,6 +72,9 @@ void print_usage(const char* program_name)
   std::cerr << "  --control-port <port>  Serve the WireLab control protocol on this TCP port, so a client can\n";
   std::cerr << "                     drive the switch and watch anomalies, policies and enforcement live.\n";
   std::cerr << "                     Requires --topology, because the supervisor is what serves it\n";
+  std::cerr << "  --control-address <address>  Bind the control channel to this address instead of 127.0.0.1.\n";
+  std::cerr << "                     The control protocol has no authentication: anyone who can reach the\n";
+  std::cerr << "                     address can quarantine a port, so keep it on a network you trust\n";
   std::cerr << "\n";
   std::cerr << "Examples:\n";
   std::cerr << "  " << program_name << " 8080\n";
@@ -98,6 +102,7 @@ int main(int argc, char* argv[])
   wirelab::VSwitchLogLevel log_level = wirelab::VSwitchLogLevel::Lifecycle;
   std::string topology_path;
   long control_port = -1;
+  std::string control_address = "127.0.0.1";
   for (int index = 2; index < argc; ++index)
   {
     const std::string_view option(argv[index]);
@@ -122,6 +127,11 @@ int main(int argc, char* argv[])
       }
       continue;
     }
+    if (option == "--control-address" && index + 1 < argc)
+    {
+      control_address = argv[++index];
+      continue;
+    }
     std::cerr << "Error: Unknown option '" << option << "'\n";
     print_usage(argv[0]);
     return EXIT_FAILURE;
@@ -129,6 +139,11 @@ int main(int argc, char* argv[])
   if (control_port >= 0 && topology_path.empty())
   {
     std::cerr << "Error: --control-port requires --topology; the control plane is served by the supervisor\n";
+    return EXIT_FAILURE;
+  }
+  if (control_port < 0 && control_address != "127.0.0.1")
+  {
+    std::cerr << "Error: --control-address requires --control-port; there is no control channel to bind\n";
     return EXIT_FAILURE;
   }
 
@@ -149,7 +164,8 @@ int main(int argc, char* argv[])
   std::cout << "Configuration:\n";
   std::cout << "  Port: " << port << (port == 0 ? " (ephemeral)" : "") << "\n";
   std::cout << "  Supervision: " << (topology_path.empty() ? "off" : topology_path) << "\n";
-  std::cout << "  Control: " << (control_port < 0 ? std::string("off") : std::to_string(control_port)) << "\n";
+  std::cout << "  Control: "
+            << (control_port < 0 ? std::string("off") : control_address + ":" + std::to_string(control_port)) << "\n";
   std::cout << "\n";
 
   try
@@ -205,7 +221,7 @@ int main(int argc, char* argv[])
       if (control_port >= 0)
       {
         control_service.emplace(*g_vswitch, controller);
-        auto server = wirelab::ControlServer::create(*control_service, static_cast<uint16_t>(control_port));
+        auto server = wirelab::ControlServer::create(*control_service, static_cast<uint16_t>(control_port), control_address);
         if (!server)
         {
           std::cerr << "Error: Cannot serve the control protocol on port " << control_port << ": "
@@ -213,9 +229,18 @@ int main(int argc, char* argv[])
           return EXIT_FAILURE;
         }
         control_server.emplace(std::move(server.value()));
+        // The service answers get_supervision_state by asking the supervisor,
+        // which is the only thing that knows how much traffic was analysed and
+        // which sender took which port.
+        control_service->set_supervision_source([&supervisor] { return supervisor->supervision_snapshot(); });
         supervisor->attach_control(*control_server);
-        std::cout << "Control channel on 127.0.0.1:" << control_server->port()
+        std::cout << "Control channel on " << control_address << ':' << control_server->port()
                   << "; newline-delimited JSON, one control message per line.\n";
+        if (control_address != "127.0.0.1")
+        {
+          std::cout << "  Warning: the control channel is unauthenticated and is not on loopback; anyone who can\n"
+                    << "           reach " << control_address << " can fault or quarantine a port.\n";
+        }
       }
 
       std::cout << "Supervising " << controller.port_ids().size() << " ports; senders are bound to them in "

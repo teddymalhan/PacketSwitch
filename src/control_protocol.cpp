@@ -10,124 +10,17 @@ namespace wirelab
 {
   namespace
   {
-    class ControlRequestParser
+    // The JSON scanning both directions of the control protocol need. A reply
+    // parser and a request parser would otherwise each carry a copy of the
+    // string decoding, which is the part with the escapes in it.
+    class JsonScanner
     {
      public:
-      explicit ControlRequestParser(std::string_view input) noexcept : input_(input)
+      explicit JsonScanner(std::string_view input) noexcept : input_(input)
       {
       }
 
-      expected<ControlRequest, ControlParseError> parse()
-      {
-        ControlRequest request;
-        bool has_api_version = false;
-        bool has_request_id = false;
-        bool has_command = false;
-        bool has_topology_revision = false;
-        bool has_parameters = false;
-
-        if (!consume('{'))
-        {
-          return unexpected(error_);
-        }
-        skip_whitespace();
-        if (consume('}'))
-        {
-          return unexpected(ControlParseError::MissingRequiredField);
-        }
-
-        while (true)
-        {
-          std::string key;
-          if (!read_string(key) || !consume(':'))
-          {
-            return unexpected(error_);
-          }
-
-          if (key == "api_version" && !has_api_version)
-          {
-            has_api_version = read_uint(request.api_version);
-          }
-          else if (key == "request_id" && !has_request_id)
-          {
-            has_request_id = read_string(request.request_id);
-          }
-          else if (key == "command" && !has_command)
-          {
-            has_command = read_command(request.command);
-          }
-          else if (key == "topology_revision" && !has_topology_revision)
-          {
-            has_topology_revision = read_uint(request.topology_revision);
-          }
-          else if (key == "parameters" && !has_parameters)
-          {
-            has_parameters = read_parameters(request);
-          }
-          else
-          {
-            return unexpected(ControlParseError::InvalidField);
-          }
-
-          if (!has_api_version && key == "api_version")
-          {
-            return unexpected(error_);
-          }
-          if (!has_request_id && key == "request_id")
-          {
-            return unexpected(error_);
-          }
-          if (!has_command && key == "command")
-          {
-            return unexpected(error_);
-          }
-          if (!has_topology_revision && key == "topology_revision")
-          {
-            return unexpected(error_);
-          }
-          if (!has_parameters && key == "parameters")
-          {
-            return unexpected(error_);
-          }
-
-          skip_whitespace();
-          if (consume('}'))
-          {
-            break;
-          }
-          if (!consume(','))
-          {
-            return unexpected(error_);
-          }
-        }
-
-        skip_whitespace();
-        if (position_ != input_.size())
-        {
-          return unexpected(ControlParseError::MalformedJson);
-        }
-        if (!has_api_version || !has_request_id || !has_command || !has_topology_revision)
-        {
-          return unexpected(ControlParseError::MissingRequiredField);
-        }
-        const bool requires_parameters =
-            request.command == ControlCommand::LoadTopology || request.command == ControlCommand::StartBenchmark ||
-            request.command == ControlCommand::SetPortFault || request.command == ControlCommand::ClearPortFault ||
-            request.command == ControlCommand::SetLinkFault || request.command == ControlCommand::ClearLinkFault;
-        if (!has_parameters && requires_parameters)
-        {
-          return unexpected(ControlParseError::MissingRequiredField);
-        }
-        if (has_parameters && !parameters_valid_for(request.command))
-        {
-          return unexpected(
-              parameters_missing_required_for(request.command) ? ControlParseError::MissingRequiredField
-                                                               : ControlParseError::InvalidField);
-        }
-        return request;
-      }
-
-     private:
+     protected:
       void skip_whitespace() noexcept
       {
         while (position_ < input_.size())
@@ -294,7 +187,6 @@ namespace wirelab
           error_ = ControlParseError::InvalidField;
           return false;
         }
-
         Integer value = 0;
         do
         {
@@ -310,6 +202,148 @@ namespace wirelab
         return true;
       }
 
+      bool read_bool(bool& output) noexcept
+      {
+        skip_whitespace();
+        if (input_.substr(position_, 4) == "true")
+        {
+          position_ += 4;
+          output = true;
+          return true;
+        }
+        if (input_.substr(position_, 5) == "false")
+        {
+          position_ += 5;
+          output = false;
+          return true;
+        }
+        error_ = ControlParseError::InvalidField;
+        return false;
+      }
+
+      std::string_view input_;
+      size_t position_ = 0;
+      ControlParseError error_ = ControlParseError::MalformedJson;
+    };
+
+    class ControlRequestParser : public JsonScanner
+    {
+     public:
+      explicit ControlRequestParser(std::string_view input) noexcept : JsonScanner(input)
+      {
+      }
+
+      expected<ControlRequest, ControlParseError> parse()
+      {
+        ControlRequest request;
+        bool has_api_version = false;
+        bool has_request_id = false;
+        bool has_command = false;
+        bool has_topology_revision = false;
+        bool has_parameters = false;
+
+        if (!consume('{'))
+        {
+          return unexpected(error_);
+        }
+        skip_whitespace();
+        if (consume('}'))
+        {
+          return unexpected(ControlParseError::MissingRequiredField);
+        }
+
+        while (true)
+        {
+          std::string key;
+          if (!read_string(key) || !consume(':'))
+          {
+            return unexpected(error_);
+          }
+
+          if (key == "api_version" && !has_api_version)
+          {
+            has_api_version = read_uint(request.api_version);
+          }
+          else if (key == "request_id" && !has_request_id)
+          {
+            has_request_id = read_string(request.request_id);
+          }
+          else if (key == "command" && !has_command)
+          {
+            has_command = read_command(request.command);
+          }
+          else if (key == "topology_revision" && !has_topology_revision)
+          {
+            has_topology_revision = read_uint(request.topology_revision);
+          }
+          else if (key == "parameters" && !has_parameters)
+          {
+            has_parameters = read_parameters(request);
+          }
+          else
+          {
+            return unexpected(ControlParseError::InvalidField);
+          }
+
+          if (!has_api_version && key == "api_version")
+          {
+            return unexpected(error_);
+          }
+          if (!has_request_id && key == "request_id")
+          {
+            return unexpected(error_);
+          }
+          if (!has_command && key == "command")
+          {
+            return unexpected(error_);
+          }
+          if (!has_topology_revision && key == "topology_revision")
+          {
+            return unexpected(error_);
+          }
+          if (!has_parameters && key == "parameters")
+          {
+            return unexpected(error_);
+          }
+
+          skip_whitespace();
+          if (consume('}'))
+          {
+            break;
+          }
+          if (!consume(','))
+          {
+            return unexpected(error_);
+          }
+        }
+
+        skip_whitespace();
+        if (position_ != input_.size())
+        {
+          return unexpected(ControlParseError::MalformedJson);
+        }
+        if (!has_api_version || !has_request_id || !has_command || !has_topology_revision)
+        {
+          return unexpected(ControlParseError::MissingRequiredField);
+        }
+        const bool requires_parameters =
+            request.command == ControlCommand::LoadTopology || request.command == ControlCommand::StartBenchmark ||
+            request.command == ControlCommand::SetPortFault || request.command == ControlCommand::ClearPortFault ||
+            request.command == ControlCommand::SetLinkFault || request.command == ControlCommand::ClearLinkFault;
+        if (!has_parameters && requires_parameters)
+        {
+          return unexpected(ControlParseError::MissingRequiredField);
+        }
+        if (has_parameters && !parameters_valid_for(request.command))
+        {
+          return unexpected(
+              parameters_missing_required_for(request.command) ? ControlParseError::MissingRequiredField
+                                                               : ControlParseError::InvalidField);
+        }
+        return request;
+      }
+
+     private:
       bool read_command(ControlCommand& command)
       {
         std::string value;
@@ -323,6 +357,8 @@ namespace wirelab
           command = ControlCommand::GetSwitchState;
         else if (value == "get_active_faults")
           command = ControlCommand::GetActiveFaults;
+        else if (value == "get_supervision_state")
+          command = ControlCommand::GetSupervisionState;
         else if (value == "start_benchmark")
           command = ControlCommand::StartBenchmark;
         else if (value == "stop_run")
@@ -360,25 +396,6 @@ namespace wirelab
           return false;
         }
         return true;
-      }
-
-      bool read_bool(bool& output) noexcept
-      {
-        skip_whitespace();
-        if (input_.substr(position_, 4) == "true")
-        {
-          position_ += 4;
-          output = true;
-          return true;
-        }
-        if (input_.substr(position_, 5) == "false")
-        {
-          position_ += 5;
-          output = false;
-          return true;
-        }
-        error_ = ControlParseError::InvalidField;
-        return false;
       }
 
       bool read_milliseconds(std::chrono::nanoseconds& output) noexcept
@@ -546,6 +563,7 @@ namespace wirelab
                    !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
           case ControlCommand::GetActiveFaults:
+          case ControlCommand::GetSupervisionState:
           case ControlCommand::StopRun: return false;
         }
         return false;
@@ -576,6 +594,7 @@ namespace wirelab
             return !parameters_.topology_path && !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
           case ControlCommand::GetActiveFaults:
+          case ControlCommand::GetSupervisionState:
           case ControlCommand::StopRun: return false;
         }
         return false;
@@ -602,10 +621,103 @@ namespace wirelab
       };
 
       ParameterFields parameters_;
+    };
 
-      std::string_view input_;
-      size_t position_ = 0;
-      ControlParseError error_ = ControlParseError::MalformedJson;
+    // Replies are parsed for the client's benefit: a client that reconnected
+    // knows nothing about the switch it came back to, and every reply carries
+    // the topology revision it needs before it may command anything. Events are
+    // not replies and do not parse here, which is how the two are told apart.
+    class ControlReplyParser : public JsonScanner
+    {
+     public:
+      explicit ControlReplyParser(std::string_view input) noexcept : JsonScanner(input)
+      {
+      }
+
+      expected<ControlReply, ControlParseError> parse()
+      {
+        ControlReply reply;
+        bool has_api_version = false;
+        bool has_request_id = false;
+        bool has_accepted = false;
+        bool has_topology_revision = false;
+        bool has_operation_id = false;
+        bool has_error = false;
+
+        if (!consume('{'))
+        {
+          return unexpected(error_);
+        }
+        skip_whitespace();
+        if (consume('}'))
+        {
+          return unexpected(ControlParseError::MissingRequiredField);
+        }
+
+        while (true)
+        {
+          std::string key;
+          if (!read_string(key) || !consume(':'))
+          {
+            return unexpected(error_);
+          }
+
+          bool read = false;
+          if (key == "api_version" && !has_api_version)
+          {
+            read = has_api_version = read_uint(reply.api_version);
+          }
+          else if (key == "request_id" && !has_request_id)
+          {
+            read = has_request_id = read_string(reply.request_id);
+          }
+          else if (key == "accepted" && !has_accepted)
+          {
+            read = has_accepted = read_bool(reply.accepted);
+          }
+          else if (key == "topology_revision" && !has_topology_revision)
+          {
+            read = has_topology_revision = read_uint(reply.topology_revision);
+          }
+          else if (key == "operation_id" && !has_operation_id)
+          {
+            read = has_operation_id = read_string(reply.operation_id);
+          }
+          else if (key == "error" && !has_error)
+          {
+            read = has_error = read_string(reply.error);
+          }
+          else
+          {
+            return unexpected(ControlParseError::InvalidField);
+          }
+          if (!read)
+          {
+            return unexpected(error_);
+          }
+
+          skip_whitespace();
+          if (consume('}'))
+          {
+            break;
+          }
+          if (!consume(','))
+          {
+            return unexpected(error_);
+          }
+        }
+
+        skip_whitespace();
+        if (position_ != input_.size())
+        {
+          return unexpected(ControlParseError::MalformedJson);
+        }
+        if (!has_api_version || !has_request_id || !has_accepted || !has_topology_revision)
+        {
+          return unexpected(ControlParseError::MissingRequiredField);
+        }
+        return reply;
+      }
     };
 
     std::string json_string(std::string_view value)
@@ -684,6 +796,7 @@ namespace wirelab
       case ControlCommand::LoadTopology: return "load_topology";
       case ControlCommand::GetSwitchState: return "get_switch_state";
       case ControlCommand::GetActiveFaults: return "get_active_faults";
+      case ControlCommand::GetSupervisionState: return "get_supervision_state";
       case ControlCommand::StartBenchmark: return "start_benchmark";
       case ControlCommand::StopRun: return "stop_run";
       case ControlCommand::SetPortFault: return "set_port_fault";
@@ -736,6 +849,11 @@ namespace wirelab
   expected<ControlRequest, ControlParseError> control_request_from_json(std::string_view json)
   {
     return ControlRequestParser(json).parse();
+  }
+
+  expected<ControlReply, ControlParseError> control_reply_from_json(std::string_view json)
+  {
+    return ControlReplyParser(json).parse();
   }
 
   std::string to_json(const ControlRequest& request)
@@ -796,7 +914,8 @@ namespace wirelab
   {
     std::ostringstream result;
     result << "{\"api_version\":" << reply.api_version << ",\"request_id\":" << json_string(reply.request_id)
-           << ",\"accepted\":" << (reply.accepted ? "true" : "false");
+           << ",\"accepted\":" << (reply.accepted ? "true" : "false")
+           << ",\"topology_revision\":" << reply.topology_revision;
     if (reply.accepted)
     {
       result << ",\"operation_id\":" << json_string(reply.operation_id);

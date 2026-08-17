@@ -56,6 +56,29 @@ namespace
     EXPECT_EQ(parsed->command, wirelab::ControlCommand::GetActiveFaults);
   }
 
+  TEST(ControlProtocolTest, ParsesAndSerializesSupervisionStateCommand)
+  {
+    wirelab::ControlRequest request;
+    request.request_id = "supervision-42";
+    request.command = wirelab::ControlCommand::GetSupervisionState;
+    request.topology_revision = 5;
+
+    const auto json = wirelab::to_json(request);
+    EXPECT_EQ(json,
+              "{\"api_version\":1,\"request_id\":\"supervision-42\",\"command\":\"get_supervision_state\",\"topology_revision\":5}");
+
+    const auto parsed = wirelab::control_request_from_json(json);
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->command, wirelab::ControlCommand::GetSupervisionState);
+
+    // The query takes no parameters, and a client that sends some is told so
+    // rather than having them ignored.
+    const auto parameterised = wirelab::control_request_from_json(
+        R"({"api_version":1,"request_id":"supervision-43","command":"get_supervision_state","topology_revision":5,"parameters":{"port_id":"client-a"}})");
+    ASSERT_FALSE(parameterised.has_value());
+    EXPECT_EQ(parameterised.error(), wirelab::ControlParseError::InvalidField);
+  }
+
   TEST(ControlProtocolTest, RejectsUnsupportedVersionAndInvalidBenchmark)
   {
     wirelab::ControlRequest request;
@@ -76,8 +99,9 @@ namespace
     wirelab::ControlReply reply;
     reply.request_id = "request\"id";
     reply.error = "bad\nconfiguration";
+    reply.topology_revision = 6;
     EXPECT_EQ(wirelab::to_json(reply),
-              "{\"api_version\":1,\"request_id\":\"request\\\"id\",\"accepted\":false,\"error\":\"bad\\nconfiguration\"}");
+              "{\"api_version\":1,\"request_id\":\"request\\\"id\",\"accepted\":false,\"topology_revision\":6,\"error\":\"bad\\nconfiguration\"}");
 
     wirelab::SwitchMetricsEvent event;
     event.event_sequence = 9;
@@ -210,5 +234,42 @@ namespace
         R"({"api_version":1,"request_id":"fault-2","command":"set_port_fault","topology_revision":2,"parameters":{"port_id":"client-a"}})");
     ASSERT_FALSE(incomplete.has_value());
     EXPECT_EQ(incomplete.error(), wirelab::ControlParseError::MissingRequiredField);
+  }
+
+  TEST(ControlProtocolTest, ParsesRepliesAndRefusesEvents)
+  {
+    wirelab::ControlReply reply;
+    reply.request_id = "state-1";
+    reply.accepted = true;
+    reply.topology_revision = 4;
+    reply.operation_id = "switch-state-9";
+
+    const auto parsed = wirelab::control_reply_from_json(wirelab::to_json(reply));
+    ASSERT_TRUE(parsed.has_value());
+    EXPECT_EQ(parsed->request_id, "state-1");
+    EXPECT_TRUE(parsed->accepted);
+    EXPECT_EQ(parsed->topology_revision, 4U);
+    EXPECT_EQ(parsed->operation_id, "switch-state-9");
+
+    // A rejection still carries the revision, which is the whole point: it is
+    // how a reconnected client learns what the switch moved on to.
+    wirelab::ControlReply rejection;
+    rejection.request_id = "state-2";
+    rejection.topology_revision = 11;
+    rejection.error = "stale topology revision";
+
+    const auto parsed_rejection = wirelab::control_reply_from_json(wirelab::to_json(rejection));
+    ASSERT_TRUE(parsed_rejection.has_value());
+    EXPECT_FALSE(parsed_rejection->accepted);
+    EXPECT_EQ(parsed_rejection->topology_revision, 11U);
+    EXPECT_EQ(parsed_rejection->error, "stale topology revision");
+
+    // Events share the channel with replies, and telling them apart is what
+    // lets a client resynchronise without losing what the switch reported
+    // while it did.
+    wirelab::SupervisionStateEvent event;
+    event.event_sequence = 3;
+    event.topology_revision = 4;
+    EXPECT_FALSE(wirelab::control_reply_from_json(wirelab::to_json(event)).has_value());
   }
 }
