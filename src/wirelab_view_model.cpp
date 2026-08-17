@@ -182,7 +182,7 @@ namespace wirelab
 
   WireLabViewModel::WireLabViewModel(QObject* parent)
       : QObject(parent),
-        anomalyDetector_(gui_anomaly_config()),
+        analysisPipeline_(gui_anomaly_config(), topologyController_),
         simulationStart_(std::chrono::steady_clock::now())
   {
     rebuildPolicyModel();
@@ -301,7 +301,7 @@ namespace wirelab
       setStatus(QStringLiteral("Unknown anomaly type or policy action."));
       return;
     }
-    const auto result = policyEngine_.add_rule(std::move(rule));
+    const auto result = analysisPipeline_.policies().add_rule(std::move(rule));
     if (!result)
     {
       setStatus(QStringLiteral("Policy rejected: %1").arg(to_string(result.error())));
@@ -313,7 +313,7 @@ namespace wirelab
 
   void WireLabViewModel::removePolicy(const QString& name)
   {
-    if (!policyEngine_.remove_rule(name.toStdString()))
+    if (!analysisPipeline_.policies().remove_rule(name.toStdString()))
     {
       setStatus(QStringLiteral("No policy named %1.").arg(name));
       return;
@@ -324,7 +324,7 @@ namespace wirelab
 
   void WireLabViewModel::setPolicyEnabled(const QString& name, bool enabled)
   {
-    if (!policyEngine_.set_enabled(name.toStdString(), enabled))
+    if (!analysisPipeline_.policies().set_enabled(name.toStdString(), enabled))
     {
       setStatus(QStringLiteral("No policy named %1.").arg(name));
       return;
@@ -335,7 +335,7 @@ namespace wirelab
 
   void WireLabViewModel::releaseEnforcement(const QString& portId)
   {
-    if (!policyEnforcer_.release(portId.toStdString(), topologyController_))
+    if (!analysisPipeline_.release(portId.toStdString()))
     {
       setStatus(QStringLiteral("Port %1 is not under enforcement.").arg(portId));
       return;
@@ -349,7 +349,7 @@ namespace wirelab
   void WireLabViewModel::rebuildPolicyModel()
   {
     policyRules_.clear();
-    for (const auto& rule : policyEngine_.rules())
+    for (const auto& rule : analysisPipeline_.policies().rules())
     {
       policyRules_.append(
           QVariantMap{ { "name", QString::fromStdString(rule.name) },
@@ -357,10 +357,10 @@ namespace wirelab
                        { "action", policy_action_name(rule.action) },
                        { "enabled", rule.enabled },
                        { "rateLimit", static_cast<qulonglong>(rule.rate_limit_packets_per_second) },
-                       { "hits", static_cast<qulonglong>(policyEngine_.hit_count(rule.name)) } });
+                       { "hits", static_cast<qulonglong>(analysisPipeline_.policies().hit_count(rule.name)) } });
     }
     enforcedPorts_.clear();
-    for (const auto& action : policyEnforcer_.active())
+    for (const auto& action : analysisPipeline_.enforcer().active())
     {
       enforcedPorts_.append(
           QVariantMap{ { "port", QString::fromStdString(action.port_id) },
@@ -613,12 +613,10 @@ namespace wirelab
   {
     trafficGenerator_.reset();
     trafficAnalyzer_.reset();
-    anomalyDetector_.reset();
-    policyEngine_.reset();
     // The controller's faults are rebuilt by commitTopology, so leases are
     // dropped rather than restored onto a topology that may no longer have the
     // port they referenced.
-    policyEnforcer_.forget();
+    analysisPipeline_.reset();
     simulationStart_ = std::chrono::steady_clock::now();
     tickSequence_ = 0;
     totalPackets_ = 0;
@@ -849,7 +847,8 @@ namespace wirelab
     // One monotonic source: the detector's window clock and the enforcer's lease
     // clock are the same steady_clock, measured from the start of the run.
     const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(now - simulationStart_).count();
-    const auto anomalies = anomalyDetector_.evaluate(analysis, static_cast<uint64_t>(std::max<int64_t>(elapsed, 0)));
+    const auto outcome = analysisPipeline_.evaluate(analysis, static_cast<uint64_t>(std::max<int64_t>(elapsed, 0)), now);
+    const auto& anomalies = outcome.anomalies;
     anomalyRows_.clear();
     for (const auto& anomaly : anomalies)
       anomalyRows_.append(
@@ -860,9 +859,8 @@ namespace wirelab
                        { "observed", static_cast<qulonglong>(anomaly.observed_packets) },
                        { "threshold", static_cast<qulonglong>(anomaly.threshold) } });
 
-    const auto decisions = policyEngine_.evaluate(anomalies);
-    const auto released = policyEnforcer_.release_expired(topologyController_, now);
-    const auto enforced = policyEnforcer_.apply(decisions, topologyController_, now);
+    const auto& released = outcome.released;
+    const auto& enforced = outcome.enforced;
     for (const auto& action : released)
       policyActions_.append(
           QVariantMap{ { "sequence", static_cast<qulonglong>(tickSequence_) },
@@ -896,11 +894,13 @@ namespace wirelab
         continue;
       const auto& counters = portCounters_[node.id];
       portStates_.append(
-          QVariantMap{ { "id", QString::fromStdString(node.id) },
-                       { "state", policyEnforcer_.is_enforced(node.id) ? QStringLiteral("ENFORCED") : QStringLiteral("UP") },
-                       { "received", static_cast<qulonglong>(counters.received) },
-                       { "forwarded", static_cast<qulonglong>(counters.forwarded) },
-                       { "dropped", static_cast<qulonglong>(counters.dropped) } });
+          QVariantMap{
+              { "id", QString::fromStdString(node.id) },
+              { "state",
+                analysisPipeline_.enforcer().is_enforced(node.id) ? QStringLiteral("ENFORCED") : QStringLiteral("UP") },
+              { "received", static_cast<qulonglong>(counters.received) },
+              { "forwarded", static_cast<qulonglong>(counters.forwarded) },
+              { "dropped", static_cast<qulonglong>(counters.dropped) } });
     }
 
     trafficResult_ = QStringLiteral("%1 packets generated · %2 delivered bytes · %3 dropped · %4 Mbps · %5 ms average")

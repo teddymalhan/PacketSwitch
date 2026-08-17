@@ -150,6 +150,14 @@ add_test(
 )
 set_tests_properties(wirelab_pcap_rejects_a_non_capture PROPERTIES WILL_FAIL TRUE)
 
+# Supervision must refuse to start on a topology it cannot load, rather than
+# silently forwarding unsupervised.
+add_test(
+  NAME vswitch_rejects_an_unreadable_topology
+  COMMAND $<TARGET_FILE:vswitch> 0 --topology ${CMAKE_CURRENT_SOURCE_DIR}/data/sample.pcap
+)
+set_tests_properties(vswitch_rejects_an_unreadable_topology PROPERTIES WILL_FAIL TRUE)
+
 if(NOT TARGET wirelab_cuda)
   add_test(
     NAME wirelab_bench_cuda_requires_enabled_backend

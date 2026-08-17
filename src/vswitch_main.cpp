@@ -1,30 +1,19 @@
 
 
-
-
-
-
-
-
-
-
-
-
-
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
-
-#include "wirelab/vswitch.hpp"
+#include <string>
 #include <string_view>
 
-
+#include "wirelab/analysis_pipeline.hpp"
+#include "wirelab/switch_supervisor.hpp"
+#include "wirelab/topology.hpp"
+#include "wirelab/topology_controller.hpp"
+#include "wirelab/vswitch.hpp"
 
 std::unique_ptr<wirelab::VSwitch> g_vswitch;
-
-
-
 
 void signal_handler(int signal)
 {
@@ -37,64 +26,91 @@ void signal_handler(int signal)
   std::exit(0);
 }
 
-
-
-
 void setup_signal_handlers()
 {
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 }
 
+// Thresholds a lab switch trips on a genuine flood rather than on normal chatter.
+wirelab::AnomalyDetectorConfig live_anomaly_config()
+{
+  wirelab::AnomalyDetectorConfig config;
+  config.window_duration_ns = 1'000'000'000;
+  config.broadcast_packets_threshold = 100;
+  config.unknown_unicast_packets_threshold = 100;
+  config.udp_packets_threshold = 200;
+  config.port_scan_destinations_threshold = 20;
+  config.hot_talker_packets_threshold = 200;
+  config.malformed_frames_threshold = 10;
+  return config;
+}
 
-
+void install_default_policies(wirelab::AnalysisPipeline& pipeline)
+{
+  auto& policies = pipeline.policies();
+  (void)policies.add_rule(
+      { "quarantine-broadcast-storm", wirelab::AnomalyType::BroadcastStorm, wirelab::PolicyAction::Quarantine });
+  (void)policies.add_rule(
+      { "quarantine-unknown-unicast-flood", wirelab::AnomalyType::UnknownUnicastFlood, wirelab::PolicyAction::Quarantine });
+  (void)policies.add_rule({ "drop-udp-flood", wirelab::AnomalyType::UdpFlood, wirelab::PolicyAction::Drop });
+  (void)policies.add_rule({ "mirror-port-scan", wirelab::AnomalyType::PortScan, wirelab::PolicyAction::Mirror });
+}
 
 void print_usage(const char* program_name)
 {
-  std::cerr << "Usage: " << program_name << " <port> [--verbose]\n";
+  std::cerr << "Usage: " << program_name << " <port> [--verbose] [--topology <file>]\n";
   std::cerr << "\n";
   std::cerr << "Arguments:\n";
   std::cerr << "  port     UDP port to listen on (0 for ephemeral)\n";
   std::cerr << "  --verbose  Log every forwarding decision; disabled by default for throughput measurements\n";
+  std::cerr << "  --topology <file>  Supervise forwarding with a WireLab topology: frames are analysed,\n";
+  std::cerr << "                     anomalies matched against policies, and offending ports contained\n";
   std::cerr << "\n";
   std::cerr << "Examples:\n";
   std::cerr << "  " << program_name << " 8080\n";
-  std::cerr << "  " << program_name << " 0\n";
+  std::cerr << "  " << program_name << " 8080 --topology topologies/lab.yaml\n";
   std::cerr << "\n";
   std::cerr << "The VSwitch will:\n";
   std::cerr << "  - Learn MAC addresses from incoming frames\n";
   std::cerr << "  - Forward unicast frames to known destinations\n";
   std::cerr << "  - Broadcast frames to all known endpoints (except source)\n";
   std::cerr << "  - Discard unknown unicast frames\n";
+  std::cerr << "  - Contain a supervised port whose traffic trips a policy, until the lease lapses\n";
 }
 
 int main(int argc, char* argv[])
 {
   std::cout << "=== VSwitch - Virtual Switch for Layer 2 Networking ===\n\n";
 
-  
-  if (argc < 2 || argc > 3)
+  if (argc < 2)
   {
     print_usage(argv[0]);
     return EXIT_FAILURE;
   }
 
   wirelab::VSwitchLogLevel log_level = wirelab::VSwitchLogLevel::Lifecycle;
-  if (argc == 3)
+  std::string topology_path;
+  for (int index = 2; index < argc; ++index)
   {
-    const std::string_view option(argv[2]);
-    if (option != "--verbose")
+    const std::string_view option(argv[index]);
+    if (option == "--verbose")
     {
-      std::cerr << "Error: Unknown option '" << option << "'\n";
-      print_usage(argv[0]);
-      return EXIT_FAILURE;
+      log_level = wirelab::VSwitchLogLevel::Frame;
+      continue;
     }
-    log_level = wirelab::VSwitchLogLevel::Frame;
+    if (option == "--topology" && index + 1 < argc)
+    {
+      topology_path = argv[++index];
+      continue;
+    }
+    std::cerr << "Error: Unknown option '" << option << "'\n";
+    print_usage(argv[0]);
+    return EXIT_FAILURE;
   }
 
   const char* port_str = argv[1];
 
-  
   char* endptr;
   long port_long = std::strtol(port_str, &endptr, 10);
 
@@ -109,14 +125,13 @@ int main(int argc, char* argv[])
 
   std::cout << "Configuration:\n";
   std::cout << "  Port: " << port << (port == 0 ? " (ephemeral)" : "") << "\n";
+  std::cout << "  Supervision: " << (topology_path.empty() ? "off" : topology_path) << "\n";
   std::cout << "\n";
 
   try
   {
-    
     setup_signal_handlers();
 
-    
     std::cout << "Creating VSwitch...\n";
     auto vswitch_result = wirelab::VSwitch::create(port, log_level);
 
@@ -133,14 +148,44 @@ int main(int argc, char* argv[])
       return EXIT_FAILURE;
     }
 
-    
     g_vswitch = std::make_unique<wirelab::VSwitch>(std::move(*vswitch_result));
 
     std::cout << "\nVSwitch created successfully!\n";
     std::cout << "  Port: " << g_vswitch->port() << "\n";
     std::cout << "\n";
 
-    
+    wirelab::TopologyController controller;
+    wirelab::AnalysisPipeline pipeline(live_anomaly_config());
+    std::unique_ptr<wirelab::SwitchSupervisor> supervisor;
+    if (!topology_path.empty())
+    {
+      auto configuration = wirelab::topology_configuration_from_yaml_file(topology_path);
+      if (!configuration)
+      {
+        std::cerr << "Error: Cannot read topology " << topology_path << ": " << wirelab::to_string(configuration.error())
+                  << "\n";
+        return EXIT_FAILURE;
+      }
+      auto topology = wirelab::Topology::create(std::move(configuration.value()));
+      if (!topology)
+      {
+        std::cerr << "Error: Invalid topology " << topology_path << ": " << wirelab::to_string(topology.error()) << "\n";
+        return EXIT_FAILURE;
+      }
+      controller.load(std::move(topology.value()));
+      install_default_policies(pipeline);
+      supervisor = std::make_unique<wirelab::SwitchSupervisor>(pipeline, controller);
+      g_vswitch->set_frame_gate(supervisor.get());
+
+      std::cout << "Supervising " << controller.port_ids().size() << " ports; senders are bound to them in "
+                << "first-seen order.\n";
+      for (const auto& rule : pipeline.policies().rules())
+      {
+        std::cout << "  policy " << rule.name << " -> " << wirelab::to_string(rule.action) << "\n";
+      }
+      std::cout << "\n";
+    }
+
     std::cout << "Starting frame processing...\n";
     auto start_result = g_vswitch->start();
 

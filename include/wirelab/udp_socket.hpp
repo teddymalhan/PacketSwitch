@@ -1,6 +1,7 @@
 #ifndef PROJECT_UDP_SOCKET_HPP_
 #define PROJECT_UDP_SOCKET_HPP_
 
+#include <chrono>
 #include <cstdint>
 #include <iosfwd>
 #include <string>
@@ -30,7 +31,7 @@ namespace wirelab
     uint16_t port_;
 
    public:
-     Endpoint() noexcept : address_(), port_(0)
+    Endpoint() noexcept : address_(), port_(0)
     {
     }
     Endpoint(std::string address, uint16_t port) noexcept : address_(std::move(address)), port_(port)
@@ -68,7 +69,7 @@ namespace wirelab
     Endpoint local_endpoint_;
 
    public:
-      UdpSocket() = default;
+    UdpSocket() = default;
     [[nodiscard]] static expected<UdpSocket, UdpError> create();
     UdpSocket(UdpSocket&& other) noexcept = default;
     UdpSocket& operator=(UdpSocket&& other) noexcept = default;
@@ -80,13 +81,17 @@ namespace wirelab
     [[nodiscard]] expected<size_t, UdpError> send_to(const uint8_t* data, size_t size, const Endpoint& endpoint);
     [[nodiscard]] expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError> receive_from();
     [[nodiscard]] expected<std::pair<std::vector<uint8_t>, Endpoint>, UdpError> receive_from(size_t max_size);
+    // Blocks until a datagram is queued or the timeout lapses; false means the
+    // timeout won. Lets a single-threaded receive loop keep its own deadlines
+    // instead of parking forever inside recvfrom.
+    [[nodiscard]] expected<bool, UdpError> wait_readable(std::chrono::milliseconds timeout) const;
 
     [[nodiscard]] bool is_valid() const noexcept
     {
       return socket_.is_valid();
     }
 
-      [[nodiscard]] const Endpoint& local_endpoint() const noexcept
+    [[nodiscard]] const Endpoint& local_endpoint() const noexcept
     {
       return local_endpoint_;
     }
@@ -110,6 +115,6 @@ namespace wirelab
     {
     }
   };
-}  
+}  // namespace wirelab
 
-#endif  
+#endif

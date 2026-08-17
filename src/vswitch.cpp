@@ -1,5 +1,6 @@
 #include "wirelab/vswitch.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 
@@ -51,7 +52,9 @@ namespace wirelab
         port_(other.port_),
         metrics_(std::move(other.metrics_)),
         running_(other.running_.load()),
-        log_level_(other.log_level_.load())
+        log_level_(other.log_level_.load()),
+        gate_(other.gate_),
+        pending_(std::move(other.pending_))
   {
   }
 
@@ -66,6 +69,8 @@ namespace wirelab
       metrics_ = std::move(other.metrics_);
       running_.store(other.running_.load());
       log_level_.store(other.log_level_.load());
+      gate_ = other.gate_;
+      pending_ = std::move(other.pending_);
     }
     return *this;
   }
@@ -92,17 +97,35 @@ namespace wirelab
 
     while (running_.load())
     {
-      auto recv_result = socket_.receive_from();
+      const auto now = std::chrono::steady_clock::now();
+      drain_due(now);
 
-      if (!recv_result)
+      auto readable = socket_.wait_readable(wait_budget(now));
+      if (!readable)
       {
-        continue;
+        // Either stop() closed the socket or the wait itself failed; neither is
+        // recoverable inside the loop, and spinning on it would burn a core.
+        stop();
+        break;
       }
 
-      auto& [frame_data, sender_endpoint] = *recv_result;
+      if (*readable)
+      {
+        auto recv_result = socket_.receive_from();
+        if (recv_result)
+        {
+          auto& [frame_data, sender_endpoint] = *recv_result;
+          process_frame(frame_data, sender_endpoint);
+        }
+      }
 
-      process_frame(frame_data, sender_endpoint);
+      if (gate_ != nullptr)
+      {
+        gate_->tick(std::chrono::steady_clock::now());
+      }
     }
+
+    pending_.clear();
 
     return expected<void, VSwitchError>();
   }
@@ -145,6 +168,27 @@ namespace wirelab
                 << " src=" << frame.src_mac() << " size=" << frame_data.size() << "\n";
     }
 
+    const auto now = std::chrono::steady_clock::now();
+    FaultDecision decision;
+    decision.delivery_count = 1;
+    decision.delivery_times[0] = now;
+    if (gate_ != nullptr)
+    {
+      decision = gate_->inspect(frame_data, sender_endpoint, now);
+    }
+
+    // Gated before learning: a quarantined port must not teach the MAC table an
+    // entry that would then attract traffic it cannot forward.
+    if (decision.dropped || decision.delivery_count == 0)
+    {
+      metrics_.record_drop();
+      if (log_level() == VSwitchLogLevel::Frame)
+      {
+        log_frame(frame, sender_endpoint, "Blocked", "ingress fault");
+      }
+      return;
+    }
+
     const bool is_new = mac_table_.insert(frame.src_mac(), sender_endpoint);
     if (is_new)
     {
@@ -160,18 +204,10 @@ namespace wirelab
 
     if (dst_endpoint.has_value())
     {
-      const auto send_result = socket_.send_to(frame_data, *dst_endpoint);
-      if (send_result)
+      schedule(frame_data, *dst_endpoint, decision, now);
+      if (log_level() == VSwitchLogLevel::Frame)
       {
-        metrics_.record_forwarded(frame_data.size());
-        if (log_level() == VSwitchLogLevel::Frame)
-        {
-          log_frame(frame, sender_endpoint, "Forwarded to", dst_mac.to_string());
-        }
-      }
-      else
-      {
-        metrics_.record_drop();
+        log_frame(frame, sender_endpoint, "Forwarded to", dst_mac.to_string());
       }
       return;
     }
@@ -180,24 +216,14 @@ namespace wirelab
     {
       metrics_.record_broadcast();
       const auto all_endpoints = mac_table_.get_all_endpoints_except(frame.src_mac());
-      int sent_count = 0;
       for (const auto& endpoint : all_endpoints)
       {
-        const auto send_result = socket_.send_to(frame_data, endpoint);
-        if (send_result)
-        {
-          ++sent_count;
-          metrics_.record_forwarded(frame_data.size());
-        }
-        else
-        {
-          metrics_.record_drop();
-        }
+        schedule(frame_data, endpoint, decision, now);
       }
 
-      if (sent_count > 0 && log_level() == VSwitchLogLevel::Frame)
+      if (!all_endpoints.empty() && log_level() == VSwitchLogLevel::Frame)
       {
-        log_frame(frame, sender_endpoint, "Broadcasted to", std::to_string(sent_count) + " endpoints");
+        log_frame(frame, sender_endpoint, "Broadcasted to", std::to_string(all_endpoints.size()) + " endpoints");
       }
       return;
     }
@@ -208,6 +234,67 @@ namespace wirelab
     {
       log_frame(frame, sender_endpoint, "Discarded", "unknown MAC address");
     }
+  }
+
+  void VSwitch::deliver(std::vector<uint8_t> frame_data, const Endpoint& destination)
+  {
+    if (socket_.send_to(frame_data, destination))
+    {
+      metrics_.record_forwarded(frame_data.size());
+    }
+    else
+    {
+      metrics_.record_drop();
+    }
+  }
+
+  void VSwitch::schedule(
+      const std::vector<uint8_t>& frame_data,
+      const Endpoint& destination,
+      const FaultDecision& decision,
+      std::chrono::steady_clock::time_point now)
+  {
+    // delivery_count is 2 when a fault duplicates the frame; each copy carries
+    // its own due time, so latency and jitter apply per copy.
+    const size_t copies = std::min<size_t>(decision.delivery_count, decision.delivery_times.size());
+    for (size_t copy = 0; copy < copies; ++copy)
+    {
+      const auto due = decision.delivery_times[copy];
+      if (due <= now)
+      {
+        deliver(frame_data, destination);
+        continue;
+      }
+      pending_.push_back({ due, frame_data, destination });
+    }
+  }
+
+  void VSwitch::drain_due(std::chrono::steady_clock::time_point now)
+  {
+    if (pending_.empty())
+    {
+      return;
+    }
+    const auto first_late = std::stable_partition(
+        pending_.begin(), pending_.end(), [now](const ScheduledDelivery& delivery) { return delivery.due <= now; });
+    for (auto delivery = pending_.begin(); delivery != first_late; ++delivery)
+    {
+      deliver(std::move(delivery->frame_data), delivery->destination);
+    }
+    pending_.erase(pending_.begin(), first_late);
+  }
+
+  std::chrono::milliseconds VSwitch::wait_budget(std::chrono::steady_clock::time_point now) const noexcept
+  {
+    // With no gate and nothing deferred the wait is still bounded, so stop() is
+    // observed promptly instead of only when the next frame arrives.
+    auto budget = gate_ != nullptr ? gate_->tick_interval() : std::chrono::milliseconds{ 250 };
+    for (const auto& delivery : pending_)
+    {
+      const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(delivery.due - now);
+      budget = std::min(budget, remaining);
+    }
+    return budget < std::chrono::milliseconds::zero() ? std::chrono::milliseconds::zero() : budget;
   }
 
   void VSwitch::log_frame(const EthernetFrame&, const Endpoint&, std::string_view action, std::string_view details) const

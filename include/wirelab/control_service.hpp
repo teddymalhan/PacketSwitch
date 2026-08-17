@@ -7,8 +7,8 @@
 #include <string_view>
 #include <vector>
 
+#include "wirelab/analysis_pipeline.hpp"
 #include "wirelab/control_protocol.hpp"
-#include "wirelab/policy_enforcer.hpp"
 #include "wirelab/topology_controller.hpp"
 #include "wirelab/vswitch.hpp"
 
@@ -39,15 +39,14 @@ namespace wirelab
     ControlService(VSwitch& vswitch, TopologyController& topology_controller) noexcept;
 
     [[nodiscard]] ControlDispatch dispatch(std::string_view json);
-    // Runs detection, policy matching and enforcement for one analysed batch.
-    // Enforcement is skipped when the service was constructed without a
-    // topology controller, because there is then no port to act on.
+    // Runs one analysed batch through the shared pipeline and republishes the
+    // result as revisioned control events. Fault events are only emitted when
+    // the service was constructed with a topology controller, because there is
+    // then a port whose configuration the client can be told about.
     [[nodiscard]] AnalysisEventDispatch evaluate_analysis(
         const AnalysisBatch& batch,
         uint64_t timestamp_ns,
-        AnomalyDetector& detector,
-        PolicyEngine& policy_engine,
-        PolicyEnforcer& enforcer,
+        AnalysisPipeline& pipeline,
         std::chrono::steady_clock::time_point now);
     [[nodiscard]] uint64_t topology_revision() const noexcept;
 

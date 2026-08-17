@@ -13,6 +13,8 @@ set(sources
     src/anomaly_detector.cpp
     src/policy_engine.cpp
     src/policy_enforcer.cpp
+    src/analysis_pipeline.cpp
+    src/switch_supervisor.cpp
     src/switch_metrics.cpp
     src/control_protocol.cpp
     src/control_service.cpp
@@ -40,6 +42,8 @@ set(headers
     include/wirelab/anomaly_detector.hpp
     include/wirelab/policy_engine.hpp
     include/wirelab/policy_enforcer.hpp
+    include/wirelab/analysis_pipeline.hpp
+    include/wirelab/switch_supervisor.hpp
     include/wirelab/switch_metrics.hpp
     include/wirelab/control_protocol.hpp
     include/wirelab/control_service.hpp
@@ -64,6 +68,8 @@ set(test_sources
   src/anomaly_detector_test.cpp
   src/policy_engine_test.cpp
   src/policy_enforcer_test.cpp
+  src/analysis_pipeline_test.cpp
+  src/switch_supervisor_test.cpp
   src/switch_metrics_test.cpp
   src/control_protocol_test.cpp
   src/control_service_test.cpp
