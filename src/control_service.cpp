@@ -189,24 +189,21 @@ namespace wirelab
   AnalysisEventDispatch ControlService::evaluate_analysis(
       const AnalysisBatch& batch,
       uint64_t timestamp_ns,
-      AnomalyDetector& detector,
-      PolicyEngine& policy_engine,
-      PolicyEnforcer& enforcer,
+      AnalysisPipeline& pipeline,
       std::chrono::steady_clock::time_point now)
   {
     AnalysisEventDispatch dispatch;
-    const auto anomalies = detector.evaluate(batch, timestamp_ns);
-    const auto decisions = policy_engine.evaluate(anomalies);
+    auto outcome = pipeline.evaluate(batch, timestamp_ns, now);
     const uint64_t revision = current_topology_revision();
 
-    dispatch.anomaly_events.reserve(anomalies.size());
-    for (const auto& anomaly : anomalies)
+    dispatch.anomaly_events.reserve(outcome.anomalies.size());
+    for (const auto& anomaly : outcome.anomalies)
     {
       dispatch.anomaly_events.push_back({ WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, anomaly });
     }
 
-    dispatch.policy_events.reserve(decisions.size());
-    for (const auto& decision : decisions)
+    dispatch.policy_events.reserve(outcome.decisions.size());
+    for (const auto& decision : outcome.decisions)
     {
       dispatch.policy_events.push_back({ WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, decision });
     }
@@ -217,8 +214,8 @@ namespace wirelab
     }
 
     auto& controller = topology_controller_->get();
-    auto released = enforcer.release_expired(controller, now);
-    auto applied = enforcer.apply(decisions, controller, now);
+    auto& released = outcome.released;
+    auto& applied = outcome.enforced;
 
     const auto publish = [this, &dispatch, &controller, revision](const EnforcementAction& action, bool active)
     {

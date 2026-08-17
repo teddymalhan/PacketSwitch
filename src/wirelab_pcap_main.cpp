@@ -1,5 +1,6 @@
 // Replays a capture through WireLab analysis and writes an annotated pcapng.
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -8,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "wirelab/analysis_pipeline.hpp"
 #include "wirelab/anomaly_detector.hpp"
 #include "wirelab/packet_analyzer.hpp"
 #include "wirelab/pcap.hpp"
@@ -227,12 +229,13 @@ int main(int argc, char** argv)
   detector_config.hot_talker_packets_threshold = options.hot_talker_threshold;
   detector_config.malformed_frames_threshold = options.malformed_threshold;
   detector_config.mac_flap_transitions_threshold = options.mac_flap_threshold;
-  wirelab::AnomalyDetector detector(detector_config);
+  // No topology controller is attached: a capture has no live port to enforce
+  // on, so the pipeline detects and decides but never applies a fault.
+  wirelab::AnalysisPipeline pipeline(detector_config);
 
   // Default rules exist so a replay demonstrates the whole pipeline without
-  // requiring a policy file; every match is reported, never enforced, because a
-  // capture has no live port to act on.
-  wirelab::PolicyEngine policies;
+  // requiring a policy file.
+  auto& policies = pipeline.policies();
   (void)policies.add_rule(
       { "quarantine-broadcast-storm", wirelab::AnomalyType::BroadcastStorm, wirelab::PolicyAction::Quarantine });
   (void)policies.add_rule({ "drop-udp-flood", wirelab::AnomalyType::UdpFlood, wirelab::PolicyAction::Drop });
@@ -259,7 +262,9 @@ int main(int argc, char** argv)
   std::map<std::string, uint64_t> anomaly_counts;
   std::map<std::string, uint64_t> rule_hits;
   wirelab::AnalysisBatch totals;
-  uint64_t last_timestamp_ns = 0;
+  // Enforcement leases are never taken here, so one wall reading serves the
+  // whole replay; detection windows advance on capture timestamps instead.
+  const auto now = std::chrono::steady_clock::now();
 
   for (size_t start = 0; start < packets.size(); start += options.batch_size)
   {
@@ -279,11 +284,9 @@ int main(int argc, char** argv)
     totals.unknown_unicast_packets += analysis.unknown_unicast_packets;
     totals.known_unicast_packets += analysis.known_unicast_packets;
 
-    // Captures can carry out-of-order timestamps; the detector requires a
-    // monotonic clock, so the batch clock only ever moves forward.
-    last_timestamp_ns = std::max(last_timestamp_ns, packets[start + count - 1].timestamp_ns);
-    const auto anomalies = detector.evaluate(analysis, last_timestamp_ns);
-    const auto decisions = policies.evaluate(anomalies);
+    const auto outcome = pipeline.evaluate(analysis, packets[start + count - 1].timestamp_ns, now);
+    const auto& anomalies = outcome.anomalies;
+    const auto& decisions = outcome.decisions;
     total_anomalies += anomalies.size();
     total_decisions += decisions.size();
     for (const auto& anomaly : anomalies)

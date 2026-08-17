@@ -196,14 +196,41 @@ VSwitch logs show MAC learning events and per-frame forwarding decisions. Both V
 ### CLI reference
 
 ```
-vswitch <port>
-  port   UDP port to listen on (0 = ephemeral)
+vswitch <port> [--verbose] [--topology <file>]
+  port               UDP port to listen on (0 = ephemeral)
+  --verbose          Log every forwarding decision
+  --topology <file>  Analyse and police forwarded traffic against this topology
 
 vport <vswitch_ip> <vswitch_port> [tap_name]
   vswitch_ip    IP address of the VSwitch host
   vswitch_port  UDP port VSwitch is listening on
   tap_name      Optional TAP device name (default: assigned by OS)
 ```
+
+### Supervised switching
+
+Started with `--topology`, the switch runs every forwarded frame through the
+same `AnalysisPipeline` the GUI and `wirelab_pcap` use. Senders are bound to the
+topology's host ports in first-seen order; each frame is recorded for batched
+analysis and checked against its port's current fault *before* it is learned or
+forwarded.
+
+```bash
+./build/vswitch 8080 --verbose --topology scenarios/security-lab.yaml
+```
+
+A port whose traffic trips a policy is quarantined for real: the enforcer
+installs an `isolated` fault, and the switch stops learning from and forwarding
+that port's frames until the lease lapses, at which point the operator's own
+fault configuration is restored and traffic resumes on its own.
+
+```
+  [Blocked] ingress fault
+```
+
+Faults that delay or duplicate rather than drop are honoured too: deferred
+copies are queued and sent when they come due, which is why the receive loop
+waits with a deadline instead of blocking inside `recvfrom`.
 
 ### Replaying a capture
 
@@ -264,6 +291,8 @@ The WireLab analysis and control plane adds a closed loop on top of that datapla
 | `AnomalyDetector` | Windowed detection of broadcast storms, MAC flaps, unknown-unicast floods, UDP floods, port scans, hot talkers, and malformed frames |
 | `PolicyEngine` | Matches detected anomalies against ordered user rules and produces decisions (`Drop`, `RateLimit`, `Mirror`, `Quarantine`) |
 | `PolicyEnforcer` | Applies each decision as a *leased, reversible* fault on the offending port via `TopologyController`, and releases it when the lease expires |
+| `AnalysisPipeline` | The single detection -> policy -> enforcement seam every consumer runs: the GUI, `wirelab_pcap`, and `ControlService` all evaluate batches through one of these rather than rewiring the three stages themselves |
+| `SwitchSupervisor` | Binds live senders to topology ports, batches their frames into the pipeline, and gates the switch's forwarding on the resulting faults |
 | `ControlService` | Publishes anomalies, policy decisions, and enforcement as revisioned events over the versioned control protocol |
 | `PcapCapture` / `PcapNgWriter` | Reads classic pcap and pcapng captures zero-copy, and writes pcapng carrying WireLab's verdict as a per-packet comment |
 

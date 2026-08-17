@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "wirelab/analysis_pipeline.hpp"
 #include "wirelab/anomaly_detector.hpp"
 #include "wirelab/packet_analyzer.hpp"
 #include "wirelab/policy_enforcer.hpp"
@@ -147,10 +148,8 @@ namespace wirelab
     uint64_t totalDropped_ = 0;
     std::unique_ptr<DeterministicTrafficGenerator> trafficGenerator_;
     std::unique_ptr<PacketAnalyzer> trafficAnalyzer_;
-    AnomalyDetector anomalyDetector_;
+    AnalysisPipeline analysisPipeline_;
     std::unordered_map<std::string, PortCounters> portCounters_;
-    PolicyEngine policyEngine_;
-    PolicyEnforcer policyEnforcer_;
     std::chrono::steady_clock::time_point simulationStart_{};
     std::unordered_map<std::string, std::string> learnedMacPorts_;
 
