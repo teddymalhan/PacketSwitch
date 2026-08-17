@@ -3,7 +3,6 @@
 #include <iostream>
 #include <stdexcept>
 
-
 namespace wirelab
 {
   const char* to_string(VSwitchError error) noexcept
@@ -39,7 +38,10 @@ namespace wirelab
   }
 
   VSwitch::VSwitch(UdpSocket socket, uint16_t port, VSwitchLogLevel log_level) noexcept
-      : socket_(std::move(socket)), port_(port), running_(false), log_level_(log_level)
+      : socket_(std::move(socket)),
+        port_(port),
+        running_(false),
+        log_level_(log_level)
   {
   }
 
@@ -107,7 +109,8 @@ namespace wirelab
 
   void VSwitch::stop() noexcept
   {
-    if (!running_.exchange(false)) return;
+    if (!running_.exchange(false))
+      return;
     if (log_level() == VSwitchLogLevel::Lifecycle)
     {
       std::cout << "[VSwitch] Stopping...\n";
@@ -123,17 +126,18 @@ namespace wirelab
   {
     metrics_.record_received(frame_data.size());
 
-    EthernetFrame frame;
-    try
-    {
-      frame = EthernetFrame::parse(frame_data);
-    }
-    catch (const std::invalid_argument&)
+    auto parsed = EthernetFrame::try_parse(frame_data);
+    if (!parsed)
     {
       metrics_.record_malformed();
       metrics_.record_drop();
+      if (log_level() == VSwitchLogLevel::Frame)
+      {
+        std::cout << "  [Drop] malformed frame from " << sender_endpoint << " size=" << frame_data.size() << "\n";
+      }
       return;
     }
+    const EthernetFrame frame = std::move(parsed).value();
 
     if (log_level() == VSwitchLogLevel::Frame)
     {
@@ -208,7 +212,8 @@ namespace wirelab
 
   void VSwitch::log_frame(const EthernetFrame&, const Endpoint&, std::string_view action, std::string_view details) const
   {
-    if (log_level() != VSwitchLogLevel::Frame) return;
+    if (log_level() != VSwitchLogLevel::Frame)
+      return;
 
     std::cout << "  [" << action << "]";
     if (!details.empty())
@@ -218,4 +223,4 @@ namespace wirelab
     std::cout << "\n";
   }
 
-}  
+}  // namespace wirelab

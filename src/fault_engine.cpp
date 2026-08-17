@@ -12,14 +12,13 @@ namespace wirelab
     constexpr uint64_t NANOSECONDS_PER_SECOND = 1000000000ULL;
     constexpr uint64_t FNV_OFFSET_BASIS = 14695981039346656037ULL;
     constexpr uint64_t FNV_PRIME = 1099511628211ULL;
-  }
+  }  // namespace
 
   FaultEngine::FaultEngine(uint64_t seed) noexcept : seed_(seed)
   {
   }
 
-  expected<void, FaultConfigurationError> FaultEngine::set_fault(
-      std::string target, FaultConfiguration configuration)
+  expected<void, FaultConfigurationError> FaultEngine::set_fault(std::string target, FaultConfiguration configuration)
   {
     const auto valid = validate(target, configuration);
     if (!valid)
@@ -44,6 +43,12 @@ namespace wirelab
     return states_.find(std::string(target)) != states_.end();
   }
 
+  std::optional<FaultConfiguration> FaultEngine::fault_for(std::string_view target) const
+  {
+    const auto iterator = states_.find(std::string(target));
+    return iterator == states_.end() ? std::nullopt : std::optional{ iterator->second.configuration };
+  }
+
   std::vector<ActiveFault> FaultEngine::active_faults() const
   {
     std::vector<ActiveFault> faults;
@@ -52,14 +57,15 @@ namespace wirelab
     {
       faults.push_back({ target, state.configuration });
     }
-    std::sort(faults.begin(), faults.end(), [](const ActiveFault& left, const ActiveFault& right) {
-      return left.target < right.target;
-    });
+    std::sort(
+        faults.begin(),
+        faults.end(),
+        [](const ActiveFault& left, const ActiveFault& right) { return left.target < right.target; });
     return faults;
   }
 
-  FaultDecision FaultEngine::evaluate(
-      std::string_view target, size_t frame_bytes, std::chrono::steady_clock::time_point arrival)
+  FaultDecision
+  FaultEngine::evaluate(std::string_view target, size_t frame_bytes, std::chrono::steady_clock::time_point arrival)
   {
     const auto state_it = states_.find(std::string(target));
     if (state_it == states_.end())
@@ -76,10 +82,9 @@ namespace wirelab
     }
 
     const uint8_t delivery_count = static_cast<uint8_t>(
-        1 + (bounded_random(state.random_state, BASIS_POINTS_PER_PERCENTAGE - 1) <
-                 configuration.duplication_basis_points));
-    const auto jitter = std::chrono::nanoseconds(
-        bounded_random(state.random_state, static_cast<uint64_t>(configuration.jitter.count())));
+        1 + (bounded_random(state.random_state, BASIS_POINTS_PER_PERCENTAGE - 1) < configuration.duplication_basis_points));
+    const auto jitter =
+        std::chrono::nanoseconds(bounded_random(state.random_state, static_cast<uint64_t>(configuration.jitter.count())));
     const auto earliest_delivery = arrival + configuration.latency + jitter;
     FaultDecision decision;
     decision.delivery_count = delivery_count;
@@ -140,8 +145,8 @@ namespace wirelab
     {
       return std::chrono::nanoseconds::max();
     }
-    const auto nanoseconds = seconds * NANOSECONDS_PER_SECOND +
-                             (remainder * NANOSECONDS_PER_SECOND + bits_per_second - 1) / bits_per_second;
+    const auto nanoseconds =
+        seconds * NANOSECONDS_PER_SECOND + (remainder * NANOSECONDS_PER_SECOND + bits_per_second - 1) / bits_per_second;
     if (nanoseconds > static_cast<uint64_t>(std::chrono::nanoseconds::max().count()))
     {
       return std::chrono::nanoseconds::max();
@@ -150,7 +155,8 @@ namespace wirelab
   }
 
   expected<void, FaultConfigurationError> FaultEngine::validate(
-      std::string_view target, const FaultConfiguration& configuration) noexcept
+      std::string_view target,
+      const FaultConfiguration& configuration) noexcept
   {
     if (target.empty())
     {
@@ -175,15 +181,11 @@ namespace wirelab
   {
     switch (error)
     {
-      case FaultConfigurationError::MissingTarget:
-        return "missing target";
-      case FaultConfigurationError::NegativeLatency:
-        return "latency and jitter must be non-negative";
-      case FaultConfigurationError::InvalidLossPercentage:
-        return "loss must not exceed 100 percent";
-      case FaultConfigurationError::InvalidDuplicationPercentage:
-        return "duplication must not exceed 100 percent";
+      case FaultConfigurationError::MissingTarget: return "missing target";
+      case FaultConfigurationError::NegativeLatency: return "latency and jitter must be non-negative";
+      case FaultConfigurationError::InvalidLossPercentage: return "loss must not exceed 100 percent";
+      case FaultConfigurationError::InvalidDuplicationPercentage: return "duplication must not exceed 100 percent";
     }
     return "unknown fault configuration error";
   }
-}
+}  // namespace wirelab

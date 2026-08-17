@@ -8,8 +8,7 @@
 
 namespace wirelab
 {
-  TopologyController::TopologyController(uint64_t fault_seed) noexcept
-      : fault_seed_(fault_seed), fault_engine_(fault_seed)
+  TopologyController::TopologyController(uint64_t fault_seed) noexcept : fault_seed_(fault_seed), fault_engine_(fault_seed)
   {
   }
 
@@ -38,8 +37,41 @@ namespace wirelab
     return topology_revision_;
   }
 
+  std::vector<std::string> TopologyController::port_ids() const
+  {
+    std::vector<std::string> ports;
+    if (!topology_)
+    {
+      return ports;
+    }
+    for (const auto& node : topology_->nodes())
+    {
+      if (node.type == TopologyNodeType::Host)
+      {
+        ports.push_back(node.id);
+      }
+    }
+    return ports;
+  }
+
+  std::optional<std::string> TopologyController::port_id_at(uint32_t ingress_port) const
+  {
+    const auto ports = port_ids();
+    return ingress_port < ports.size() ? std::optional{ ports[ingress_port] } : std::nullopt;
+  }
+
+  std::optional<FaultConfiguration> TopologyController::port_fault(std::string_view port_id) const
+  {
+    if (!topology_ || !is_port(port_id))
+    {
+      return std::nullopt;
+    }
+    return fault_engine_.fault_for(port_fault_target(port_id));
+  }
+
   expected<void, TopologyControllerError> TopologyController::set_port_fault(
-      std::string_view port_id, FaultConfiguration configuration)
+      std::string_view port_id,
+      FaultConfiguration configuration)
   {
     if (!topology_)
     {
@@ -57,7 +89,9 @@ namespace wirelab
   }
 
   expected<void, TopologyControllerError> TopologyController::set_link_fault(
-      std::string_view first_endpoint, std::string_view second_endpoint, FaultConfiguration configuration)
+      std::string_view first_endpoint,
+      std::string_view second_endpoint,
+      FaultConfiguration configuration)
   {
     if (!topology_)
     {
@@ -103,7 +137,8 @@ namespace wirelab
       }
       const auto target = port_fault_target(node.id);
       const auto configured = std::find_if(
-          configured_faults.begin(), configured_faults.end(),
+          configured_faults.begin(),
+          configured_faults.end(),
           [&target](const ActiveFault& fault) { return fault.target == target; });
       if (configured != configured_faults.end())
       {
@@ -114,21 +149,28 @@ namespace wirelab
     {
       const auto target = link_fault_target(link.from, link.to);
       const auto configured = std::find_if(
-          configured_faults.begin(), configured_faults.end(),
+          configured_faults.begin(),
+          configured_faults.end(),
           [&target](const ActiveFault& fault) { return fault.target == target; });
       if (configured != configured_faults.end())
       {
         faults.push_back({ link.from, link.to, configured->configuration });
       }
     }
-    std::sort(faults.begin(), faults.end(), [](const TopologyFault& left, const TopologyFault& right) {
-      return std::tie(left.first_endpoint, left.second_endpoint) < std::tie(right.first_endpoint, right.second_endpoint);
-    });
+    std::sort(
+        faults.begin(),
+        faults.end(),
+        [](const TopologyFault& left, const TopologyFault& right)
+        {
+          return std::tie(left.first_endpoint, left.second_endpoint) < std::tie(right.first_endpoint, right.second_endpoint);
+        });
     return faults;
   }
 
   expected<FaultDecision, TopologyControllerError> TopologyController::evaluate_port(
-      std::string_view port_id, size_t frame_bytes, std::chrono::steady_clock::time_point arrival)
+      std::string_view port_id,
+      size_t frame_bytes,
+      std::chrono::steady_clock::time_point arrival)
   {
     if (!topology_)
     {
@@ -142,7 +184,9 @@ namespace wirelab
   }
 
   expected<FaultDecision, TopologyControllerError> TopologyController::evaluate_link(
-      std::string_view first_endpoint, std::string_view second_endpoint, size_t frame_bytes,
+      std::string_view first_endpoint,
+      std::string_view second_endpoint,
+      size_t frame_bytes,
       std::chrono::steady_clock::time_point arrival)
   {
     if (!topology_)
@@ -164,34 +208,41 @@ namespace wirelab
     for (uint8_t index = 0; index < decision.delivery_count; ++index)
     {
       auto& delivery_time = decision.delivery_times[index];
-      delivery_time = delivery_time > maximum_delivery_time
-                          ? std::chrono::steady_clock::time_point::max()
-                          : delivery_time + latency;
+      delivery_time =
+          delivery_time > maximum_delivery_time ? std::chrono::steady_clock::time_point::max() : delivery_time + latency;
     }
     return decision;
   }
 
   bool TopologyController::is_port(std::string_view port_id) const noexcept
   {
-    return std::any_of(topology_->nodes().begin(), topology_->nodes().end(), [port_id](const TopologyNode& node) {
-      return node.id == port_id && node.type == TopologyNodeType::Host;
-    });
+    return std::any_of(
+        topology_->nodes().begin(),
+        topology_->nodes().end(),
+        [port_id](const TopologyNode& node) { return node.id == port_id && node.type == TopologyNodeType::Host; });
   }
 
   bool TopologyController::is_link(std::string_view first_endpoint, std::string_view second_endpoint) const noexcept
   {
-    return std::any_of(topology_->links().begin(), topology_->links().end(),
-                       [first_endpoint, second_endpoint](const TopologyLink& link) {
-                         return (link.from == first_endpoint && link.to == second_endpoint) ||
-                                (link.from == second_endpoint && link.to == first_endpoint);
-                       });
+    return std::any_of(
+        topology_->links().begin(),
+        topology_->links().end(),
+        [first_endpoint, second_endpoint](const TopologyLink& link)
+        {
+          return (link.from == first_endpoint && link.to == second_endpoint) ||
+                 (link.from == second_endpoint && link.to == first_endpoint);
+        });
   }
 
   std::chrono::milliseconds TopologyController::link_latency(
-      std::string_view first_endpoint, std::string_view second_endpoint) const noexcept
+      std::string_view first_endpoint,
+      std::string_view second_endpoint) const noexcept
   {
     const auto link = std::find_if(
-        topology_->links().begin(), topology_->links().end(), [first_endpoint, second_endpoint](const TopologyLink& link) {
+        topology_->links().begin(),
+        topology_->links().end(),
+        [first_endpoint, second_endpoint](const TopologyLink& link)
+        {
           return (link.from == first_endpoint && link.to == second_endpoint) ||
                  (link.from == second_endpoint && link.to == first_endpoint);
         });
@@ -203,8 +254,7 @@ namespace wirelab
     return "port:" + std::to_string(port_id.size()) + ":" + std::string(port_id);
   }
 
-  std::string TopologyController::link_fault_target(
-      std::string_view first_endpoint, std::string_view second_endpoint)
+  std::string TopologyController::link_fault_target(std::string_view first_endpoint, std::string_view second_endpoint)
   {
     if (second_endpoint < first_endpoint)
     {
@@ -218,15 +268,11 @@ namespace wirelab
   {
     switch (error)
     {
-      case TopologyControllerError::NoTopology:
-        return "no topology is loaded";
-      case TopologyControllerError::UnknownPort:
-        return "unknown topology port";
-      case TopologyControllerError::UnknownLink:
-        return "unknown topology link";
-      case TopologyControllerError::InvalidFaultConfiguration:
-        return "invalid fault configuration";
+      case TopologyControllerError::NoTopology: return "no topology is loaded";
+      case TopologyControllerError::UnknownPort: return "unknown topology port";
+      case TopologyControllerError::UnknownLink: return "unknown topology link";
+      case TopologyControllerError::InvalidFaultConfiguration: return "invalid fault configuration";
     }
     return "unknown topology controller error";
   }
-}
+}  // namespace wirelab

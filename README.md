@@ -215,6 +215,18 @@ The three core components map directly to source files under `include/wirelab/` 
 | `VPort` | Reads raw Ethernet frames from a TAP device and forwards them to VSwitch over UDP; writes frames received from VSwitch back to the TAP device |
 | `MacTable` | Thread-safe MAC-to-endpoint mapping; uses `std::shared_mutex` so concurrent reads do not block each other |
 
+The WireLab analysis and control plane adds a closed loop on top of that dataplane:
+
+| Component | Role |
+|---|---|
+| `PacketAnalyzer` | Parses a batch of frames into per-packet metadata, histograms, and flow records (CPU, CUDA, or Metal backend) |
+| `AnomalyDetector` | Windowed detection of broadcast storms, MAC flaps, unknown-unicast floods, UDP floods, port scans, hot talkers, and malformed frames |
+| `PolicyEngine` | Matches detected anomalies against ordered user rules and produces decisions (`Drop`, `RateLimit`, `Mirror`, `Quarantine`) |
+| `PolicyEnforcer` | Applies each decision as a *leased, reversible* fault on the offending port via `TopologyController`, and releases it when the lease expires |
+| `ControlService` | Publishes anomalies, policy decisions, and enforcement as revisioned events over the versioned control protocol |
+
+Enforcement is genuinely closed-loop: a quarantined port stops forwarding frames because the enforcer installs a real `FaultConfiguration` the topology controller already honours, and the port recovers automatically once the lease lapses. Rules, enforced ports, and the enforcement log are editable and observable from the GUI's **Policies** workspace.
+
 See [`docs/architecture-overview.md`](docs/architecture-overview.md) for Mermaid class and sequence diagrams.
 
 ## Testing

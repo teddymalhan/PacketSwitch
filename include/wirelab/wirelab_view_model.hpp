@@ -1,18 +1,19 @@
 #ifndef PROJECT_WIRELAB_VIEW_MODEL_HPP_
 #define PROJECT_WIRELAB_VIEW_MODEL_HPP_
 
+#include <QObject>
+#include <QString>
+#include <QStringList>
+#include <QVariantList>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
 
-#include <QObject>
-#include <QString>
-#include <QStringList>
-#include <QVariantList>
-
 #include "wirelab/anomaly_detector.hpp"
 #include "wirelab/packet_analyzer.hpp"
+#include "wirelab/policy_enforcer.hpp"
 #include "wirelab/topology_controller.hpp"
 #include "wirelab/traffic_generator.hpp"
 
@@ -39,6 +40,11 @@ namespace wirelab
     Q_PROPERTY(QVariantList packetRows READ packetRows NOTIFY telemetryChanged)
     Q_PROPERTY(QVariantList anomalyRows READ anomalyRows NOTIFY telemetryChanged)
     Q_PROPERTY(QVariantList activeFaults READ activeFaults NOTIFY faultsChanged)
+    Q_PROPERTY(QVariantList policyRules READ policyRules NOTIFY policiesChanged)
+    Q_PROPERTY(QVariantList policyActions READ policyActions NOTIFY telemetryChanged)
+    Q_PROPERTY(QVariantList enforcedPorts READ enforcedPorts NOTIFY telemetryChanged)
+    Q_PROPERTY(QStringList anomalyTypeNames READ anomalyTypeNames CONSTANT)
+    Q_PROPERTY(QStringList policyActionNames READ policyActionNames CONSTANT)
 
    public:
     explicit WireLabViewModel(QObject* parent = nullptr);
@@ -61,6 +67,11 @@ namespace wirelab
     [[nodiscard]] QVariantList packetRows() const;
     [[nodiscard]] QVariantList anomalyRows() const;
     [[nodiscard]] QVariantList activeFaults() const;
+    [[nodiscard]] QVariantList policyRules() const;
+    [[nodiscard]] QVariantList policyActions() const;
+    [[nodiscard]] QVariantList enforcedPorts() const;
+    [[nodiscard]] QStringList anomalyTypeNames() const;
+    [[nodiscard]] QStringList policyActionNames() const;
 
     Q_INVOKABLE void openTopology(const QString& path);
     Q_INVOKABLE void saveTopology(const QString& path);
@@ -70,12 +81,17 @@ namespace wirelab
     Q_INVOKABLE void addNode(const QString& id, const QString& type);
     Q_INVOKABLE void addLink(const QString& from, const QString& to, int latencyMs);
     Q_INVOKABLE void removeSelected();
-    Q_INVOKABLE void startTraffic(const QString& scenario, int packetsPerTick, int frameSize,
-                                  qulonglong seed, const QString& backend);
+    Q_INVOKABLE void
+    startTraffic(const QString& scenario, int packetsPerTick, int frameSize, qulonglong seed, const QString& backend);
     Q_INVOKABLE void stopTraffic();
     Q_INVOKABLE void runTrafficStep();
     Q_INVOKABLE void applySelectedFault(int latencyMs, double lossPercent, bool blackhole);
     Q_INVOKABLE void clearFault(const QString& firstEndpoint, const QString& secondEndpoint);
+    Q_INVOKABLE void
+    addPolicy(const QString& name, const QString& anomalyType, const QString& action, qulonglong rateLimitPacketsPerSecond);
+    Q_INVOKABLE void removePolicy(const QString& name);
+    Q_INVOKABLE void setPolicyEnabled(const QString& name, bool enabled);
+    Q_INVOKABLE void releaseEnforcement(const QString& portId);
 
    signals:
     void topologyChanged();
@@ -84,6 +100,7 @@ namespace wirelab
     void trafficStateChanged();
     void telemetryChanged();
     void faultsChanged();
+    void policiesChanged();
 
    private:
     struct PortCounters
@@ -96,8 +113,13 @@ namespace wirelab
     [[nodiscard]] bool commitTopology(TopologyConfiguration configuration, const QString& successMessage);
     void rebuildTopologyModels();
     void rebuildFaultModel();
-    void rebuildTelemetryModels(const AnalysisBatch& analysis, uint64_t tickBytes, uint64_t tickDropped,
-                                double throughputMbps, double averageLatencyMs);
+    void rebuildPolicyModel();
+    void rebuildTelemetryModels(
+        const AnalysisBatch& analysis,
+        uint64_t tickBytes,
+        uint64_t tickDropped,
+        double throughputMbps,
+        double averageLatencyMs);
     void resetSimulation();
     void setStatus(QString message);
 
@@ -127,6 +149,9 @@ namespace wirelab
     std::unique_ptr<PacketAnalyzer> trafficAnalyzer_;
     AnomalyDetector anomalyDetector_;
     std::unordered_map<std::string, PortCounters> portCounters_;
+    PolicyEngine policyEngine_;
+    PolicyEnforcer policyEnforcer_;
+    std::chrono::steady_clock::time_point simulationStart_{};
     std::unordered_map<std::string, std::string> learnedMacPorts_;
 
     QString trafficResult_;
@@ -136,7 +161,10 @@ namespace wirelab
     QVariantList packetRows_;
     QVariantList anomalyRows_;
     QVariantList activeFaults_;
+    QVariantList policyRules_;
+    QVariantList policyActions_;
+    QVariantList enforcedPorts_;
   };
-}
+}  // namespace wirelab
 
 #endif

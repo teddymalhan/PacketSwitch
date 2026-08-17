@@ -1,11 +1,11 @@
+#include "wirelab/control_service.hpp"
+
+#include <gtest/gtest.h>
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <utility>
-
-#include <gtest/gtest.h>
-
-#include "wirelab/control_service.hpp"
 
 namespace
 {
@@ -35,8 +35,8 @@ namespace
     auto vswitch = make_switch();
     wirelab::ControlService service(vswitch, 3);
 
-    const auto result = service.dispatch(
-        R"({"api_version":1,"request_id":"state-1","command":"get_switch_state","topology_revision":3})");
+    const auto result =
+        service.dispatch(R"({"api_version":1,"request_id":"state-1","command":"get_switch_state","topology_revision":3})");
 
     EXPECT_TRUE(result.reply.accepted);
     EXPECT_EQ(result.reply.request_id, "state-1");
@@ -57,8 +57,8 @@ namespace
     EXPECT_EQ(malformed.reply.error, "malformed JSON");
     EXPECT_FALSE(malformed.metrics_event.has_value());
 
-    const auto stale = service.dispatch(
-        R"({"api_version":1,"request_id":"state-1","command":"get_switch_state","topology_revision":2})");
+    const auto stale =
+        service.dispatch(R"({"api_version":1,"request_id":"state-1","command":"get_switch_state","topology_revision":2})");
     EXPECT_FALSE(stale.reply.accepted);
     EXPECT_EQ(stale.reply.request_id, "state-1");
     EXPECT_EQ(stale.reply.error, "stale topology revision");
@@ -158,8 +158,8 @@ namespace
     link_configuration.loss_basis_points = 500;
     ASSERT_TRUE(controller.set_link_fault("client-a", "core-switch", link_configuration).has_value());
 
-    const auto result = service.dispatch(
-        R"({"api_version":1,"request_id":"faults-1","command":"get_active_faults","topology_revision":1})");
+    const auto result =
+        service.dispatch(R"({"api_version":1,"request_id":"faults-1","command":"get_active_faults","topology_revision":1})");
 
     ASSERT_TRUE(result.reply.accepted);
     EXPECT_EQ(result.reply.operation_id, "active-faults-1");
@@ -173,6 +173,23 @@ namespace
     EXPECT_TRUE(result.fault_events[1].second_endpoint.empty());
     EXPECT_TRUE(result.fault_events[1].configuration.blackhole);
   }
+  TEST(ControlServiceTest, ReportsALinkFaultWithBothEndpoints)
+  {
+    auto vswitch = make_switch();
+    wirelab::TopologyController controller;
+    controller.load(make_topology());
+    wirelab::ControlService service(vswitch, controller);
+
+    const auto result = service.dispatch(
+        R"({"api_version":1,"request_id":"link-1","command":"set_link_fault","topology_revision":1,"parameters":{"first_endpoint":"client-a","second_endpoint":"core-switch","latency_ms":7,"jitter_ms":0,"loss_basis_points":0,"duplication_basis_points":0,"bandwidth_bits_per_second":0,"blackhole":false,"isolated":false}})");
+
+    ASSERT_TRUE(result.reply.accepted);
+    ASSERT_EQ(result.fault_events.size(), 1U);
+    EXPECT_EQ(result.fault_events[0].first_endpoint, "client-a");
+    EXPECT_EQ(result.fault_events[0].second_endpoint, "core-switch");
+    EXPECT_TRUE(result.fault_events[0].active);
+  }
+
   TEST(ControlServiceTest, PublishesRevisionedAnomalyAndPolicyEventsFromAnalysis)
   {
     auto vswitch = make_switch();
@@ -181,6 +198,8 @@ namespace
     wirelab::ControlService service(vswitch, controller);
     wirelab::AnomalyDetector detector({ 1'000'000'000, 1 });
     wirelab::PolicyEngine policy_engine;
+    wirelab::PolicyEnforcer enforcer;
+    const auto now = std::chrono::steady_clock::now();
     ASSERT_TRUE(policy_engine.add_rule(
         { "contain-broadcast-storm", wirelab::AnomalyType::BroadcastStorm, wirelab::PolicyAction::Quarantine }));
 
@@ -194,7 +213,7 @@ namespace
     packet.classification = wirelab::PacketClassification::Broadcast;
     batch.packets = { packet, packet };
 
-    const auto events = service.evaluate_analysis(batch, 500, detector, policy_engine);
+    const auto events = service.evaluate_analysis(batch, 500, detector, policy_engine, enforcer, now);
 
     ASSERT_EQ(events.anomaly_events.size(), 1U);
     EXPECT_EQ(events.anomaly_events[0].event_sequence, 1U);
@@ -207,8 +226,54 @@ namespace
     EXPECT_EQ(events.policy_events[0].decision.rule_name, "contain-broadcast-storm");
     EXPECT_EQ(events.policy_events[0].decision.action, wirelab::PolicyAction::Quarantine);
 
-    const auto repeated = service.evaluate_analysis(batch, 501, detector, policy_engine);
+    // Ingress port 4 is outside this two-host topology, so nothing is enforced.
+    ASSERT_EQ(events.enforcement_actions.size(), 1U);
+    EXPECT_EQ(events.enforcement_actions[0].outcome, wirelab::EnforcementOutcome::UnknownPort);
+    EXPECT_TRUE(events.fault_events.empty());
+
+    const auto repeated = service.evaluate_analysis(batch, 501, detector, policy_engine, enforcer, now);
     EXPECT_TRUE(repeated.anomaly_events.empty());
     EXPECT_TRUE(repeated.policy_events.empty());
   }
-}
+
+  TEST(ControlServiceTest, EnforcesAPolicyOntoTheOffendingPortAndPublishesTheFault)
+  {
+    auto vswitch = make_switch();
+    wirelab::TopologyController controller;
+    controller.load(make_topology());
+    wirelab::ControlService service(vswitch, controller);
+    wirelab::AnomalyDetector detector({ 1'000'000'000, 1 });
+    wirelab::PolicyEngine policy_engine;
+    wirelab::PolicyEnforcer enforcer;
+    const auto now = std::chrono::steady_clock::now();
+    ASSERT_TRUE(policy_engine.add_rule(
+        { "contain-broadcast-storm", wirelab::AnomalyType::BroadcastStorm, wirelab::PolicyAction::Quarantine }));
+
+    wirelab::AnalysisBatch batch;
+    wirelab::PacketAnalysis packet;
+    packet.source_mac = wirelab::MacAddress::from_string("00:11:22:33:44:55");
+    packet.destination_mac = wirelab::MacAddress::broadcast();
+    packet.frame_length = 64;
+    packet.ingress_port = 1;
+    packet.validity = wirelab::PacketValidity::Valid;
+    packet.classification = wirelab::PacketClassification::Broadcast;
+    batch.packets = { packet, packet };
+
+    const auto events = service.evaluate_analysis(batch, 500, detector, policy_engine, enforcer, now);
+
+    ASSERT_EQ(events.enforcement_actions.size(), 1U);
+    EXPECT_EQ(events.enforcement_actions[0].port_id, "client-b");
+    EXPECT_EQ(events.enforcement_actions[0].kind, wirelab::EnforcementKind::Isolate);
+    EXPECT_EQ(events.enforcement_actions[0].outcome, wirelab::EnforcementOutcome::Applied);
+
+    ASSERT_EQ(events.fault_events.size(), 1U);
+    EXPECT_EQ(events.fault_events[0].first_endpoint, "client-b");
+    EXPECT_TRUE(events.fault_events[0].second_endpoint.empty());
+    EXPECT_TRUE(events.fault_events[0].active);
+    EXPECT_TRUE(events.fault_events[0].configuration.isolated);
+
+    const auto fault = controller.port_fault("client-b");
+    ASSERT_TRUE(fault.has_value());
+    EXPECT_TRUE(fault->isolated);
+  }
+}  // namespace

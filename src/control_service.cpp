@@ -1,16 +1,20 @@
 #include "wirelab/control_service.hpp"
 
+#include <iterator>
 #include <utility>
 
 namespace wirelab
 {
   ControlService::ControlService(VSwitch& vswitch, uint64_t topology_revision) noexcept
-      : vswitch_(vswitch), topology_revision_(topology_revision)
+      : vswitch_(vswitch),
+        topology_revision_(topology_revision)
   {
   }
 
   ControlService::ControlService(VSwitch& vswitch, TopologyController& topology_controller) noexcept
-      : vswitch_(vswitch), topology_revision_(0), topology_controller_(topology_controller)
+      : vswitch_(vswitch),
+        topology_revision_(0),
+        topology_controller_(topology_controller)
   {
   }
 
@@ -84,8 +88,7 @@ namespace wirelab
     if (request.value().command != ControlCommand::GetActiveFaults &&
         request.value().command != ControlCommand::SetPortFault &&
         request.value().command != ControlCommand::ClearPortFault &&
-        request.value().command != ControlCommand::SetLinkFault &&
-        request.value().command != ControlCommand::ClearLinkFault)
+        request.value().command != ControlCommand::SetLinkFault && request.value().command != ControlCommand::ClearLinkFault)
     {
       return { reject(request.value().request_id, "command is not implemented") };
     }
@@ -122,7 +125,6 @@ namespace wirelab
       return dispatch;
     }
 
-
     const auto& fault = request.value().fault;
     bool active = false;
     std::optional<TopologyControllerError> fault_error;
@@ -131,14 +133,16 @@ namespace wirelab
       case ControlCommand::SetPortFault:
       {
         const auto result = controller.set_port_fault(fault.port_id, fault.configuration);
-        if (!result) fault_error = result.error();
+        if (!result)
+          fault_error = result.error();
         active = true;
         break;
       }
       case ControlCommand::SetLinkFault:
       {
         const auto result = controller.set_link_fault(fault.first_endpoint, fault.second_endpoint, fault.configuration);
-        if (!result) fault_error = result.error();
+        if (!result)
+          fault_error = result.error();
         active = true;
         break;
       }
@@ -168,24 +172,27 @@ namespace wirelab
     FaultStateEvent fault_event;
     fault_event.event_sequence = next_event_sequence_++;
     fault_event.topology_revision = current_topology_revision();
-    fault_event.first_endpoint =
-        request.value().command == ControlCommand::SetPortFault || request.value().command == ControlCommand::ClearPortFault
-            ? fault.port_id
-            : fault.first_endpoint;
-    fault_event.second_endpoint = fault.first_endpoint.empty() ? fault.second_endpoint : std::string{};
+    const bool is_port_fault =
+        request.value().command == ControlCommand::SetPortFault || request.value().command == ControlCommand::ClearPortFault;
+    fault_event.first_endpoint = is_port_fault ? fault.port_id : fault.first_endpoint;
+    fault_event.second_endpoint = is_port_fault ? std::string{} : fault.second_endpoint;
     fault_event.configuration = fault.configuration;
     fault_event.active = active;
 
     ControlReply reply;
     reply.request_id = request.value().request_id;
     reply.accepted = true;
-    reply.operation_id = std::string(active ? "fault-set-" : "fault-cleared-") +
-                         std::to_string(fault_event.event_sequence);
+    reply.operation_id = std::string(active ? "fault-set-" : "fault-cleared-") + std::to_string(fault_event.event_sequence);
     return { std::move(reply), std::nullopt, { std::move(fault_event) } };
   }
 
-  AnalysisEventDispatch ControlService::evaluate_analysis(const AnalysisBatch& batch, uint64_t timestamp_ns,
-                                                          AnomalyDetector& detector, PolicyEngine& policy_engine)
+  AnalysisEventDispatch ControlService::evaluate_analysis(
+      const AnalysisBatch& batch,
+      uint64_t timestamp_ns,
+      AnomalyDetector& detector,
+      PolicyEngine& policy_engine,
+      PolicyEnforcer& enforcer,
+      std::chrono::steady_clock::time_point now)
   {
     AnalysisEventDispatch dispatch;
     const auto anomalies = detector.evaluate(batch, timestamp_ns);
@@ -195,16 +202,60 @@ namespace wirelab
     dispatch.anomaly_events.reserve(anomalies.size());
     for (const auto& anomaly : anomalies)
     {
-      dispatch.anomaly_events.push_back(
-          { WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, anomaly });
+      dispatch.anomaly_events.push_back({ WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, anomaly });
     }
 
     dispatch.policy_events.reserve(decisions.size());
     for (const auto& decision : decisions)
     {
-      dispatch.policy_events.push_back(
-          { WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, decision });
+      dispatch.policy_events.push_back({ WIRELAB_CONTROL_API_VERSION, next_event_sequence_++, revision, decision });
     }
+
+    if (!topology_controller_)
+    {
+      return dispatch;
+    }
+
+    auto& controller = topology_controller_->get();
+    auto released = enforcer.release_expired(controller, now);
+    auto applied = enforcer.apply(decisions, controller, now);
+
+    const auto publish = [this, &dispatch, &controller, revision](const EnforcementAction& action, bool active)
+    {
+      if (action.port_id.empty())
+      {
+        return;
+      }
+      FaultStateEvent event;
+      event.event_sequence = next_event_sequence_++;
+      event.topology_revision = revision;
+      event.first_endpoint = action.port_id;
+      event.configuration = controller.port_fault(action.port_id).value_or(FaultConfiguration{});
+      event.active = active;
+      dispatch.fault_events.push_back(std::move(event));
+    };
+
+    for (const auto& action : released)
+    {
+      publish(action, controller.port_fault(action.port_id).has_value());
+    }
+    for (const auto& action : applied)
+    {
+      if (action.outcome == EnforcementOutcome::Applied || action.outcome == EnforcementOutcome::Extended)
+      {
+        publish(action, true);
+      }
+    }
+
+    dispatch.enforcement_actions.reserve(released.size() + applied.size());
+    dispatch.enforcement_actions.insert(
+        dispatch.enforcement_actions.end(),
+        std::make_move_iterator(released.begin()),
+        std::make_move_iterator(released.end()));
+    dispatch.enforcement_actions.insert(
+        dispatch.enforcement_actions.end(),
+        std::make_move_iterator(applied.begin()),
+        std::make_move_iterator(applied.end()));
     return dispatch;
   }
 
@@ -225,4 +276,4 @@ namespace wirelab
     reply.error = std::move(error);
     return reply;
   }
-}
+}  // namespace wirelab

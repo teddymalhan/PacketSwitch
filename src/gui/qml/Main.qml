@@ -295,6 +295,7 @@ ApplicationWindow {
                         ListElement { label: "Traffic"; page: 2; icon: "traffic" }
                         ListElement { label: "Packets & Security"; page: 3; icon: "security" }
                         ListElement { label: "Faults"; page: 4; icon: "faults" }
+                        ListElement { label: "Policies"; page: 5; icon: "security" }
                     }
                     delegate: Item {
                         required property string label
@@ -1030,6 +1031,236 @@ ApplicationWindow {
                                     }
                                 }
                                 Label { anchors.centerIn: parent; visible: parent.count === 0; text: "No active faults"; color: root.good }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ============ POLICY LAB ============
+            Item {
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 22
+                    spacing: 14
+                    ColumnLayout {
+                        Layout.preferredWidth: 380
+                        Layout.fillHeight: true
+                        spacing: 14
+                        Label { text: "Policies"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 18
+                                spacing: 12
+                                Label { text: "NEW RULE"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                TextField {
+                                    id: policyName
+                                    Layout.fillWidth: true
+                                    placeholderText: "Rule name"
+                                }
+                                RowLayout {
+                                    Label { text: "When"; color: root.textSecondary; Layout.preferredWidth: 48 }
+                                    ComboBox {
+                                        id: policyAnomaly
+                                        Layout.fillWidth: true
+                                        model: wirelab.anomalyTypeNames
+                                    }
+                                }
+                                RowLayout {
+                                    Label { text: "Then"; color: root.textSecondary; Layout.preferredWidth: 48 }
+                                    ComboBox {
+                                        id: policyAction
+                                        Layout.fillWidth: true
+                                        model: wirelab.policyActionNames
+                                    }
+                                }
+                                RowLayout {
+                                    visible: policyAction.currentText === "Rate limit"
+                                    Label { text: "Limit"; color: root.textSecondary; Layout.preferredWidth: 48 }
+                                    SpinBox {
+                                        id: policyRate
+                                        from: 0
+                                        to: 10000000
+                                        stepSize: 1000
+                                        value: 50000
+                                        editable: true
+                                        Layout.fillWidth: true
+                                    }
+                                    Label { text: "pps"; color: root.textSecondary }
+                                }
+                                Button {
+                                    text: "Add policy"
+                                    highlighted: true
+                                    Layout.fillWidth: true
+                                    enabled: policyName.text.trim() !== ""
+                                    onClicked: {
+                                        wirelab.addPolicy(policyName.text, policyAnomaly.currentText,
+                                                          policyAction.currentText,
+                                                          policyAction.currentText === "Rate limit" ? policyRate.value : 0)
+                                        policyName.text = ""
+                                    }
+                                }
+                                Rectangle { Layout.fillWidth: true; height: 1; color: root.separator }
+                                Label { text: "RULES"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                ListView {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    clip: true
+                                    model: wirelab.policyRules
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        width: ListView.view.width
+                                        height: 62
+                                        color: index % 2 ? "transparent" : root.cardAltBg
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 8
+                                            anchors.rightMargin: 8
+                                            spacing: 8
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 2
+                                                Label {
+                                                    text: modelData.name
+                                                    color: modelData.enabled ? root.textPrimary : root.textSecondary
+                                                    font.weight: Font.DemiBold
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                                Label {
+                                                    text: modelData.anomaly + " → " + modelData.action +
+                                                          (modelData.rateLimit > 0 ? " (" + modelData.rateLimit + " pps)" : "")
+                                                    color: root.textSecondary
+                                                    font.pixelSize: 11
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                                Label {
+                                                    text: modelData.hits + " hits"
+                                                    color: modelData.hits > 0 ? root.warning : root.textSecondary
+                                                    font.pixelSize: 11
+                                                }
+                                            }
+                                            Switch {
+                                                checked: modelData.enabled
+                                                onToggled: wirelab.setPolicyEnabled(modelData.name, checked)
+                                            }
+                                            Button {
+                                                text: "✕"
+                                                Layout.preferredWidth: 34
+                                                onClicked: wirelab.removePolicy(modelData.name)
+                                            }
+                                        }
+                                    }
+                                    Label {
+                                        anchors.centerIn: parent
+                                        visible: parent.count === 0
+                                        text: "No policies defined"
+                                        color: root.textSecondary
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 14
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 190
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                spacing: 6
+                                Label { text: "ENFORCED PORTS"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                ListView {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    clip: true
+                                    model: wirelab.enforcedPorts
+                                    delegate: RowLayout {
+                                        required property var modelData
+                                        width: ListView.view.width
+                                        spacing: 8
+                                        Label { text: modelData.port; font.weight: Font.DemiBold; color: root.danger; Layout.preferredWidth: 120 }
+                                        Label { text: modelData.summary; color: root.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight }
+                                        Label { text: modelData.rule; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150; elide: Text.ElideRight }
+                                        Button {
+                                            text: "Release"
+                                            Layout.preferredWidth: 88
+                                            onClicked: wirelab.releaseEnforcement(modelData.port)
+                                        }
+                                    }
+                                    Label {
+                                        anchors.centerIn: parent
+                                        visible: parent.count === 0
+                                        text: "No port is under enforcement"
+                                        color: root.good
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                spacing: 6
+                                Label { text: "ENFORCEMENT LOG"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                RowLayout {
+                                    Label { text: "TICK"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 56 }
+                                    Label { text: "RULE"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150 }
+                                    Label { text: "ANOMALY"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 150 }
+                                    Label { text: "PORT"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 110 }
+                                    Label { text: "OUTCOME"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 110 }
+                                    Label { text: "DETAIL"; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
+                                }
+                                ListView {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    clip: true
+                                    model: wirelab.policyActions
+                                    verticalLayoutDirection: ListView.BottomToTop
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        width: ListView.view.width
+                                        height: 30
+                                        color: index % 2 ? "transparent" : root.cardAltBg
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            Label { text: modelData.sequence; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 56 }
+                                            Label { text: modelData.rule; font.pixelSize: 11; Layout.preferredWidth: 150; elide: Text.ElideRight }
+                                            Label { text: modelData.anomaly; font.pixelSize: 11; Layout.preferredWidth: 150; elide: Text.ElideRight }
+                                            Label { text: modelData.port === "" ? "—" : modelData.port; font.pixelSize: 11; Layout.preferredWidth: 110 }
+                                            Label {
+                                                text: modelData.outcome
+                                                font.pixelSize: 11
+                                                Layout.preferredWidth: 110
+                                                color: modelData.outcome === "applied" || modelData.outcome === "extended"
+                                                       ? root.danger
+                                                       : (modelData.outcome === "released" ? root.good : root.textSecondary)
+                                            }
+                                            Label { text: modelData.detail; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+                                        }
+                                    }
+                                    Label {
+                                        anchors.centerIn: parent
+                                        visible: parent.count === 0
+                                        text: "Enforcement actions appear here while traffic runs"
+                                        color: root.textSecondary
+                                    }
+                                }
                             }
                         }
                     }

@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -51,13 +52,13 @@ namespace wirelab
    public:
     explicit FaultEngine(uint64_t seed = 1) noexcept;
 
-    [[nodiscard]] expected<void, FaultConfigurationError> set_fault(
-        std::string target, FaultConfiguration configuration);
+    [[nodiscard]] expected<void, FaultConfigurationError> set_fault(std::string target, FaultConfiguration configuration);
     [[nodiscard]] bool clear_fault(std::string_view target);
     [[nodiscard]] bool has_fault(std::string_view target) const;
+    [[nodiscard]] std::optional<FaultConfiguration> fault_for(std::string_view target) const;
     [[nodiscard]] std::vector<ActiveFault> active_faults() const;
-    [[nodiscard]] FaultDecision evaluate(
-        std::string_view target, size_t frame_bytes, std::chrono::steady_clock::time_point arrival);
+    [[nodiscard]] FaultDecision
+    evaluate(std::string_view target, size_t frame_bytes, std::chrono::steady_clock::time_point arrival);
 
    private:
     struct FaultState
@@ -72,13 +73,14 @@ namespace wirelab
     [[nodiscard]] static uint64_t bounded_random(uint64_t& state, uint64_t upper_inclusive) noexcept;
     [[nodiscard]] static std::chrono::nanoseconds transmission_time(size_t frame_bytes, uint64_t bits_per_second) noexcept;
     [[nodiscard]] static expected<void, FaultConfigurationError> validate(
-        std::string_view target, const FaultConfiguration& configuration) noexcept;
+        std::string_view target,
+        const FaultConfiguration& configuration) noexcept;
 
     uint64_t seed_;
     std::unordered_map<std::string, FaultState> states_;
   };
 
   [[nodiscard]] const char* to_string(FaultConfigurationError error) noexcept;
-}
+}  // namespace wirelab
 
 #endif

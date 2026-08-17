@@ -8,6 +8,8 @@
 #include <string_view>
 #include <vector>
 
+#include "wirelab/expected.hpp"
+
 namespace wirelab
 {
   constexpr size_t MAC_ADDRESS_SIZE = 6;
@@ -56,6 +58,11 @@ namespace wirelab
   };
   std::ostream& operator<<(std::ostream& os, const MacAddress& mac);
 
+  enum class FrameParseError
+  {
+    TooShort
+  };
+
   class EthernetFrame
   {
    private:
@@ -67,6 +74,11 @@ namespace wirelab
    public:
     EthernetFrame() = default;
     EthernetFrame(MacAddress dst_mac, MacAddress src_mac, uint16_t ethertype, std::vector<uint8_t> payload = {});
+    // Rejects frames shorter than an Ethernet header. Callers on the forwarding
+    // path must use this so runts are counted and dropped rather than learned.
+    [[nodiscard]] static expected<EthernetFrame, FrameParseError> try_parse(const std::vector<uint8_t>& data);
+    [[nodiscard]] static expected<EthernetFrame, FrameParseError> try_parse(const uint8_t* data, size_t size);
+    // Lenient: yields a zero-filled frame when the input is too short.
     [[nodiscard]] static EthernetFrame parse(const std::vector<uint8_t>& data);
     [[nodiscard]] static EthernetFrame parse(const uint8_t* data, size_t size);
     [[nodiscard]] std::vector<uint8_t> serialize() const;
@@ -118,10 +130,9 @@ namespace wirelab
     constexpr uint16_t IPv4 = 0x0800;
     constexpr uint16_t ARP = 0x0806;
     constexpr uint16_t IPv6 = 0x86DD;
-  }  
+  }  // namespace EtherType
 
-}  
-
+}  // namespace wirelab
 
 namespace std
 {
@@ -139,6 +150,6 @@ namespace std
       return hash;
     }
   };
-}  
+}  // namespace std
 
-#endif  
+#endif

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -38,28 +39,37 @@ namespace wirelab
     [[nodiscard]] const Topology* topology() const noexcept;
     [[nodiscard]] uint64_t topology_revision() const noexcept;
 
+    // Ports are the host nodes, in declaration order. Analyzer ingress-port
+    // indices address this list, so the mapping lives here rather than being
+    // rebuilt by every caller.
+    [[nodiscard]] std::vector<std::string> port_ids() const;
+    [[nodiscard]] std::optional<std::string> port_id_at(uint32_t ingress_port) const;
+    [[nodiscard]] std::optional<FaultConfiguration> port_fault(std::string_view port_id) const;
+
     [[nodiscard]] expected<void, TopologyControllerError> set_port_fault(
-        std::string_view port_id, FaultConfiguration configuration);
-    [[nodiscard]] expected<void, TopologyControllerError> set_link_fault(
-        std::string_view first_endpoint, std::string_view second_endpoint, FaultConfiguration configuration);
+        std::string_view port_id,
+        FaultConfiguration configuration);
+    [[nodiscard]] expected<void, TopologyControllerError>
+    set_link_fault(std::string_view first_endpoint, std::string_view second_endpoint, FaultConfiguration configuration);
     [[nodiscard]] bool clear_port_fault(std::string_view port_id);
     [[nodiscard]] bool clear_link_fault(std::string_view first_endpoint, std::string_view second_endpoint);
     [[nodiscard]] expected<std::vector<TopologyFault>, TopologyControllerError> active_faults() const;
 
-    [[nodiscard]] expected<FaultDecision, TopologyControllerError> evaluate_port(
-        std::string_view port_id, size_t frame_bytes, std::chrono::steady_clock::time_point arrival);
+    [[nodiscard]] expected<FaultDecision, TopologyControllerError>
+    evaluate_port(std::string_view port_id, size_t frame_bytes, std::chrono::steady_clock::time_point arrival);
     [[nodiscard]] expected<FaultDecision, TopologyControllerError> evaluate_link(
-        std::string_view first_endpoint, std::string_view second_endpoint, size_t frame_bytes,
+        std::string_view first_endpoint,
+        std::string_view second_endpoint,
+        size_t frame_bytes,
         std::chrono::steady_clock::time_point arrival);
 
    private:
     [[nodiscard]] bool is_port(std::string_view port_id) const noexcept;
     [[nodiscard]] bool is_link(std::string_view first_endpoint, std::string_view second_endpoint) const noexcept;
-    [[nodiscard]] std::chrono::milliseconds link_latency(
-        std::string_view first_endpoint, std::string_view second_endpoint) const noexcept;
+    [[nodiscard]] std::chrono::milliseconds link_latency(std::string_view first_endpoint, std::string_view second_endpoint)
+        const noexcept;
     [[nodiscard]] static std::string port_fault_target(std::string_view port_id);
-    [[nodiscard]] static std::string link_fault_target(
-        std::string_view first_endpoint, std::string_view second_endpoint);
+    [[nodiscard]] static std::string link_fault_target(std::string_view first_endpoint, std::string_view second_endpoint);
 
     uint64_t fault_seed_;
     uint64_t topology_revision_ = 0;
@@ -68,6 +78,6 @@ namespace wirelab
   };
 
   [[nodiscard]] const char* to_string(TopologyControllerError error) noexcept;
-}
+}  // namespace wirelab
 
 #endif

@@ -9,10 +9,14 @@ namespace wirelab
 {
   namespace
   {
+    // Rate detectors aggregate by source MAC or source IPv4, but a policy can
+    // only be enforced against a port. Carrying the most recent ingress port for
+    // each source keeps that target in the evidence.
     struct TrafficCounter
     {
       uint64_t packets = 0;
       uint64_t bytes = 0;
+      uint32_t ingress_port = 0;
     };
 
     bool event_less(const AnomalyEvent& first, const AnomalyEvent& second) noexcept
@@ -31,7 +35,7 @@ namespace wirelab
       }
       return first.ingress_port < second.ingress_port;
     }
-  }
+  }  // namespace
 
   AnomalyDetector::AnomalyDetector(AnomalyDetectorConfig config) : config_(config)
   {
@@ -69,9 +73,16 @@ namespace wirelab
     last_timestamp_ns_ = timestamp_ns;
     for (const auto& packet : batch.packets)
     {
-      observations_.push_back({ timestamp_ns, packet.source_mac, packet.source_ipv4, packet.destination_port,
-                                packet.frame_length, packet.ingress_port, packet.protocol, packet.classification,
-                                packet.validity });
+      observations_.push_back(
+          { timestamp_ns,
+            packet.source_mac,
+            packet.source_ipv4,
+            packet.destination_port,
+            packet.frame_length,
+            packet.ingress_port,
+            packet.protocol,
+            packet.classification,
+            packet.validity });
     }
     expire(timestamp_ns);
 
@@ -79,6 +90,7 @@ namespace wirelab
     std::map<MacAddress, TrafficCounter> unknown_unicasts;
     std::map<uint32_t, TrafficCounter> udp_sources;
     std::map<uint32_t, std::set<uint16_t>> scan_destinations;
+    std::map<uint32_t, uint32_t> scan_ingress_ports;
     std::map<MacAddress, std::vector<uint32_t>> ingress_ports;
     std::map<MacAddress, TrafficCounter> source_traffic;
     std::map<uint32_t, TrafficCounter> malformed_ingress_ports;
@@ -90,23 +102,26 @@ namespace wirelab
         auto& counter = broadcasts[observation.source_mac];
         ++counter.packets;
         counter.bytes += observation.frame_length;
+        counter.ingress_port = observation.ingress_port;
       }
       if (observation.classification == PacketClassification::UnknownUnicast)
       {
         auto& counter = unknown_unicasts[observation.source_mac];
         ++counter.packets;
         counter.bytes += observation.frame_length;
+        counter.ingress_port = observation.ingress_port;
       }
       if (observation.validity == PacketValidity::Valid && observation.protocol == 17)
       {
         auto& counter = udp_sources[observation.source_ipv4];
         ++counter.packets;
         counter.bytes += observation.frame_length;
+        counter.ingress_port = observation.ingress_port;
       }
-      if (observation.validity == PacketValidity::Valid &&
-          (observation.protocol == 6 || observation.protocol == 17))
+      if (observation.validity == PacketValidity::Valid && (observation.protocol == 6 || observation.protocol == 17))
       {
         scan_destinations[observation.source_ipv4].insert(observation.destination_port);
+        scan_ingress_ports[observation.source_ipv4] = observation.ingress_port;
       }
       if (observation.classification != PacketClassification::Malformed)
       {
@@ -117,6 +132,7 @@ namespace wirelab
         auto& counter = source_traffic[observation.source_mac];
         ++counter.packets;
         counter.bytes += observation.frame_length;
+        counter.ingress_port = observation.ingress_port;
       }
       else
       {
@@ -127,10 +143,16 @@ namespace wirelab
     }
 
     std::vector<AnomalyEvent> candidates;
-    const auto add_candidate = [this, &candidates](AnomalyType type, const MacAddress& source_mac,
-                                                    uint32_t source_ipv4, uint32_t ingress_port,
-                                                    uint64_t observed_packets, uint64_t observed_bytes,
-                                                    uint64_t observed_distinct_destinations, uint64_t threshold) {
+    const auto add_candidate = [this, &candidates](
+                                   AnomalyType type,
+                                   const MacAddress& source_mac,
+                                   uint32_t source_ipv4,
+                                   uint32_t ingress_port,
+                                   uint64_t observed_packets,
+                                   uint64_t observed_bytes,
+                                   uint64_t observed_distinct_destinations,
+                                   uint64_t threshold)
+    {
       if (threshold == 0)
       {
         return;
@@ -140,29 +162,65 @@ namespace wirelab
         return;
       }
       candidates.push_back(
-          { type, source_mac, source_ipv4, ingress_port, observed_packets, observed_bytes,
-            observed_distinct_destinations, threshold, config_.window_duration_ns });
+          { type,
+            source_mac,
+            source_ipv4,
+            ingress_port,
+            observed_packets,
+            observed_bytes,
+            observed_distinct_destinations,
+            threshold,
+            config_.window_duration_ns });
     };
 
     for (const auto& [source_mac, counter] : broadcasts)
     {
-      add_candidate(AnomalyType::BroadcastStorm, source_mac, 0, 0, counter.packets, counter.bytes, 0,
-                    config_.broadcast_packets_threshold);
+      add_candidate(
+          AnomalyType::BroadcastStorm,
+          source_mac,
+          0,
+          counter.ingress_port,
+          counter.packets,
+          counter.bytes,
+          0,
+          config_.broadcast_packets_threshold);
     }
     for (const auto& [source_mac, counter] : unknown_unicasts)
     {
-      add_candidate(AnomalyType::UnknownUnicastFlood, source_mac, 0, 0, counter.packets, counter.bytes, 0,
-                    config_.unknown_unicast_packets_threshold);
+      add_candidate(
+          AnomalyType::UnknownUnicastFlood,
+          source_mac,
+          0,
+          counter.ingress_port,
+          counter.packets,
+          counter.bytes,
+          0,
+          config_.unknown_unicast_packets_threshold);
     }
     for (const auto& [source_ipv4, counter] : udp_sources)
     {
-      add_candidate(AnomalyType::UdpFlood, MacAddress(), source_ipv4, 0, counter.packets, counter.bytes, 0,
-                    config_.udp_packets_threshold);
+      add_candidate(
+          AnomalyType::UdpFlood,
+          MacAddress(),
+          source_ipv4,
+          counter.ingress_port,
+          counter.packets,
+          counter.bytes,
+          0,
+          config_.udp_packets_threshold);
     }
     for (const auto& [source_ipv4, destinations] : scan_destinations)
     {
-      add_candidate(AnomalyType::PortScan, MacAddress(), source_ipv4, 0, 0, 0, destinations.size(),
-                    config_.port_scan_destinations_threshold);
+      const auto port = scan_ingress_ports.find(source_ipv4);
+      add_candidate(
+          AnomalyType::PortScan,
+          MacAddress(),
+          source_ipv4,
+          port == scan_ingress_ports.end() ? 0 : port->second,
+          0,
+          0,
+          destinations.size(),
+          config_.port_scan_destinations_threshold);
     }
     for (const auto& [source_mac, ports] : ingress_ports)
     {
@@ -171,18 +229,39 @@ namespace wirelab
       {
         transitions += ports[index] != ports[index - 1];
       }
-      add_candidate(AnomalyType::MacFlap, source_mac, 0, ports.empty() ? 0 : ports.back(), transitions, 0, 0,
-                    config_.mac_flap_transitions_threshold);
+      add_candidate(
+          AnomalyType::MacFlap,
+          source_mac,
+          0,
+          ports.empty() ? 0 : ports.back(),
+          transitions,
+          0,
+          0,
+          config_.mac_flap_transitions_threshold);
     }
     for (const auto& [source_mac, counter] : source_traffic)
     {
-      add_candidate(AnomalyType::HotTalker, source_mac, 0, 0, counter.packets, counter.bytes, 0,
-                    config_.hot_talker_packets_threshold);
+      add_candidate(
+          AnomalyType::HotTalker,
+          source_mac,
+          0,
+          counter.ingress_port,
+          counter.packets,
+          counter.bytes,
+          0,
+          config_.hot_talker_packets_threshold);
     }
     for (const auto& [ingress_port, counter] : malformed_ingress_ports)
     {
-      add_candidate(AnomalyType::MalformedFrame, MacAddress(), 0, ingress_port, counter.packets, counter.bytes,
-                    0, config_.malformed_frames_threshold);
+      add_candidate(
+          AnomalyType::MalformedFrame,
+          MacAddress(),
+          0,
+          ingress_port,
+          counter.packets,
+          counter.bytes,
+          0,
+          config_.malformed_frames_threshold);
     }
 
     std::sort(candidates.begin(), candidates.end(), event_less);
@@ -190,8 +269,7 @@ namespace wirelab
     std::vector<AnomalyEvent> events;
     for (const auto& candidate : candidates)
     {
-      const ActiveAnomaly active{ candidate.type, candidate.source_mac, candidate.source_ipv4,
-                                  candidate.ingress_port };
+      const ActiveAnomaly active{ candidate.type, candidate.source_mac, candidate.source_ipv4, candidate.ingress_port };
       current_anomalies.insert(active);
       if (active_anomalies_.find(active) == active_anomalies_.end())
       {
@@ -218,4 +296,4 @@ namespace wirelab
       observations_.pop_front();
     }
   }
-}
+}  // namespace wirelab
