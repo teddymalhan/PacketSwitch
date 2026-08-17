@@ -45,26 +45,44 @@ namespace wirelab
   using native_socket_handle = int;
 #endif
 
+  // Brings the platform socket runtime up once per process. Only Windows needs
+  // one, but every socket owner must ask before creating a socket so the
+  // requirement does not have to be rediscovered per transport.
+  [[nodiscard]] bool ensure_socket_runtime() noexcept;
+
   class FileDescriptor
   {
    private:
     native_file_handle fd_;
 
    public:
-    FileDescriptor() noexcept : fd_(-1) {}
-    explicit FileDescriptor(native_file_handle fd) noexcept : fd_(fd) {}
-    FileDescriptor(FileDescriptor&& other) noexcept : fd_(other.release()) {}
+    FileDescriptor() noexcept : fd_(-1)
+    {
+    }
+    explicit FileDescriptor(native_file_handle fd) noexcept : fd_(fd)
+    {
+    }
+    FileDescriptor(FileDescriptor&& other) noexcept : fd_(other.release())
+    {
+    }
     FileDescriptor& operator=(FileDescriptor&& other) noexcept
     {
-      if (this != &other) reset(other.release());
+      if (this != &other)
+        reset(other.release());
       return *this;
     }
     FileDescriptor(const FileDescriptor&) = delete;
     FileDescriptor& operator=(const FileDescriptor&) = delete;
     ~FileDescriptor();
     void close() noexcept;
-    [[nodiscard]] bool is_valid() const noexcept { return fd_ != -1; }
-    [[nodiscard]] native_file_handle get() const noexcept { return fd_; }
+    [[nodiscard]] bool is_valid() const noexcept
+    {
+      return fd_ != -1;
+    }
+    [[nodiscard]] native_file_handle get() const noexcept
+    {
+      return fd_;
+    }
     [[nodiscard]] native_file_handle release() noexcept
     {
       const auto fd = fd_;
@@ -76,7 +94,10 @@ namespace wirelab
       close();
       fd_ = fd;
     }
-    explicit operator bool() const noexcept { return is_valid(); }
+    explicit operator bool() const noexcept
+    {
+      return is_valid();
+    }
   };
 
   class SocketHandle
@@ -86,11 +107,16 @@ namespace wirelab
 
    public:
     SocketHandle() noexcept;
-    explicit SocketHandle(native_socket_handle socket) noexcept : socket_(socket) {}
-    SocketHandle(SocketHandle&& other) noexcept : socket_(other.release()) {}
+    explicit SocketHandle(native_socket_handle socket) noexcept : socket_(socket)
+    {
+    }
+    SocketHandle(SocketHandle&& other) noexcept : socket_(other.release())
+    {
+    }
     SocketHandle& operator=(SocketHandle&& other) noexcept
     {
-      if (this != &other) reset(other.release());
+      if (this != &other)
+        reset(other.release());
       return *this;
     }
     SocketHandle(const SocketHandle&) = delete;
@@ -98,15 +124,21 @@ namespace wirelab
     ~SocketHandle();
     void close() noexcept;
     [[nodiscard]] bool is_valid() const noexcept;
-    [[nodiscard]] native_socket_handle get() const noexcept { return socket_; }
+    [[nodiscard]] native_socket_handle get() const noexcept
+    {
+      return socket_;
+    }
     [[nodiscard]] native_socket_handle release() noexcept;
     void reset(native_socket_handle socket) noexcept
     {
       close();
       socket_ = socket;
     }
-    explicit operator bool() const noexcept { return is_valid(); }
+    explicit operator bool() const noexcept
+    {
+      return is_valid();
+    }
   };
-}  
+}  // namespace wirelab
 
-#endif  
+#endif

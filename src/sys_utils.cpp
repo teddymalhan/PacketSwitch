@@ -4,19 +4,47 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <winsock2.h>
 #include <windows.h>
+#include <winsock2.h>
 #else
 #include <unistd.h>
 #endif
 
 namespace wirelab
 {
-  FileDescriptor::~FileDescriptor() { close(); }
+  bool ensure_socket_runtime() noexcept
+  {
+#ifdef _WIN32
+    struct Runtime
+    {
+      bool valid = false;
+      Runtime()
+      {
+        WSADATA data{};
+        valid = ::WSAStartup(MAKEWORD(2, 2), &data) == 0;
+      }
+      ~Runtime()
+      {
+        if (valid)
+          ::WSACleanup();
+      }
+    };
+    static Runtime runtime;
+    return runtime.valid;
+#else
+    return true;
+#endif
+  }
+
+  FileDescriptor::~FileDescriptor()
+  {
+    close();
+  }
 
   void FileDescriptor::close() noexcept
   {
-    if (!is_valid()) return;
+    if (!is_valid())
+      return;
 #ifdef _WIN32
     ::CloseHandle(reinterpret_cast<HANDLE>(fd_));
 #else
@@ -34,7 +62,10 @@ namespace wirelab
   {
   }
 
-  SocketHandle::~SocketHandle() { close(); }
+  SocketHandle::~SocketHandle()
+  {
+    close();
+  }
 
   bool SocketHandle::is_valid() const noexcept
   {
@@ -47,7 +78,8 @@ namespace wirelab
 
   void SocketHandle::close() noexcept
   {
-    if (!is_valid()) return;
+    if (!is_valid())
+      return;
 #ifdef _WIN32
     ::closesocket(static_cast<SOCKET>(socket_));
     socket_ = static_cast<native_socket_handle>(INVALID_SOCKET);
@@ -67,4 +99,4 @@ namespace wirelab
 #endif
     return socket;
   }
-}
+}  // namespace wirelab

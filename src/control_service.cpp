@@ -186,14 +186,9 @@ namespace wirelab
     return { std::move(reply), std::nullopt, { std::move(fault_event) } };
   }
 
-  AnalysisEventDispatch ControlService::evaluate_analysis(
-      const AnalysisBatch& batch,
-      uint64_t timestamp_ns,
-      AnalysisPipeline& pipeline,
-      std::chrono::steady_clock::time_point now)
+  AnalysisEventDispatch ControlService::analysis_events(AnalysisOutcome outcome)
   {
     AnalysisEventDispatch dispatch;
-    auto outcome = pipeline.evaluate(batch, timestamp_ns, now);
     const uint64_t revision = current_topology_revision();
 
     dispatch.anomaly_events.reserve(outcome.anomalies.size());
@@ -254,6 +249,18 @@ namespace wirelab
         std::make_move_iterator(applied.begin()),
         std::make_move_iterator(applied.end()));
     return dispatch;
+  }
+
+  SupervisionStateEvent
+  ControlService::supervision_event(uint64_t analysed_frames, uint64_t blocked_frames, std::vector<PortBinding> bindings)
+  {
+    SupervisionStateEvent event;
+    event.event_sequence = next_event_sequence_++;
+    event.topology_revision = current_topology_revision();
+    event.analysed_frames = analysed_frames;
+    event.blocked_frames = blocked_frames;
+    event.bindings = std::move(bindings);
+    return event;
   }
 
   uint64_t ControlService::topology_revision() const noexcept

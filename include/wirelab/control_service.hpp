@@ -39,15 +39,14 @@ namespace wirelab
     ControlService(VSwitch& vswitch, TopologyController& topology_controller) noexcept;
 
     [[nodiscard]] ControlDispatch dispatch(std::string_view json);
-    // Runs one analysed batch through the shared pipeline and republishes the
-    // result as revisioned control events. Fault events are only emitted when
-    // the service was constructed with a topology controller, because there is
-    // then a port whose configuration the client can be told about.
-    [[nodiscard]] AnalysisEventDispatch evaluate_analysis(
-        const AnalysisBatch& batch,
-        uint64_t timestamp_ns,
-        AnalysisPipeline& pipeline,
-        std::chrono::steady_clock::time_point now);
+    // Stamps one pipeline outcome as revisioned control events. Fault events are
+    // only emitted when the service was constructed with a topology controller,
+    // because there is then a port whose configuration the client can be told
+    // about. The pipeline is run by whoever owns it, so a switch and a capture
+    // replay can share this framing without sharing a driver.
+    [[nodiscard]] AnalysisEventDispatch analysis_events(AnalysisOutcome outcome);
+    [[nodiscard]] SupervisionStateEvent
+    supervision_event(uint64_t analysed_frames, uint64_t blocked_frames, std::vector<PortBinding> bindings);
     [[nodiscard]] uint64_t topology_revision() const noexcept;
 
    private:

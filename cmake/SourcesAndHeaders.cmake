@@ -18,6 +18,7 @@ set(sources
     src/switch_metrics.cpp
     src/control_protocol.cpp
     src/control_service.cpp
+    src/control_server.cpp
     src/topology.cpp
     src/topology_yaml.cpp
     src/fault_engine.cpp
@@ -47,6 +48,7 @@ set(headers
     include/wirelab/switch_metrics.hpp
     include/wirelab/control_protocol.hpp
     include/wirelab/control_service.hpp
+    include/wirelab/control_server.hpp
     include/wirelab/topology.hpp
     include/wirelab/fault_engine.hpp
     include/wirelab/topology_controller.hpp
@@ -73,6 +75,7 @@ set(test_sources
   src/switch_metrics_test.cpp
   src/control_protocol_test.cpp
   src/control_service_test.cpp
+  src/control_server_test.cpp
   src/topology_test.cpp
   src/topology_yaml_test.cpp
   src/fault_engine_test.cpp
