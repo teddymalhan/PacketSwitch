@@ -205,6 +205,47 @@ vport <vswitch_ip> <vswitch_port> [tap_name]
   tap_name      Optional TAP device name (default: assigned by OS)
 ```
 
+### Replaying a capture
+
+`wirelab_pcap` runs a packet capture through the same analysis, detection, and
+policy pipeline the live switch uses, then writes a pcapng whose per-packet
+comments carry WireLab's verdict. Because the comment is a standard pcapng
+option, Wireshark shows it with no plugin and no sidecar file.
+
+```bash
+wirelab_pcap capture.pcap --out annotated.pcapng --broadcast 20 --port-scan 5
+```
+
+```
+Read 531 packets from capture.pcap (microsecond timestamps, snaplen 32767)
+
+Analysis
+  received       531 packets, 78623 bytes
+  broadcast      17
+  ...
+
+Detection
+  1 anomaly events, 1 policy decisions
+  port-scan 1
+  rule mirror-port-scan 1
+
+Wrote 531 packets to annotated.pcapng (50 carry an anomaly verdict)
+```
+
+Each annotated packet reads, in Wireshark's packet comment:
+
+```
+WireLab: known-unicast, valid, proto=6, 86.66.0.227:80 -> 10.251.23.139:35383, flow=0x0c2a08860549415c
+ANOMALY port-scan: 8 destinations > threshold 5 in 1000 ms, source 86.66.0.227
+POLICY mirror-port-scan -> mirror
+```
+
+Both classic libpcap and pcapng inputs are accepted, in either byte order and
+at microsecond or nanosecond resolution, so the tool can reread its own output.
+Only Ethernet captures load. Add `--only-flagged` to export just the packets
+that carry a verdict; run `wirelab_pcap` with no arguments for every threshold
+flag.
+
 ## Architecture
 
 The three core components map directly to source files under `include/wirelab/` and `src/`:
@@ -224,6 +265,7 @@ The WireLab analysis and control plane adds a closed loop on top of that datapla
 | `PolicyEngine` | Matches detected anomalies against ordered user rules and produces decisions (`Drop`, `RateLimit`, `Mirror`, `Quarantine`) |
 | `PolicyEnforcer` | Applies each decision as a *leased, reversible* fault on the offending port via `TopologyController`, and releases it when the lease expires |
 | `ControlService` | Publishes anomalies, policy decisions, and enforcement as revisioned events over the versioned control protocol |
+| `PcapCapture` / `PcapNgWriter` | Reads classic pcap and pcapng captures zero-copy, and writes pcapng carrying WireLab's verdict as a per-packet comment |
 
 Enforcement is genuinely closed-loop: a quarantined port stops forwarding frames because the enforcer installs a real `FaultConfiguration` the topology controller already honours, and the port recovers automatically once the lease lapses. Rules, enforced ports, and the enforcement log are editable and observable from the GUI's **Policies** workspace.
 

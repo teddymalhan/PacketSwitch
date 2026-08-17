@@ -37,6 +37,21 @@ namespace wirelab
     }
   }  // namespace
 
+  const char* to_string(AnomalyType type) noexcept
+  {
+    switch (type)
+    {
+      case AnomalyType::BroadcastStorm: return "broadcast-storm";
+      case AnomalyType::MacFlap: return "mac-flap";
+      case AnomalyType::UnknownUnicastFlood: return "unknown-unicast-flood";
+      case AnomalyType::UdpFlood: return "udp-flood";
+      case AnomalyType::PortScan: return "port-scan";
+      case AnomalyType::HotTalker: return "hot-talker";
+      case AnomalyType::MalformedFrame: return "malformed-frame";
+    }
+    return "unknown";
+  }
+
   AnomalyDetector::AnomalyDetector(AnomalyDetectorConfig config) : config_(config)
   {
     if (config_.window_duration_ns == 0)

@@ -21,6 +21,8 @@ namespace wirelab
     MalformedFrame
   };
 
+  [[nodiscard]] const char* to_string(AnomalyType type) noexcept;
+
   struct AnomalyDetectorConfig
   {
     uint64_t window_duration_ns = 1'000'000'000;
@@ -31,7 +33,6 @@ namespace wirelab
     uint64_t port_scan_destinations_threshold = 0;
     uint64_t hot_talker_packets_threshold = 0;
     uint64_t malformed_frames_threshold = 0;
-
   };
 
   struct AnomalyEvent
@@ -87,6 +88,6 @@ namespace wirelab
     uint64_t last_timestamp_ns_ = 0;
     bool has_timestamp_ = false;
   };
-}
+}  // namespace wirelab
 
 #endif

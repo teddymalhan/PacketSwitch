@@ -1,9 +1,9 @@
 #include "wirelab/packet_analyzer.hpp"
-#include "wirelab/packet_batch.hpp"
-
 
 #include <algorithm>
 #include <limits>
+
+#include "wirelab/packet_batch.hpp"
 
 namespace wirelab
 {
@@ -21,13 +21,7 @@ namespace wirelab
     constexpr uint64_t FNV1A_OFFSET_BASIS = 14695981039346656037ULL;
 
     constexpr std::array<uint64_t, 7> FRAME_SIZE_BUCKET_MINIMUMS = {
-      0,
-      64,
-      128,
-      256,
-      512,
-      1024,
-      1519,
+      0, 64, 128, 256, 512, 1024, 1519,
     };
     constexpr uint64_t FNV1A_PRIME = 1099511628211ULL;
 
@@ -93,7 +87,8 @@ namespace wirelab
     void aggregate_histogram(std::vector<HistogramEntry>& histogram)
     {
       std::sort(
-          histogram.begin(), histogram.end(),
+          histogram.begin(),
+          histogram.end(),
           [](const HistogramEntry& first, const HistogramEntry& second) { return first.value < second.value; });
       size_t output_index = 0;
       for (size_t index = 0; index < histogram.size(); ++index)
@@ -116,7 +111,8 @@ namespace wirelab
     void aggregate_mac_traffic(std::vector<MacTrafficRecord>& traffic)
     {
       std::sort(
-          traffic.begin(), traffic.end(),
+          traffic.begin(),
+          traffic.end(),
           [](const MacTrafficRecord& first, const MacTrafficRecord& second) { return first.mac < second.mac; });
       size_t output_index = 0;
       for (size_t index = 0; index < traffic.size(); ++index)
@@ -139,26 +135,40 @@ namespace wirelab
     void rank_mac_traffic(std::vector<MacTrafficRecord>& traffic)
     {
       std::sort(
-          traffic.begin(), traffic.end(), [](const MacTrafficRecord& first, const MacTrafficRecord& second) {
-            if (first.byte_count != second.byte_count) return first.byte_count > second.byte_count;
-            if (first.packet_count != second.packet_count) return first.packet_count > second.packet_count;
+          traffic.begin(),
+          traffic.end(),
+          [](const MacTrafficRecord& first, const MacTrafficRecord& second)
+          {
+            if (first.byte_count != second.byte_count)
+              return first.byte_count > second.byte_count;
+            if (first.packet_count != second.packet_count)
+              return first.packet_count > second.packet_count;
             return first.mac < second.mac;
           });
     }
 
     void rank_flows(std::vector<FlowRecord>& flows)
     {
-      std::sort(flows.begin(), flows.end(), [](const FlowRecord& first, const FlowRecord& second) {
-        if (first.byte_count != second.byte_count) return first.byte_count > second.byte_count;
-        if (first.packet_count != second.packet_count) return first.packet_count > second.packet_count;
-        return flow_key_less(first, second);
-      });
+      std::sort(
+          flows.begin(),
+          flows.end(),
+          [](const FlowRecord& first, const FlowRecord& second)
+          {
+            if (first.byte_count != second.byte_count)
+              return first.byte_count > second.byte_count;
+            if (first.packet_count != second.packet_count)
+              return first.packet_count > second.packet_count;
+            return flow_key_less(first, second);
+          });
     }
 
     void aggregate_traffic_matrix(std::vector<TrafficMatrixEntry>& matrix)
     {
       std::sort(
-          matrix.begin(), matrix.end(), [](const TrafficMatrixEntry& first, const TrafficMatrixEntry& second) {
+          matrix.begin(),
+          matrix.end(),
+          [](const TrafficMatrixEntry& first, const TrafficMatrixEntry& second)
+          {
             return first.source_mac == second.source_mac ? first.destination_mac < second.destination_mac
                                                          : first.source_mac < second.source_mac;
           });
@@ -188,9 +198,9 @@ namespace wirelab
 
     uint32_t read_network_u32(const uint8_t* bytes) noexcept
     {
-      return static_cast<uint32_t>(static_cast<uint32_t>(bytes[0]) << 24U |
-                                   static_cast<uint32_t>(bytes[1]) << 16U |
-                                   static_cast<uint32_t>(bytes[2]) << 8U | bytes[3]);
+      return static_cast<uint32_t>(
+          static_cast<uint32_t>(bytes[0]) << 24U | static_cast<uint32_t>(bytes[1]) << 16U |
+          static_cast<uint32_t>(bytes[2]) << 8U | bytes[3]);
     }
 
     PacketValidity parse_ipv4(const PacketView& packet, PacketAnalysis& analysis) noexcept
@@ -252,6 +262,30 @@ namespace wirelab
       }
       return PacketValidity::Valid;
     }
+  }  // namespace
+
+  const char* to_string(PacketClassification classification) noexcept
+  {
+    switch (classification)
+    {
+      case PacketClassification::Malformed: return "malformed";
+      case PacketClassification::Broadcast: return "broadcast";
+      case PacketClassification::UnknownUnicast: return "unknown-unicast";
+      case PacketClassification::KnownUnicast: return "known-unicast";
+    }
+    return "unknown";
+  }
+
+  const char* to_string(PacketValidity validity) noexcept
+  {
+    switch (validity)
+    {
+      case PacketValidity::Valid: return "valid";
+      case PacketValidity::MalformedEthernet: return "malformed-ethernet";
+      case PacketValidity::MalformedIpv4: return "malformed-ipv4";
+      case PacketValidity::MalformedTransport: return "malformed-transport";
+    }
+    return "unknown";
   }
 
   namespace
@@ -270,15 +304,14 @@ namespace wirelab
       analysis.destination_mac = MacAddress(packet.bytes);
       analysis.source_mac = MacAddress(packet.bytes + MAC_ADDRESS_SIZE);
       analysis.ethertype = read_network_u16(packet.bytes + MAC_ADDRESS_SIZE * 2);
-      analysis.validity =
-          analysis.ethertype == EtherType::IPv4 ? parse_ipv4(packet, analysis) : PacketValidity::Valid;
+      analysis.validity = analysis.ethertype == EtherType::IPv4 ? parse_ipv4(packet, analysis) : PacketValidity::Valid;
       if (analysis.ethertype == EtherType::IPv4 && analysis.validity == PacketValidity::Valid)
       {
         analysis.flow_hash = hash_flow_key(make_flow_key(analysis));
       }
       return analysis;
     }
-  }
+  }  // namespace
 
   AnalysisBatch PacketAnalysisAggregator::aggregate(std::vector<PacketAnalysis> packets, const uint64_t* frame_lengths)
   {
@@ -287,9 +320,8 @@ namespace wirelab
     {
       PacketSizeHistogramBucket& bucket = batch.frame_size_histogram[index];
       bucket.inclusive_minimum = FRAME_SIZE_BUCKET_MINIMUMS[index];
-      bucket.inclusive_maximum = index + 1 == batch.frame_size_histogram.size()
-                                     ? std::numeric_limits<uint64_t>::max()
-                                     : FRAME_SIZE_BUCKET_MINIMUMS[index + 1] - 1;
+      bucket.inclusive_maximum = index + 1 == batch.frame_size_histogram.size() ? std::numeric_limits<uint64_t>::max()
+                                                                                : FRAME_SIZE_BUCKET_MINIMUMS[index + 1] - 1;
     }
     if (packets.empty())
     {
@@ -310,10 +342,9 @@ namespace wirelab
       const uint64_t frame_length = frame_lengths == nullptr ? analysis.frame_length : frame_lengths[index];
       batch.received_packets += 1;
       batch.received_bytes += frame_length;
-      const auto frame_size_bucket =
-          static_cast<size_t>(std::upper_bound(FRAME_SIZE_BUCKET_MINIMUMS.begin() + 1,
-                                               FRAME_SIZE_BUCKET_MINIMUMS.end(), frame_length) -
-                              FRAME_SIZE_BUCKET_MINIMUMS.begin() - 1);
+      const auto frame_size_bucket = static_cast<size_t>(
+          std::upper_bound(FRAME_SIZE_BUCKET_MINIMUMS.begin() + 1, FRAME_SIZE_BUCKET_MINIMUMS.end(), frame_length) -
+          FRAME_SIZE_BUCKET_MINIMUMS.begin() - 1);
       PacketSizeHistogramBucket& size_bucket = batch.frame_size_histogram[frame_size_bucket];
       size_bucket.packet_count += 1;
       size_bucket.byte_count += frame_length;
@@ -428,4 +459,4 @@ namespace wirelab
   {
     aggregator_.reset();
   }
-}
+}  // namespace wirelab

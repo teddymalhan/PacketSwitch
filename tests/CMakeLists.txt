@@ -126,6 +126,30 @@ add_test(
     --seed 42
 )
 
+add_test(
+  NAME wirelab_pcap_replay_smoke
+  COMMAND $<TARGET_FILE:wirelab_pcap>
+    ${CMAKE_CURRENT_SOURCE_DIR}/data/sample.pcap
+    --out ${CMAKE_CURRENT_BINARY_DIR}/wirelab_pcap_smoke.pcapng
+    --broadcast 3
+)
+
+# The annotated output must be readable by the same reader, which is the whole
+# point of accepting pcapng on input.
+add_test(
+  NAME wirelab_pcap_reads_its_own_output
+  COMMAND $<TARGET_FILE:wirelab_pcap>
+    ${CMAKE_CURRENT_BINARY_DIR}/wirelab_pcap_smoke.pcapng
+)
+set_tests_properties(wirelab_pcap_reads_its_own_output
+  PROPERTIES DEPENDS wirelab_pcap_replay_smoke)
+
+add_test(
+  NAME wirelab_pcap_rejects_a_non_capture
+  COMMAND $<TARGET_FILE:wirelab_pcap> ${CMAKE_CURRENT_LIST_FILE}
+)
+set_tests_properties(wirelab_pcap_rejects_a_non_capture PROPERTIES WILL_FAIL TRUE)
+
 if(NOT TARGET wirelab_cuda)
   add_test(
     NAME wirelab_bench_cuda_requires_enabled_backend

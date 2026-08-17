@@ -36,6 +36,9 @@ namespace wirelab
     MalformedTransport
   };
 
+  [[nodiscard]] const char* to_string(PacketClassification classification) noexcept;
+  [[nodiscard]] const char* to_string(PacketValidity validity) noexcept;
+
   struct FlowKey
   {
     uint32_t source_ipv4 = 0;
@@ -47,8 +50,7 @@ namespace wirelab
     [[nodiscard]] bool operator==(const FlowKey& other) const noexcept
     {
       return source_ipv4 == other.source_ipv4 && destination_ipv4 == other.destination_ipv4 &&
-             source_port == other.source_port && destination_port == other.destination_port &&
-             protocol == other.protocol;
+             source_port == other.source_port && destination_port == other.destination_port && protocol == other.protocol;
     }
   };
 
@@ -141,8 +143,7 @@ namespace wirelab
   class PacketAnalysisAggregator final
   {
    public:
-    [[nodiscard]] AnalysisBatch aggregate(std::vector<PacketAnalysis> packets,
-                                          const uint64_t* frame_lengths = nullptr);
+    [[nodiscard]] AnalysisBatch aggregate(std::vector<PacketAnalysis> packets, const uint64_t* frame_lengths = nullptr);
     void reset() noexcept;
 
    private:
@@ -159,6 +160,6 @@ namespace wirelab
    private:
     PacketAnalysisAggregator aggregator_;
   };
-}
+}  // namespace wirelab
 
 #endif

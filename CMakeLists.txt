@@ -231,6 +231,10 @@ add_executable(vswitch src/vswitch_main.cpp)
 target_link_libraries(vswitch PRIVATE ${PROJECT_NAME})
 target_compile_features(vswitch PRIVATE cxx_std_17)
 
+add_executable(wirelab_pcap src/wirelab_pcap_main.cpp)
+target_link_libraries(wirelab_pcap PRIVATE ${PROJECT_NAME})
+target_compile_features(wirelab_pcap PRIVATE cxx_std_17)
+
 add_executable(wirelab_bench src/wirelab_bench.cpp)
 target_link_libraries(wirelab_bench PRIVATE ${PROJECT_NAME})
 target_compile_features(wirelab_bench PRIVATE cxx_std_17)
@@ -290,7 +294,7 @@ if(PROJECT_BUILD_WIRELAB_GUI)
   endif()
 endif()
 set_target_properties(
-  vport vswitch wirelab_bench
+  vport vswitch wirelab_bench wirelab_pcap
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
 )
@@ -318,6 +322,7 @@ install(
   vport
   vswitch
   wirelab_bench
+  wirelab_pcap
   EXPORT
   ${PROJECT_NAME}Targets
   LIBRARY DESTINATION
