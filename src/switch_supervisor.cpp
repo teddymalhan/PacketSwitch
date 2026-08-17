@@ -134,7 +134,7 @@ namespace wirelab
     published_analysed_frames_ = analysed_frames_;
     published_blocked_frames_ = blocked_frames_;
     published_bindings_ = bindings_.size();
-    control_->publish_supervision(analysed_frames_, blocked_frames_, port_bindings());
+    control_->publish_supervision(supervision_snapshot());
   }
 
   std::chrono::milliseconds SwitchSupervisor::tick_interval() const noexcept
@@ -155,20 +155,22 @@ namespace wirelab
       const auto separator = endpoint.rfind(':');
       const auto address = separator == std::string::npos ? endpoint : endpoint.substr(0, separator);
       const auto port =
-          separator == std::string::npos ? 0 : static_cast<uint16_t>(std::stoul(endpoint.substr(separator + 1)));
+          static_cast<uint16_t>(separator == std::string::npos ? 0 : std::stoul(endpoint.substr(separator + 1)));
       bound.emplace_back(binding.port_id, Endpoint(address, port));
     }
     std::sort(bound.begin(), bound.end(), [](const auto& left, const auto& right) { return left.first < right.first; });
     return bound;
   }
 
-  std::vector<PortBinding> SwitchSupervisor::port_bindings() const
+  SupervisionSnapshot SwitchSupervisor::supervision_snapshot() const
   {
-    std::vector<PortBinding> reported;
+    SupervisionSnapshot snapshot;
+    snapshot.analysed_frames = analysed_frames_;
+    snapshot.blocked_frames = blocked_frames_;
     for (auto& [port_id, endpoint] : bindings())
     {
-      reported.push_back({ port_id, endpoint.to_string() });
+      snapshot.bindings.push_back({ port_id, endpoint.to_string() });
     }
-    return reported;
+    return snapshot;
   }
 }  // namespace wirelab

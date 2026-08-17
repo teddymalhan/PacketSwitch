@@ -65,7 +65,10 @@ namespace wirelab
     {
       return blocked_frames_;
     }
-    [[nodiscard]] std::vector<PortBinding> port_bindings() const;
+    // What the switch knows about its own supervision right now: the counters
+    // it publishes when they move, and the port bindings it guessed. A client
+    // that joined late asks for this rather than waiting for the next change.
+    [[nodiscard]] SupervisionSnapshot supervision_snapshot() const;
 
    private:
     struct Binding

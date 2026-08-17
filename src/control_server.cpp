@@ -13,6 +13,7 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <cerrno>
 #include <limits>
 #include <utility>
@@ -212,6 +213,7 @@ namespace wirelab
       case ControlTransportError::AddressResolutionFailed: return "Failed to resolve control address";
       case ControlTransportError::InvalidSocket: return "Invalid control socket";
       case ControlTransportError::Disconnected: return "Control connection closed";
+      case ControlTransportError::Timeout: return "Control operation timed out";
     }
     return "Unknown control transport error";
   }
@@ -312,6 +314,13 @@ namespace wirelab
     {
       return served;
     }
+
+    // A client that owes more than it will ever read is dropped here rather
+    // than when it next says something: it stopped reading, so waiting for it
+    // to become readable is waiting forever.
+    clients_.erase(
+        std::remove_if(clients_.begin(), clients_.end(), [](const Client& client) { return client.congested; }),
+        clients_.end());
 
     std::vector<PollDescriptor> watched;
     watched.reserve(clients_.size() + 1);
@@ -441,6 +450,10 @@ namespace wirelab
     {
       broadcast(to_json(*dispatch.topology_event));
     }
+    if (dispatch.supervision_event)
+    {
+      broadcast(to_json(*dispatch.supervision_event));
+    }
   }
 
   bool ControlServer::flush(Client& client)
@@ -511,14 +524,13 @@ namespace wirelab
     }
   }
 
-  void
-  ControlServer::publish_supervision(uint64_t analysed_frames, uint64_t blocked_frames, std::vector<PortBinding> bindings)
+  void ControlServer::publish_supervision(SupervisionSnapshot snapshot)
   {
     if (clients_.empty())
     {
       return;
     }
-    broadcast(to_json(service_.get().supervision_event(analysed_frames, blocked_frames, std::move(bindings))));
+    broadcast(to_json(service_.get().supervision_event(std::move(snapshot))));
   }
 
   void ControlServer::close() noexcept
@@ -572,7 +584,7 @@ namespace wirelab
     {
       return unexpected(ControlTransportError::SocketCreationFailed);
     }
-    return ControlClient(std::move(socket));
+    return ControlClient(std::move(socket), std::string(address), port);
   }
 
   expected<void, ControlTransportError> ControlClient::send(std::string_view json)
@@ -654,5 +666,125 @@ namespace wirelab
   {
     socket_.close();
     inbox_.clear();
+  }
+
+  expected<void, ControlTransportError> ControlClient::reconnect()
+  {
+    close();
+    auto fresh = connect(address_, port_);
+    if (!fresh)
+    {
+      return unexpected(fresh.error());
+    }
+    // Only the connection is taken over: the endpoint is unchanged, and what
+    // the client believed about the switch is re-established by resync().
+    socket_ = std::move(fresh.value().socket_);
+    return {};
+  }
+
+  expected<ControlResync, ControlTransportError> ControlClient::resync(std::chrono::milliseconds timeout)
+  {
+    constexpr ControlCommand QUERIES[] = { ControlCommand::GetSwitchState,
+                                           ControlCommand::GetActiveFaults,
+                                           ControlCommand::GetSupervisionState };
+
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    ControlResync result;
+    unsigned int sequence = 0;
+    for (const auto command : QUERIES)
+    {
+      // Twice at most: a rejection that carries a revision the client had not
+      // seen is the switch correcting it, and the query is worth repeating. A
+      // rejection for any other reason is an answer.
+      for (unsigned int attempt = 0; attempt < 2; ++attempt)
+      {
+        auto reply = query(command, "resync-" + std::to_string(++sequence), deadline, result.messages);
+        if (!reply)
+        {
+          return unexpected(reply.error());
+        }
+        const bool moved = reply.value().topology_revision != topology_revision_;
+        topology_revision_ = reply.value().topology_revision;
+        if (reply.value().accepted || !moved)
+        {
+          break;
+        }
+      }
+    }
+
+    // The events a query produced are broadcast, so they follow the reply that
+    // announced them instead of arriving with it. A short settle collects them;
+    // anything later is an ordinary event the caller reads as it always does.
+    constexpr std::chrono::milliseconds SETTLE{ 50 };
+    for (;;)
+    {
+      const auto remaining =
+          std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
+      if (remaining.count() <= 0)
+      {
+        break;
+      }
+
+      auto message = receive(remaining < SETTLE ? remaining : SETTLE);
+      if (!message)
+      {
+        return unexpected(message.error());
+      }
+      if (!message.value())
+      {
+        break;
+      }
+      result.messages.push_back(std::move(*message.value()));
+    }
+
+    result.topology_revision = topology_revision_;
+    return result;
+  }
+
+  expected<ControlReply, ControlTransportError> ControlClient::query(
+      ControlCommand command,
+      const std::string& request_id,
+      std::chrono::steady_clock::time_point deadline,
+      std::vector<std::string>& events)
+  {
+    ControlRequest request;
+    request.request_id = request_id;
+    request.command = command;
+    request.topology_revision = topology_revision_;
+    if (const auto sent = send(to_json(request)); !sent)
+    {
+      return unexpected(sent.error());
+    }
+
+    for (;;)
+    {
+      const auto remaining =
+          std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
+      if (remaining.count() <= 0)
+      {
+        return unexpected(ControlTransportError::Timeout);
+      }
+
+      auto message = receive(remaining);
+      if (!message)
+      {
+        return unexpected(message.error());
+      }
+      if (!message.value())
+      {
+        return unexpected(ControlTransportError::Timeout);
+      }
+
+      // The switch keeps talking while a client resynchronises. Anything that
+      // is not this request's answer is an event the caller still wants, and an
+      // event is exactly what does not parse as a reply.
+      auto reply = control_reply_from_json(*message.value());
+      if (!reply || reply.value().request_id != request_id)
+      {
+        events.push_back(std::move(*message.value()));
+        continue;
+      }
+      return reply.value();
+    }
   }
 }  // namespace wirelab

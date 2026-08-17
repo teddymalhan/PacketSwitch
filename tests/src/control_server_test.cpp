@@ -2,8 +2,11 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
+#include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -37,6 +40,13 @@ namespace
   wirelab::ControlServer make_server(wirelab::ControlService& service)
   {
     auto created = wirelab::ControlServer::create(service, 0);
+    EXPECT_TRUE(created.has_value());
+    return std::move(created.value());
+  }
+
+  wirelab::ControlServer make_server(wirelab::ControlService& service, wirelab::ControlServerConfig config)
+  {
+    auto created = wirelab::ControlServer::create(service, 0, "127.0.0.1", config);
     EXPECT_TRUE(created.has_value());
     return std::move(created.value());
   }
@@ -278,5 +288,168 @@ namespace
       (void)server.poll(10ms);
     }
     EXPECT_EQ(server.client_count(), 0U);
+  }
+
+  TEST(ControlServerTest, AnswersALateJoinerAskingForSupervisionState)
+  {
+    auto vswitch = make_switch();
+    wirelab::TopologyController controller;
+    controller.load(make_topology());
+    wirelab::ControlService service(vswitch, controller);
+    wirelab::AnalysisPipeline pipeline(storm_config(), controller);
+    wirelab::SwitchSupervisor supervisor(pipeline, controller);
+    service.set_supervision_source([&supervisor] { return supervisor.supervision_snapshot(); });
+
+    auto server = make_server(service);
+    supervisor.attach_control(server);
+
+    // The traffic happens before anyone is listening, so the state that moved
+    // was published to nobody.
+    const wirelab::Endpoint sender("127.0.0.1", 40004);
+    const auto now = std::chrono::steady_clock::now();
+    (void)supervisor.inspect(broadcast_frame(0x03), sender, now);
+    (void)supervisor.inspect(broadcast_frame(0x03), sender, now);
+    supervisor.tick(now + 300ms);
+
+    auto client = make_client(server);
+    accept_clients(server, 1);
+    ASSERT_TRUE(client.send(
+        R"({"api_version":1,"request_id":"supervision-1","command":"get_supervision_state","topology_revision":1})"));
+
+    const auto messages = collect(server, client, 2);
+    ASSERT_EQ(messages.size(), 2U);
+    EXPECT_TRUE(contains(messages[0], R"("request_id":"supervision-1")"));
+    EXPECT_TRUE(contains(messages[0], R"("accepted":true)"));
+    EXPECT_TRUE(contains(messages[0], R"("topology_revision":1)"));
+    EXPECT_TRUE(contains(messages[1], R"("event":"supervision_state")"));
+    EXPECT_TRUE(contains(messages[1], R"("analysed_frames":2)"));
+    EXPECT_TRUE(contains(messages[1], R"({"port_id":"client-a","endpoint":"127.0.0.1:40004"})"));
+  }
+
+  TEST(ControlServerTest, RefusesSupervisionStateWithoutASupervisor)
+  {
+    auto vswitch = make_switch();
+    wirelab::ControlService service(vswitch, 0);
+    auto server = make_server(service);
+    auto client = make_client(server);
+    accept_clients(server, 1);
+
+    ASSERT_TRUE(client.send(
+        R"({"api_version":1,"request_id":"supervision-2","command":"get_supervision_state","topology_revision":0})"));
+
+    const auto messages = collect(server, client, 1);
+    ASSERT_EQ(messages.size(), 1U);
+    EXPECT_TRUE(contains(messages[0], R"("accepted":false)"));
+    EXPECT_TRUE(contains(messages[0], "supervision state is unavailable"));
+  }
+
+  TEST(ControlServerTest, DropsAClientThatStoppedReadingAndKeepsServingTheRest)
+  {
+    auto vswitch = make_switch();
+    wirelab::ControlService service(vswitch, 0);
+    wirelab::ControlServerConfig config;
+    config.max_pending_bytes = 32 * 1024;
+    auto server = make_server(service, config);
+
+    auto reader = make_client(server);
+    auto silent = make_client(server);
+    accept_clients(server, 2);
+
+    wirelab::SupervisionSnapshot snapshot;
+    snapshot.bindings = { { "client-a", "127.0.0.1:40005" } };
+
+    // The silent client never reads. Its kernel buffers fill, then its outbox
+    // passes the cap, and the server gives up on it. The reader keeps draining,
+    // so it must survive the same broadcasts.
+    const auto deadline = std::chrono::steady_clock::now() + 20s;
+    uint64_t published = 0;
+    while (server.client_count() == 2 && std::chrono::steady_clock::now() < deadline)
+    {
+      snapshot.analysed_frames = ++published;
+      server.publish_supervision(snapshot);
+      (void)server.poll(0ms);
+      while (true)
+      {
+        auto received = reader.receive(0ms);
+        if (!received || !received.value())
+        {
+          break;
+        }
+      }
+    }
+
+    ASSERT_EQ(server.client_count(), 1U) << "the switch kept a client that stopped reading, after " << published
+                                         << " broadcasts";
+    EXPECT_TRUE(silent.is_connected()) << "the client was dropped by the switch, not by itself";
+
+    ASSERT_TRUE(
+        reader.send(R"({"api_version":1,"request_id":"state-3","command":"get_switch_state","topology_revision":0})"));
+    const auto messages = collect(server, reader, 2);
+    ASSERT_EQ(messages.size(), 2U);
+    EXPECT_TRUE(contains(messages[0], R"("request_id":"state-3")"));
+    EXPECT_TRUE(contains(messages[0], R"("accepted":true)"));
+  }
+
+  TEST(ControlServerTest, ResynchronisesAfterReconnecting)
+  {
+    auto vswitch = make_switch();
+    wirelab::TopologyController controller;
+    controller.load(make_topology());
+    wirelab::ControlService service(vswitch, controller);
+    wirelab::AnalysisPipeline pipeline(storm_config(), controller);
+    wirelab::SwitchSupervisor supervisor(pipeline, controller);
+    service.set_supervision_source([&supervisor] { return supervisor.supervision_snapshot(); });
+
+    auto server = make_server(service);
+    supervisor.attach_control(server);
+    auto client = make_client(server);
+    accept_clients(server, 1);
+
+    const wirelab::Endpoint sender("127.0.0.1", 40006);
+    const auto now = std::chrono::steady_clock::now();
+    (void)supervisor.inspect(broadcast_frame(0x04), sender, now);
+    supervisor.tick(now + 300ms);
+
+    // The connection is lost. The client comes back knowing nothing: not the
+    // topology revision its commands must carry, not what it missed.
+    client.close();
+    ASSERT_TRUE(client.reconnect().has_value());
+    EXPECT_EQ(client.topology_revision(), 0U);
+
+    std::optional<wirelab::ControlResync> resynchronised;
+    std::atomic<bool> finished{ false };
+    std::thread worker(
+        [&client, &resynchronised, &finished]
+        {
+          auto outcome = client.resync(5s);
+          if (outcome)
+          {
+            resynchronised = std::move(outcome.value());
+          }
+          finished = true;
+        });
+
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    while (!finished && std::chrono::steady_clock::now() < deadline)
+    {
+      (void)server.poll(5ms);
+    }
+    worker.join();
+
+    ASSERT_TRUE(resynchronised.has_value()) << "the client could not describe the switch it reconnected to";
+    // The first query was stale, the rejection carried the revision, and the
+    // repeat was answered against it.
+    EXPECT_EQ(resynchronised->topology_revision, controller.topology_revision());
+    EXPECT_EQ(client.topology_revision(), controller.topology_revision());
+
+    bool saw_metrics = false;
+    bool saw_supervision = false;
+    for (const auto& message : resynchronised->messages)
+    {
+      saw_metrics = saw_metrics || contains(message, R"("event":"switch_metrics")");
+      saw_supervision = saw_supervision || contains(message, R"("event":"supervision_state")");
+    }
+    EXPECT_TRUE(saw_metrics);
+    EXPECT_TRUE(saw_supervision);
   }
 }  // namespace

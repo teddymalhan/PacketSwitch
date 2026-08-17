@@ -196,11 +196,12 @@ VSwitch logs show MAC learning events and per-frame forwarding decisions. Both V
 ### CLI reference
 
 ```
-vswitch <port> [--verbose] [--topology <file>] [--control-port <port>]
-  port                   UDP port to listen on (0 = ephemeral)
-  --verbose              Log every forwarding decision
-  --topology <file>      Analyse and police forwarded traffic against this topology
-  --control-port <port>  Serve the control protocol on this TCP port (requires --topology)
+vswitch <port> [--verbose] [--topology <file>] [--control-port <port>] [--control-address <address>]
+  port                       UDP port to listen on (0 = ephemeral)
+  --verbose                  Log every forwarding decision
+  --topology <file>          Analyse and police forwarded traffic against this topology
+  --control-port <port>      Serve the control protocol on this TCP port (requires --topology)
+  --control-address <addr>   Bind the control channel somewhere other than 127.0.0.1
 
 vport <vswitch_ip> <vswitch_port> [tap_name]
   vswitch_ip    IP address of the VSwitch host
@@ -260,13 +261,37 @@ asked and every event broadcast to all of them.
 
 `supervision_state` reports which client the switch decided owns which topology
 port, because a UDP dataplane offers no stable identity and the binding is a
-guess worth showing rather than hiding. It is republished only when it moves.
+guess worth showing rather than hiding. It is republished only when it moves,
+so a client that joined late asks for it instead of waiting:
+
+```jsonc
+// in
+{"api_version":1,"request_id":"supervision-1","command":"get_supervision_state","topology_revision":1}
+// out: the reply to the asker, then the state broadcast to everyone
+{"api_version":1,"request_id":"supervision-1","accepted":true,"topology_revision":1,
+ "operation_id":"supervision-state-7"}
+{"event":"supervision_state","analysed_frames":302,"blocked_frames":21, ...}
+```
+
+Every reply carries `topology_revision`, including a rejection. That is what a
+client that lost its connection uses to come back: `ControlClient::reconnect()`
+dials the switch again and `resync()` re-asks for switch state, active faults
+and supervision state, adopting the revision the switch answers with. A command
+still has to carry the current revision, so a client that missed a topology
+reload is refused rather than allowed to fault a port that has moved.
 
 The server is polled from the switch's own receive loop rather than from a
 thread of its own, so a control client can never interleave with a frame being
 forwarded. Nothing it does blocks: replies to a client that has stopped reading
-are queued, and the client is disconnected once that queue passes its cap, so
-a stalled operator console cannot stall forwarding.
+are queued, and the client is disconnected on the next poll once that queue
+passes `ControlServerConfig::max_pending_bytes`, so a stalled operator console
+cannot stall forwarding.
+
+The control channel is unauthenticated, and it binds loopback for that reason:
+anyone who can reach it can quarantine a port or blackhole a link.
+`--control-address` exists for a lab where the GUI is on another machine, and
+the switch says so on startup when it is used. Do not put it on a network you
+would not hand a root shell to.
 
 ### Replaying a capture
 
@@ -329,8 +354,8 @@ The WireLab analysis and control plane adds a closed loop on top of that datapla
 | `PolicyEnforcer` | Applies each decision as a *leased, reversible* fault on the offending port via `TopologyController`, and releases it when the lease expires |
 | `AnalysisPipeline` | The single detection -> policy -> enforcement seam every consumer runs: the GUI, `wirelab_pcap`, and `ControlService` all evaluate batches through one of these rather than rewiring the three stages themselves |
 | `SwitchSupervisor` | Binds live senders to topology ports, batches their frames into the pipeline, and gates the switch's forwarding on the resulting faults |
-| `ControlService` | Turns switch state, topology commands, anomalies, policy decisions and enforcement into revisioned events over the versioned control protocol |
-| `ControlServer` / `ControlClient` | Carries that protocol over TCP as newline-delimited JSON, polled from the switch's receive loop so the control plane never blocks forwarding |
+| `ControlService` | Turns switch state, topology commands, anomalies, policy decisions and enforcement into revisioned events over the versioned control protocol, and answers `get_supervision_state` from whatever supervision source it was given |
+| `ControlServer` / `ControlClient` | Carries that protocol over TCP as newline-delimited JSON, polled from the switch's receive loop so the control plane never blocks forwarding; the client reconnects and resynchronises against the revision the switch reports |
 | `PcapCapture` / `PcapNgWriter` | Reads classic pcap and pcapng captures zero-copy, and writes pcapng carrying WireLab's verdict as a per-packet comment |
 
 Enforcement is genuinely closed-loop: a quarantined port stops forwarding frames because the enforcer installs a real `FaultConfiguration` the topology controller already honours, and the port recovers automatically once the lease lapses. Rules, enforced ports, and the enforcement log are editable and observable from the GUI's **Policies** workspace.
