@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "wirelab/analysis_pipeline.hpp"
+#include "wirelab/control_protocol.hpp"
 #include "wirelab/packet_analyzer.hpp"
 #include "wirelab/topology_controller.hpp"
 #include "wirelab/udp_socket.hpp"
@@ -16,6 +17,8 @@
 
 namespace wirelab
 {
+  class ControlServer;
+
   struct SwitchSupervisorConfig
   {
     // How often batched frames are analysed and leases are reconsidered. Also
@@ -38,6 +41,11 @@ namespace wirelab
    public:
     SwitchSupervisor(AnalysisPipeline& pipeline, TopologyController& controller, SwitchSupervisorConfig config = {});
 
+    // Gives the supervisor a control plane to serve and to publish onto. The
+    // server is polled from tick(), so the switch stays single-threaded and a
+    // control client can never interleave with a frame being forwarded.
+    void attach_control(ControlServer& server) noexcept;
+
     [[nodiscard]] FaultDecision inspect(
         const std::vector<uint8_t>& frame_data,
         const Endpoint& sender,
@@ -57,6 +65,7 @@ namespace wirelab
     {
       return blocked_frames_;
     }
+    [[nodiscard]] std::vector<PortBinding> port_bindings() const;
 
    private:
     struct Binding
@@ -72,10 +81,12 @@ namespace wirelab
     };
 
     [[nodiscard]] const Binding& bind(const Endpoint& sender);
+    void publish();
 
     AnalysisPipeline& pipeline_;
     TopologyController& controller_;
     SwitchSupervisorConfig config_;
+    ControlServer* control_ = nullptr;
     CpuPacketAnalyzer analyzer_;
     std::unordered_map<std::string, Binding> bindings_;
     // Frames are copied because analysis runs after the switch has released the
@@ -84,6 +95,9 @@ namespace wirelab
     std::chrono::steady_clock::time_point last_tick_{};
     uint64_t analysed_frames_ = 0;
     uint64_t blocked_frames_ = 0;
+    uint64_t published_analysed_frames_ = 0;
+    uint64_t published_blocked_frames_ = 0;
+    size_t published_bindings_ = 0;
   };
 }  // namespace wirelab
 

@@ -110,12 +110,10 @@ namespace wirelab
         {
           return unexpected(ControlParseError::MissingRequiredField);
         }
-        const bool requires_parameters = request.command == ControlCommand::LoadTopology ||
-                                         request.command == ControlCommand::StartBenchmark ||
-                                         request.command == ControlCommand::SetPortFault ||
-                                         request.command == ControlCommand::ClearPortFault ||
-                                         request.command == ControlCommand::SetLinkFault ||
-                                         request.command == ControlCommand::ClearLinkFault;
+        const bool requires_parameters =
+            request.command == ControlCommand::LoadTopology || request.command == ControlCommand::StartBenchmark ||
+            request.command == ControlCommand::SetPortFault || request.command == ControlCommand::ClearPortFault ||
+            request.command == ControlCommand::SetLinkFault || request.command == ControlCommand::ClearLinkFault;
         if (!has_parameters && requires_parameters)
         {
           return unexpected(ControlParseError::MissingRequiredField);
@@ -124,7 +122,7 @@ namespace wirelab
         {
           return unexpected(
               parameters_missing_required_for(request.command) ? ControlParseError::MissingRequiredField
-                                                              : ControlParseError::InvalidField);
+                                                               : ControlParseError::InvalidField);
         }
         return request;
       }
@@ -167,9 +165,12 @@ namespace wirelab
           }
           const char character = input_[position_++];
           value <<= 4U;
-          if (character >= '0' && character <= '9') value |= static_cast<uint32_t>(character - '0');
-          else if (character >= 'a' && character <= 'f') value |= static_cast<uint32_t>(character - 'a' + 10);
-          else if (character >= 'A' && character <= 'F') value |= static_cast<uint32_t>(character - 'A' + 10);
+          if (character >= '0' && character <= '9')
+            value |= static_cast<uint32_t>(character - '0');
+          else if (character >= 'a' && character <= 'f')
+            value |= static_cast<uint32_t>(character - 'a' + 10);
+          else if (character >= 'A' && character <= 'F')
+            value |= static_cast<uint32_t>(character - 'A' + 10);
           else
           {
             error_ = ControlParseError::MalformedJson;
@@ -277,9 +278,7 @@ namespace wirelab
               append_utf8(output, code_point);
               break;
             }
-            default:
-              error_ = ControlParseError::MalformedJson;
-              return false;
+            default: error_ = ControlParseError::MalformedJson; return false;
           }
         }
         error_ = ControlParseError::MalformedJson;
@@ -318,15 +317,24 @@ namespace wirelab
         {
           return false;
         }
-        if (value == "load_topology") command = ControlCommand::LoadTopology;
-        else if (value == "get_switch_state") command = ControlCommand::GetSwitchState;
-        else if (value == "get_active_faults") command = ControlCommand::GetActiveFaults;
-        else if (value == "start_benchmark") command = ControlCommand::StartBenchmark;
-        else if (value == "stop_run") command = ControlCommand::StopRun;
-        else if (value == "set_port_fault") command = ControlCommand::SetPortFault;
-        else if (value == "clear_port_fault") command = ControlCommand::ClearPortFault;
-        else if (value == "set_link_fault") command = ControlCommand::SetLinkFault;
-        else if (value == "clear_link_fault") command = ControlCommand::ClearLinkFault;
+        if (value == "load_topology")
+          command = ControlCommand::LoadTopology;
+        else if (value == "get_switch_state")
+          command = ControlCommand::GetSwitchState;
+        else if (value == "get_active_faults")
+          command = ControlCommand::GetActiveFaults;
+        else if (value == "start_benchmark")
+          command = ControlCommand::StartBenchmark;
+        else if (value == "stop_run")
+          command = ControlCommand::StopRun;
+        else if (value == "set_port_fault")
+          command = ControlCommand::SetPortFault;
+        else if (value == "clear_port_fault")
+          command = ControlCommand::ClearPortFault;
+        else if (value == "set_link_fault")
+          command = ControlCommand::SetLinkFault;
+        else if (value == "clear_link_fault")
+          command = ControlCommand::ClearLinkFault;
         else
         {
           error_ = ControlParseError::InvalidField;
@@ -342,8 +350,10 @@ namespace wirelab
         {
           return false;
         }
-        if (value == "cpu") backend = AnalyzerBackend::Cpu;
-        else if (value == "cuda") backend = AnalyzerBackend::Cuda;
+        if (value == "cpu")
+          backend = AnalyzerBackend::Cpu;
+        else if (value == "cuda")
+          backend = AnalyzerBackend::Cuda;
         else
         {
           error_ = ControlParseError::InvalidField;
@@ -374,8 +384,7 @@ namespace wirelab
       bool read_milliseconds(std::chrono::nanoseconds& output) noexcept
       {
         uint64_t milliseconds = 0;
-        if (!read_uint(milliseconds) ||
-            milliseconds > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+        if (!read_uint(milliseconds) || milliseconds > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
         {
           error_ = ControlParseError::InvalidField;
           return false;
@@ -409,8 +418,7 @@ namespace wirelab
             parameters_.topology_path = true;
             read = read_string(request.topology.path);
           }
-          else
-          if (key == "scenario" && !parameters_.scenario)
+          else if (key == "scenario" && !parameters_.scenario)
           {
             parameters_.scenario = true;
             read = read_string(request.benchmark.scenario);
@@ -510,31 +518,29 @@ namespace wirelab
       {
         const bool benchmark = parameters_.scenario && parameters_.backend && parameters_.batch_size &&
                                parameters_.duration_seconds && parameters_.seed;
-        const bool fault = parameters_.latency && parameters_.jitter && parameters_.loss &&
-                           parameters_.duplication && parameters_.bandwidth && parameters_.blackhole &&
-                           parameters_.isolated;
+        const bool fault = parameters_.latency && parameters_.jitter && parameters_.loss && parameters_.duplication &&
+                           parameters_.bandwidth && parameters_.blackhole && parameters_.isolated;
         const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
                                    parameters_.duration_seconds || parameters_.seed;
-        const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss ||
-                               parameters_.duplication || parameters_.bandwidth || parameters_.blackhole ||
-                               parameters_.isolated;
+        const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss || parameters_.duplication ||
+                               parameters_.bandwidth || parameters_.blackhole || parameters_.isolated;
         switch (command)
         {
           case ControlCommand::LoadTopology:
-            return parameters_.topology_path && !has_benchmark && !parameters_.port_id &&
-                   !parameters_.first_endpoint && !parameters_.second_endpoint && !has_fault;
+            return parameters_.topology_path && !has_benchmark && !parameters_.port_id && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint && !has_fault;
           case ControlCommand::StartBenchmark:
-            return benchmark && !parameters_.topology_path && !parameters_.port_id &&
-                   !parameters_.first_endpoint && !parameters_.second_endpoint && !has_fault;
+            return benchmark && !parameters_.topology_path && !parameters_.port_id && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint && !has_fault;
           case ControlCommand::SetPortFault:
-            return parameters_.port_id && !parameters_.topology_path && fault &&
-                   !parameters_.first_endpoint && !parameters_.second_endpoint && !has_benchmark;
+            return parameters_.port_id && !parameters_.topology_path && fault && !parameters_.first_endpoint &&
+                   !parameters_.second_endpoint && !has_benchmark;
           case ControlCommand::ClearPortFault:
             return parameters_.port_id && !parameters_.topology_path && !parameters_.first_endpoint &&
                    !parameters_.second_endpoint && !has_benchmark && !has_fault;
           case ControlCommand::SetLinkFault:
-            return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.topology_path &&
-                   fault && !parameters_.port_id && !has_benchmark;
+            return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.topology_path && fault &&
+                   !parameters_.port_id && !has_benchmark;
           case ControlCommand::ClearLinkFault:
             return parameters_.first_endpoint && parameters_.second_endpoint && !parameters_.topology_path &&
                    !parameters_.port_id && !has_benchmark && !has_fault;
@@ -549,9 +555,8 @@ namespace wirelab
       {
         const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
                                    parameters_.duration_seconds || parameters_.seed;
-        const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss ||
-                               parameters_.duplication || parameters_.bandwidth || parameters_.blackhole ||
-                               parameters_.isolated;
+        const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss || parameters_.duplication ||
+                               parameters_.bandwidth || parameters_.blackhole || parameters_.isolated;
         switch (command)
         {
           case ControlCommand::LoadTopology:
@@ -566,8 +571,7 @@ namespace wirelab
           case ControlCommand::ClearPortFault:
             return !parameters_.topology_path && !has_benchmark && !has_fault && !parameters_.first_endpoint &&
                    !parameters_.second_endpoint;
-          case ControlCommand::SetLinkFault:
-            return !parameters_.topology_path && !parameters_.port_id && !has_benchmark;
+          case ControlCommand::SetLinkFault: return !parameters_.topology_path && !parameters_.port_id && !has_benchmark;
           case ControlCommand::ClearLinkFault:
             return !parameters_.topology_path && !parameters_.port_id && !has_benchmark && !has_fault;
           case ControlCommand::GetSwitchState:
@@ -622,8 +626,8 @@ namespace wirelab
           default:
             if (character < 0x20U)
             {
-              result << "\\u" << std::hex << std::setw(4) << std::setfill('0')
-                     << static_cast<unsigned int>(character) << std::dec << std::setfill(' ');
+              result << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<unsigned int>(character)
+                     << std::dec << std::setfill(' ');
             }
             else
             {
@@ -655,11 +659,9 @@ namespace wirelab
       result << "{\"type\":" << json_string(anomaly_type_name(anomaly.type))
              << ",\"source_mac\":" << json_string(anomaly.source_mac.to_string())
              << ",\"source_ipv4\":" << anomaly.source_ipv4 << ",\"ingress_port\":" << anomaly.ingress_port
-             << ",\"observed_packets\":" << anomaly.observed_packets
-             << ",\"observed_bytes\":" << anomaly.observed_bytes
+             << ",\"observed_packets\":" << anomaly.observed_packets << ",\"observed_bytes\":" << anomaly.observed_bytes
              << ",\"observed_distinct_destinations\":" << anomaly.observed_distinct_destinations
-             << ",\"threshold\":" << anomaly.threshold
-             << ",\"window_duration_ns\":" << anomaly.window_duration_ns << '}';
+             << ",\"threshold\":" << anomaly.threshold << ",\"window_duration_ns\":" << anomaly.window_duration_ns << '}';
     }
 
     bool is_valid_benchmark(const BenchmarkParameters& benchmark) noexcept
@@ -668,7 +670,7 @@ namespace wirelab
       return !benchmark.scenario.empty() && benchmark.batch_size > 0 && benchmark.batch_size <= MAX_BATCH_SIZE &&
              benchmark.duration_seconds > 0;
     }
-  }
+  }  // namespace
 
   const char* to_string(AnalyzerBackend backend) noexcept
   {
@@ -767,8 +769,10 @@ namespace wirelab
         result << "\"first_endpoint\":" << json_string(fault.first_endpoint)
                << ",\"second_endpoint\":" << json_string(fault.second_endpoint);
       }
-      result << ",\"latency_ms\":" << std::chrono::duration_cast<std::chrono::milliseconds>(fault.configuration.latency).count()
-             << ",\"jitter_ms\":" << std::chrono::duration_cast<std::chrono::milliseconds>(fault.configuration.jitter).count()
+      result << ",\"latency_ms\":"
+             << std::chrono::duration_cast<std::chrono::milliseconds>(fault.configuration.latency).count()
+             << ",\"jitter_ms\":"
+             << std::chrono::duration_cast<std::chrono::milliseconds>(fault.configuration.jitter).count()
              << ",\"loss_basis_points\":" << fault.configuration.loss_basis_points
              << ",\"duplication_basis_points\":" << fault.configuration.duplication_basis_points
              << ",\"bandwidth_bits_per_second\":" << fault.configuration.bandwidth_bits_per_second
@@ -815,9 +819,8 @@ namespace wirelab
            << ",\"forwarded_packets\":" << metrics.forwarded_packets << ",\"forwarded_bytes\":" << metrics.forwarded_bytes
            << ",\"broadcast_packets\":" << metrics.broadcast_packets
            << ",\"unknown_unicast_packets\":" << metrics.unknown_unicast_packets
-           << ",\"dropped_packets\":" << metrics.dropped_packets
-           << ",\"malformed_packets\":" << metrics.malformed_packets << ",\"learned_macs\":" << metrics.learned_macs
-           << "}}";
+           << ",\"dropped_packets\":" << metrics.dropped_packets << ",\"malformed_packets\":" << metrics.malformed_packets
+           << ",\"learned_macs\":" << metrics.learned_macs << "}}";
     return result.str();
   }
   std::string to_json(const FaultStateEvent& event)
@@ -854,14 +857,16 @@ namespace wirelab
            << ",\"name\":" << json_string(event.name) << ",\"nodes\":[";
     for (size_t index = 0; index < event.nodes.size(); ++index)
     {
-      if (index != 0) result << ',';
+      if (index != 0)
+        result << ',';
       const auto& node = event.nodes[index];
       result << "{\"id\":" << json_string(node.id) << ",\"type\":" << json_string(to_string(node.type)) << '}';
     }
     result << "],\"links\":[";
     for (size_t index = 0; index < event.links.size(); ++index)
     {
-      if (index != 0) result << ',';
+      if (index != 0)
+        result << ',';
       const auto& link = event.links[index];
       result << "{\"from\":" << json_string(link.from) << ",\"to\":" << json_string(link.to)
              << ",\"latency_ms\":" << link.latency.count() << '}';
@@ -883,14 +888,32 @@ namespace wirelab
   {
     std::ostringstream result;
     result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
-           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"policy_action\",\"rule_name\":"
-           << json_string(event.decision.rule_name) << ",\"action\":" << json_string(to_string(event.decision.action))
+           << ",\"topology_revision\":" << event.topology_revision
+           << ",\"event\":\"policy_action\",\"rule_name\":" << json_string(event.decision.rule_name)
+           << ",\"action\":" << json_string(to_string(event.decision.action))
            << ",\"hit_count\":" << event.decision.hit_count
-           << ",\"rate_limit_packets_per_second\":" << event.decision.rate_limit_packets_per_second
-           << ",\"anomaly\":";
+           << ",\"rate_limit_packets_per_second\":" << event.decision.rate_limit_packets_per_second << ",\"anomaly\":";
     append_anomaly_json(result, event.decision.anomaly);
     result << '}';
     return result.str();
   }
 
-}
+  std::string to_json(const SupervisionStateEvent& event)
+  {
+    std::ostringstream result;
+    result << "{\"api_version\":" << event.api_version << ",\"event_sequence\":" << event.event_sequence
+           << ",\"topology_revision\":" << event.topology_revision << ",\"event\":\"supervision_state\""
+           << ",\"analysed_frames\":" << event.analysed_frames << ",\"blocked_frames\":" << event.blocked_frames
+           << ",\"bindings\":[";
+    for (size_t index = 0; index < event.bindings.size(); ++index)
+    {
+      if (index != 0)
+        result << ',';
+      const auto& binding = event.bindings[index];
+      result << "{\"port_id\":" << json_string(binding.port_id) << ",\"endpoint\":" << json_string(binding.endpoint) << '}';
+    }
+    result << "]}";
+    return result.str();
+  }
+
+}  // namespace wirelab

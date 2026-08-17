@@ -4,10 +4,12 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "wirelab/analysis_pipeline.hpp"
+#include "wirelab/control_server.hpp"
 #include "wirelab/switch_supervisor.hpp"
 #include "wirelab/topology.hpp"
 #include "wirelab/topology_controller.hpp"
@@ -59,17 +61,21 @@ void install_default_policies(wirelab::AnalysisPipeline& pipeline)
 
 void print_usage(const char* program_name)
 {
-  std::cerr << "Usage: " << program_name << " <port> [--verbose] [--topology <file>]\n";
+  std::cerr << "Usage: " << program_name << " <port> [--verbose] [--topology <file>] [--control-port <port>]\n";
   std::cerr << "\n";
   std::cerr << "Arguments:\n";
   std::cerr << "  port     UDP port to listen on (0 for ephemeral)\n";
   std::cerr << "  --verbose  Log every forwarding decision; disabled by default for throughput measurements\n";
   std::cerr << "  --topology <file>  Supervise forwarding with a WireLab topology: frames are analysed,\n";
   std::cerr << "                     anomalies matched against policies, and offending ports contained\n";
+  std::cerr << "  --control-port <port>  Serve the WireLab control protocol on this TCP port, so a client can\n";
+  std::cerr << "                     drive the switch and watch anomalies, policies and enforcement live.\n";
+  std::cerr << "                     Requires --topology, because the supervisor is what serves it\n";
   std::cerr << "\n";
   std::cerr << "Examples:\n";
   std::cerr << "  " << program_name << " 8080\n";
   std::cerr << "  " << program_name << " 8080 --topology topologies/lab.yaml\n";
+  std::cerr << "  " << program_name << " 8080 --topology topologies/lab.yaml --control-port 9090\n";
   std::cerr << "\n";
   std::cerr << "The VSwitch will:\n";
   std::cerr << "  - Learn MAC addresses from incoming frames\n";
@@ -91,6 +97,7 @@ int main(int argc, char* argv[])
 
   wirelab::VSwitchLogLevel log_level = wirelab::VSwitchLogLevel::Lifecycle;
   std::string topology_path;
+  long control_port = -1;
   for (int index = 2; index < argc; ++index)
   {
     const std::string_view option(argv[index]);
@@ -104,8 +111,24 @@ int main(int argc, char* argv[])
       topology_path = argv[++index];
       continue;
     }
+    if (option == "--control-port" && index + 1 < argc)
+    {
+      char* control_end = nullptr;
+      control_port = std::strtol(argv[++index], &control_end, 10);
+      if (*control_end != '\0' || control_port < 0 || control_port > 65535)
+      {
+        std::cerr << "Error: Invalid control port '" << argv[index] << "'\n";
+        return EXIT_FAILURE;
+      }
+      continue;
+    }
     std::cerr << "Error: Unknown option '" << option << "'\n";
     print_usage(argv[0]);
+    return EXIT_FAILURE;
+  }
+  if (control_port >= 0 && topology_path.empty())
+  {
+    std::cerr << "Error: --control-port requires --topology; the control plane is served by the supervisor\n";
     return EXIT_FAILURE;
   }
 
@@ -126,6 +149,7 @@ int main(int argc, char* argv[])
   std::cout << "Configuration:\n";
   std::cout << "  Port: " << port << (port == 0 ? " (ephemeral)" : "") << "\n";
   std::cout << "  Supervision: " << (topology_path.empty() ? "off" : topology_path) << "\n";
+  std::cout << "  Control: " << (control_port < 0 ? std::string("off") : std::to_string(control_port)) << "\n";
   std::cout << "\n";
 
   try
@@ -157,6 +181,8 @@ int main(int argc, char* argv[])
     wirelab::TopologyController controller;
     wirelab::AnalysisPipeline pipeline(live_anomaly_config());
     std::unique_ptr<wirelab::SwitchSupervisor> supervisor;
+    std::optional<wirelab::ControlService> control_service;
+    std::optional<wirelab::ControlServer> control_server;
     if (!topology_path.empty())
     {
       auto configuration = wirelab::topology_configuration_from_yaml_file(topology_path);
@@ -176,6 +202,21 @@ int main(int argc, char* argv[])
       install_default_policies(pipeline);
       supervisor = std::make_unique<wirelab::SwitchSupervisor>(pipeline, controller);
       g_vswitch->set_frame_gate(supervisor.get());
+      if (control_port >= 0)
+      {
+        control_service.emplace(*g_vswitch, controller);
+        auto server = wirelab::ControlServer::create(*control_service, static_cast<uint16_t>(control_port));
+        if (!server)
+        {
+          std::cerr << "Error: Cannot serve the control protocol on port " << control_port << ": "
+                    << wirelab::to_string(server.error()) << "\n";
+          return EXIT_FAILURE;
+        }
+        control_server.emplace(std::move(server.value()));
+        supervisor->attach_control(*control_server);
+        std::cout << "Control channel on 127.0.0.1:" << control_server->port()
+                  << "; newline-delimited JSON, one control message per line.\n";
+      }
 
       std::cout << "Supervising " << controller.port_ids().size() << " ports; senders are bound to them in "
                 << "first-seen order.\n";

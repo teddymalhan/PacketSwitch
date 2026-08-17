@@ -126,7 +126,10 @@ namespace
     wirelab::TopologyController controller;
     controller.load(make_topology());
     wirelab::PolicyEnforcerConfig enforcer_config;
-    enforcer_config.quarantine_lease = 400ms;
+    // Long enough that the containment window below is measured while the lease
+    // is provably still held: a lease that lapsed mid-measurement would make a
+    // forwarded frame look like a containment failure.
+    enforcer_config.quarantine_lease = 1s;
     wirelab::AnalysisPipeline pipeline(storm_config(), enforcer_config);
     ASSERT_TRUE(pipeline.policies().add_rule(
         { "contain-broadcast-storm", wirelab::AnomalyType::BroadcastStorm, wirelab::PolicyAction::Quarantine }));
@@ -177,9 +180,10 @@ namespace
       forwarded_while_quarantined += drain(client_b, 20ms);
     }
     EXPECT_EQ(forwarded_while_quarantined, 0U);
+    ASSERT_TRUE(controller.port_fault("client-a").has_value()) << "the quarantine lapsed while it was being measured";
 
     // Silence lets the lease lapse; the port recovers without operator action.
-    std::this_thread::sleep_for(600ms);
+    std::this_thread::sleep_for(1200ms);
     EXPECT_FALSE(controller.port_fault("client-a").has_value());
     ASSERT_TRUE(client_a.send_to(storm, switch_endpoint));
     EXPECT_GE(drain(client_b, 200ms), 1U);

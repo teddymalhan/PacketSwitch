@@ -211,7 +211,7 @@ namespace
     packet.classification = wirelab::PacketClassification::Broadcast;
     batch.packets = { packet, packet };
 
-    const auto events = service.evaluate_analysis(batch, 500, pipeline, now);
+    const auto events = service.analysis_events(pipeline.evaluate(batch, 500, now));
 
     ASSERT_EQ(events.anomaly_events.size(), 1U);
     EXPECT_EQ(events.anomaly_events[0].event_sequence, 1U);
@@ -229,7 +229,7 @@ namespace
     EXPECT_EQ(events.enforcement_actions[0].outcome, wirelab::EnforcementOutcome::UnknownPort);
     EXPECT_TRUE(events.fault_events.empty());
 
-    const auto repeated = service.evaluate_analysis(batch, 501, pipeline, now);
+    const auto repeated = service.analysis_events(pipeline.evaluate(batch, 501, now));
     EXPECT_TRUE(repeated.anomaly_events.empty());
     EXPECT_TRUE(repeated.policy_events.empty());
   }
@@ -255,7 +255,7 @@ namespace
     packet.classification = wirelab::PacketClassification::Broadcast;
     batch.packets = { packet, packet };
 
-    const auto events = service.evaluate_analysis(batch, 500, pipeline, now);
+    const auto events = service.analysis_events(pipeline.evaluate(batch, 500, now));
 
     ASSERT_EQ(events.enforcement_actions.size(), 1U);
     EXPECT_EQ(events.enforcement_actions[0].port_id, "client-b");

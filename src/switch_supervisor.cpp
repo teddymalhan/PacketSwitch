@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "wirelab/control_server.hpp"
+
 namespace wirelab
 {
   SwitchSupervisor::SwitchSupervisor(
@@ -15,6 +17,11 @@ namespace wirelab
   {
     pipeline_.attach(controller_);
     batch_.reserve(config_.max_batch_frames);
+  }
+
+  void SwitchSupervisor::attach_control(ControlServer& server) noexcept
+  {
+    control_ = &server;
   }
 
   const SwitchSupervisor::Binding& SwitchSupervisor::bind(const Endpoint& sender)
@@ -74,6 +81,14 @@ namespace wirelab
 
   void SwitchSupervisor::tick(std::chrono::steady_clock::time_point now)
   {
+    // Servicing the control plane is not rate limited by the batch clock: an
+    // operator's command should land on the switch's next pass through its
+    // receive loop, not on its next analysis window.
+    if (control_ != nullptr)
+    {
+      (void)control_->poll();
+    }
+
     const bool due = last_tick_ == std::chrono::steady_clock::time_point{} || now - last_tick_ >= config_.tick_interval;
     if (!due && batch_.size() < config_.max_batch_frames)
     {
@@ -96,7 +111,30 @@ namespace wirelab
     // measured in seconds mean the same seconds.
     const auto timestamp_ns =
         static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
-    (void)pipeline_.evaluate(analysis, timestamp_ns, now);
+    auto outcome = pipeline_.evaluate(analysis, timestamp_ns, now);
+    if (control_ == nullptr)
+    {
+      return;
+    }
+    control_->publish_analysis(std::move(outcome));
+    publish();
+  }
+
+  void SwitchSupervisor::publish()
+  {
+    // Supervision state is republished only when it moved. A switch idling at
+    // five ticks a second would otherwise spend the control channel on
+    // repetitions of a number nobody watched change.
+    const bool changed = analysed_frames_ != published_analysed_frames_ || blocked_frames_ != published_blocked_frames_ ||
+                         bindings_.size() != published_bindings_;
+    if (!changed)
+    {
+      return;
+    }
+    published_analysed_frames_ = analysed_frames_;
+    published_blocked_frames_ = blocked_frames_;
+    published_bindings_ = bindings_.size();
+    control_->publish_supervision(analysed_frames_, blocked_frames_, port_bindings());
   }
 
   std::chrono::milliseconds SwitchSupervisor::tick_interval() const noexcept
@@ -122,5 +160,15 @@ namespace wirelab
     }
     std::sort(bound.begin(), bound.end(), [](const auto& left, const auto& right) { return left.first < right.first; });
     return bound;
+  }
+
+  std::vector<PortBinding> SwitchSupervisor::port_bindings() const
+  {
+    std::vector<PortBinding> reported;
+    for (auto& [port_id, endpoint] : bindings())
+    {
+      reported.push_back({ port_id, endpoint.to_string() });
+    }
+    return reported;
   }
 }  // namespace wirelab

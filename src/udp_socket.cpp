@@ -15,36 +15,6 @@
 #include <limits>
 #include <ostream>
 
-namespace
-{
-#ifdef _WIN32
-  bool ensure_winsock() noexcept
-  {
-    struct Runtime
-    {
-      bool valid = false;
-      Runtime()
-      {
-        WSADATA data{};
-        valid = ::WSAStartup(MAKEWORD(2, 2), &data) == 0;
-      }
-      ~Runtime()
-      {
-        if (valid)
-          ::WSACleanup();
-      }
-    };
-    static Runtime runtime;
-    return runtime.valid;
-  }
-#else
-  bool ensure_winsock() noexcept
-  {
-    return true;
-  }
-#endif
-}  // namespace
-
 namespace wirelab
 {
   const char* to_string(UdpError error) noexcept
@@ -73,7 +43,7 @@ namespace wirelab
 
   expected<UdpSocket, UdpError> UdpSocket::create()
   {
-    if (!ensure_winsock())
+    if (!ensure_socket_runtime())
       return unexpected(UdpError::SocketCreationFailed);
 #ifdef _WIN32
     const SOCKET socket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);

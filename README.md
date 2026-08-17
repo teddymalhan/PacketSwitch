@@ -196,10 +196,11 @@ VSwitch logs show MAC learning events and per-frame forwarding decisions. Both V
 ### CLI reference
 
 ```
-vswitch <port> [--verbose] [--topology <file>]
-  port               UDP port to listen on (0 = ephemeral)
-  --verbose          Log every forwarding decision
-  --topology <file>  Analyse and police forwarded traffic against this topology
+vswitch <port> [--verbose] [--topology <file>] [--control-port <port>]
+  port                   UDP port to listen on (0 = ephemeral)
+  --verbose              Log every forwarding decision
+  --topology <file>      Analyse and police forwarded traffic against this topology
+  --control-port <port>  Serve the control protocol on this TCP port (requires --topology)
 
 vport <vswitch_ip> <vswitch_port> [tap_name]
   vswitch_ip    IP address of the VSwitch host
@@ -231,6 +232,41 @@ fault configuration is restored and traffic resumes on its own.
 Faults that delay or duplicate rather than drop are honoured too: deferred
 copies are queued and sent when they come due, which is why the receive loop
 waits with a deadline instead of blocking inside `recvfrom`.
+
+### Control channel
+
+`--control-port` puts the switch's control plane on a TCP socket, so a GUI, a
+script or an operator can drive a running switch and watch what it decides.
+The framing is one control message per line: requests and replies in the JSON
+`control_protocol.hpp` already defines, with a reply going to the client that
+asked and every event broadcast to all of them.
+
+```bash
+./build/vswitch 8080 --topology scenarios/security-lab.yaml --control-port 9090
+```
+
+```jsonc
+// out: a policy contains a port, and every connected client is told
+{"event":"anomaly_detected","anomaly":{"type":"broadcast_storm","ingress_port":0, ...}}
+{"event":"policy_action","rule_name":"quarantine-broadcast-storm","action":"quarantine", ...}
+{"event":"fault_state_changed","first_endpoint":"client-a","active":true, ...}
+{"event":"supervision_state","analysed_frames":302,"blocked_frames":21,
+ "bindings":[{"port_id":"client-a","endpoint":"127.0.0.1:53124"}]}
+
+// in: the operator ends the containment early
+{"api_version":1,"request_id":"clear-1","command":"clear_port_fault",
+ "topology_revision":1,"parameters":{"port_id":"client-a"}}
+```
+
+`supervision_state` reports which client the switch decided owns which topology
+port, because a UDP dataplane offers no stable identity and the binding is a
+guess worth showing rather than hiding. It is republished only when it moves.
+
+The server is polled from the switch's own receive loop rather than from a
+thread of its own, so a control client can never interleave with a frame being
+forwarded. Nothing it does blocks: replies to a client that has stopped reading
+are queued, and the client is disconnected once that queue passes its cap, so
+a stalled operator console cannot stall forwarding.
 
 ### Replaying a capture
 
@@ -293,7 +329,8 @@ The WireLab analysis and control plane adds a closed loop on top of that datapla
 | `PolicyEnforcer` | Applies each decision as a *leased, reversible* fault on the offending port via `TopologyController`, and releases it when the lease expires |
 | `AnalysisPipeline` | The single detection -> policy -> enforcement seam every consumer runs: the GUI, `wirelab_pcap`, and `ControlService` all evaluate batches through one of these rather than rewiring the three stages themselves |
 | `SwitchSupervisor` | Binds live senders to topology ports, batches their frames into the pipeline, and gates the switch's forwarding on the resulting faults |
-| `ControlService` | Publishes anomalies, policy decisions, and enforcement as revisioned events over the versioned control protocol |
+| `ControlService` | Turns switch state, topology commands, anomalies, policy decisions and enforcement into revisioned events over the versioned control protocol |
+| `ControlServer` / `ControlClient` | Carries that protocol over TCP as newline-delimited JSON, polled from the switch's receive loop so the control plane never blocks forwarding |
 | `PcapCapture` / `PcapNgWriter` | Reads classic pcap and pcapng captures zero-copy, and writes pcapng carrying WireLab's verdict as a per-packet comment |
 
 Enforcement is genuinely closed-loop: a quarantined port stops forwarding frames because the enforcer installs a real `FaultConfiguration` the topology controller already honours, and the port recovers automatically once the lease lapses. Rules, enforced ports, and the enforcement log are editable and observable from the GUI's **Policies** workspace.

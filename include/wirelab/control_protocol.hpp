@@ -135,6 +135,24 @@ namespace wirelab
     PolicyDecision decision;
   };
 
+  // Which client the switch decided owns a topology port. A UDP dataplane
+  // offers no stable identity, so the binding is reported rather than assumed.
+  struct PortBinding
+  {
+    std::string port_id;
+    std::string endpoint;
+  };
+
+  struct SupervisionStateEvent
+  {
+    uint32_t api_version = WIRELAB_CONTROL_API_VERSION;
+    uint64_t event_sequence = 0;
+    uint64_t topology_revision = 0;
+    uint64_t analysed_frames = 0;
+    uint64_t blocked_frames = 0;
+    std::vector<PortBinding> bindings;
+  };
+
   [[nodiscard]] const char* to_string(AnalyzerBackend backend) noexcept;
   [[nodiscard]] const char* to_string(ControlCommand command) noexcept;
   [[nodiscard]] const char* to_string(ControlValidationError error) noexcept;
@@ -148,6 +166,7 @@ namespace wirelab
   [[nodiscard]] std::string to_json(const TopologyStateEvent& event);
   [[nodiscard]] std::string to_json(const AnomalyDetectedEvent& event);
   [[nodiscard]] std::string to_json(const PolicyActionEvent& event);
-}
+  [[nodiscard]] std::string to_json(const SupervisionStateEvent& event);
+}  // namespace wirelab
 
 #endif
