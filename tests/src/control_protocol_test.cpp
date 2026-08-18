@@ -24,7 +24,7 @@ namespace
 
     EXPECT_TRUE(wirelab::validate(request).has_value());
     EXPECT_EQ(wirelab::to_json(request),
-              "{\"api_version\":1,\"request_id\":\"benchmark-42\",\"command\":\"start_benchmark\",\"topology_revision\":7,\"parameters\":{\"scenario\":\"mixed-traffic\",\"backend\":\"cpu\",\"batch_size\":2048,\"duration_seconds\":60,\"seed\":42,\"packets\":100000,\"frame_size\":64}}");
+              "{\"api_version\":1,\"request_id\":\"benchmark-42\",\"command\":\"start_benchmark\",\"topology_revision\":7,\"parameters\":{\"scenario\":\"mixed-traffic\",\"backend\":\"cpu\",\"generator\":\"cpu\",\"batch_size\":2048,\"duration_seconds\":60,\"seed\":42,\"packets\":100000,\"frame_size\":64}}");
   }
 
   TEST(ControlProtocolTest, ParsesAndSerializesTopologyLoadCommand)
@@ -148,8 +148,11 @@ namespace
     EXPECT_EQ(parsed.value().benchmark.batch_size, 2048U);
     EXPECT_EQ(parsed.value().benchmark.duration_seconds, 60U);
     EXPECT_EQ(parsed.value().benchmark.seed, 42U);
+    // A request that names no generator is a CPU run, so a client written
+    // before GPU generation existed still means what it said.
+    EXPECT_EQ(parsed.value().benchmark.generator, "cpu");
     EXPECT_EQ(wirelab::to_json(parsed.value()),
-              R"({"api_version":1,"request_id":"bench-λ","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"mixed-traffic","backend":"cpu","batch_size":2048,"duration_seconds":60,"seed":42,"packets":0,"frame_size":64}})");
+              R"({"api_version":1,"request_id":"bench-λ","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"mixed-traffic","backend":"cpu","generator":"cpu","batch_size":2048,"duration_seconds":60,"seed":42,"packets":0,"frame_size":64}})");
   }
 
   TEST(ControlProtocolTest, RejectsMalformedAndIncompleteRequests)
@@ -281,13 +284,14 @@ namespace
   TEST(ControlProtocolTest, RoundTripsBenchmarkPacketCountAndFrameSize)
   {
     const std::string json =
-      R"({"api_version":1,"request_id":"bench-2","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"broadcast","backend":"cuda","batch_size":256,"duration_seconds":30,"seed":7,"packets":250000,"frame_size":1500}})";
+      R"({"api_version":1,"request_id":"bench-2","command":"start_benchmark","topology_revision":7,"parameters":{"scenario":"broadcast","backend":"cuda","generator":"metal","batch_size":256,"duration_seconds":30,"seed":7,"packets":250000,"frame_size":1500}})";
 
     const auto parsed = wirelab::control_request_from_json(json);
 
     ASSERT_TRUE(parsed.has_value());
     EXPECT_EQ(parsed->benchmark.packet_count, 250000U);
     EXPECT_EQ(parsed->benchmark.frame_size, 1500U);
+    EXPECT_EQ(parsed->benchmark.generator, "metal");
     EXPECT_TRUE(wirelab::validate(parsed.value()).has_value());
     EXPECT_EQ(wirelab::to_json(parsed.value()), json);
 

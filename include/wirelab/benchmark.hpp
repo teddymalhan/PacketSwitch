@@ -11,6 +11,7 @@
 #include "wirelab/expected.hpp"
 #include "wirelab/packet_analyzer.hpp"
 #include "wirelab/traffic_generator.hpp"
+#include "wirelab/traffic_source.hpp"
 
 namespace wirelab
 {
@@ -34,6 +35,7 @@ namespace wirelab
     size_t packet_count = 100000;
     size_t batch_size = 1;
     std::string backend = "cpu";
+    std::string generator = "cpu";
   };
 
   struct AnalyzerTiming
@@ -84,6 +86,13 @@ namespace wirelab
 
   [[nodiscard]] BenchmarkBackendFactory cpu_benchmark_backend_factory();
 
+  // The frames a run analyses. Threaded like the analyzer backend because the
+  // same executable owns both: a build without Metal can answer neither.
+  using TrafficSourceFactory =
+      std::function<expected<std::unique_ptr<TrafficBatchSource>, BenchmarkError>(const BenchmarkConfig&)>;
+
+  [[nodiscard]] TrafficSourceFactory cpu_traffic_source_factory();
+
   // A benchmark driven in slices: callers that own a thread run it to completion
   // in one advance() call, callers that share a thread with the dataplane hand it
   // a packet budget per tick and still get the counters of an unsliced run.
@@ -92,7 +101,8 @@ namespace wirelab
    public:
     [[nodiscard]] static expected<BenchmarkRun, BenchmarkError> create(
         BenchmarkConfig config,
-        BenchmarkBackendFactory factory = cpu_benchmark_backend_factory());
+        BenchmarkBackendFactory factory = cpu_benchmark_backend_factory(),
+        TrafficSourceFactory traffic = cpu_traffic_source_factory());
 
     BenchmarkRun(BenchmarkRun&&) noexcept;
     BenchmarkRun& operator=(BenchmarkRun&&) noexcept;

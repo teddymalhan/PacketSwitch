@@ -296,6 +296,11 @@ namespace wirelab
     benchmark_backends_ = std::move(factory);
   }
 
+  void ControlService::set_traffic_sources(TrafficSourceFactory factory)
+  {
+    traffic_sources_ = std::move(factory);
+  }
+
   ControlDispatch ControlService::start_benchmark(const ControlRequest& request)
   {
     if (benchmark_run_)
@@ -318,9 +323,14 @@ namespace wirelab
     config.packet_count = static_cast<size_t>(request.benchmark.packet_count);
     config.batch_size = request.benchmark.batch_size;
     config.backend = to_string(request.benchmark.backend);
+    config.generator = request.benchmark.generator;
 
-    auto run = benchmark_backends_ ? BenchmarkRun::create(std::move(config), benchmark_backends_)
-                                   : BenchmarkRun::create(std::move(config));
+    // An unnamed factory is the CPU one: a host that installed neither still
+    // runs, and a request naming a GPU it cannot build is refused by create().
+    auto run = BenchmarkRun::create(
+        std::move(config),
+        benchmark_backends_ ? benchmark_backends_ : cpu_benchmark_backend_factory(),
+        traffic_sources_ ? traffic_sources_ : cpu_traffic_source_factory());
     if (!run)
     {
       return reject(request.request_id, to_string(run.error()));

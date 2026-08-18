@@ -1,4 +1,4 @@
-.PHONY: install coverage test demo demo-start demo-stop demo-status demo-windows docs help
+.PHONY: install coverage test demo demo-gui demo-start demo-stop demo-status demo-windows bench-report docs help
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -16,6 +16,7 @@ export BROWSER_PYSCRIPT
 define MAKE_HELP_ENTRIES
 test|run tests quickly with ctest
 demo|open the full multi-window live demo
+demo-gui|run the five-minute scripted GUI demonstration
 demo-start|start the persistent demo stack
 demo-stop|stop and remove the demo stack
 demo-status|show demo container status
@@ -23,6 +24,7 @@ demo-windows|open VSwitch, VPort, and traffic windows in Otty
 coverage|check code coverage quickly GCC
 docs|generate Doxygen HTML documentation, including API docs
 install|install the package to the `INSTALL_LOCATION`
+bench-report|run the reproducible headless benchmark report
 format|format the project sources
 endef
 export MAKE_HELP_ENTRIES
@@ -61,6 +63,12 @@ demo-status:
 
 demo-windows:
 	./tests/open_demo_terminals.sh
+
+demo-gui:
+	./scripts/demo_gui.sh
+
+bench-report:
+	./scripts/bench_report.sh
 
 coverage:
 	rm -rf build/

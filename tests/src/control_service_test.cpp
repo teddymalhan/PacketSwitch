@@ -139,6 +139,19 @@ namespace
     EXPECT_FALSE(service.benchmark_active());
   }
 
+  TEST(ControlServiceTest, RefusesAGeneratorItCannotBuild)
+  {
+    auto vswitch = make_switch();
+    wirelab::ControlService service(vswitch);
+
+    const auto result = service.dispatch(
+        R"({"api_version":1,"request_id":"bench-3","command":"start_benchmark","topology_revision":0,"parameters":{"scenario":"mixed-traffic","backend":"cpu","generator":"metal","batch_size":8,"duration_seconds":60,"seed":42,"packets":64,"frame_size":64}})");
+
+    EXPECT_FALSE(result.reply.accepted);
+    EXPECT_EQ(result.reply.error, wirelab::to_string(wirelab::BenchmarkError::UnknownBackend));
+    EXPECT_FALSE(service.benchmark_active());
+  }
+
   TEST(ControlServiceTest, LoadsYamlTopologyAndPublishesRevisionedState)
   {
     const auto path = std::filesystem::temp_directory_path() / "wirelab-control-service-topology.yaml";

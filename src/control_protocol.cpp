@@ -446,6 +446,11 @@ namespace wirelab
             parameters_.backend = true;
             read = read_backend(request.benchmark.backend);
           }
+          else if (key == "generator" && !parameters_.generator)
+          {
+            parameters_.generator = true;
+            read = read_string(request.benchmark.generator);
+          }
           else if (key == "batch_size" && !parameters_.batch_size)
           {
             parameters_.batch_size = true;
@@ -548,9 +553,9 @@ namespace wirelab
                                parameters_.duration_seconds && parameters_.seed;
         const bool fault = parameters_.latency && parameters_.jitter && parameters_.loss && parameters_.duplication &&
                            parameters_.bandwidth && parameters_.blackhole && parameters_.isolated;
-        const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
-                                   parameters_.duration_seconds || parameters_.seed || parameters_.packet_count ||
-                                   parameters_.frame_size;
+        const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.generator ||
+                                   parameters_.batch_size || parameters_.duration_seconds || parameters_.seed ||
+                                   parameters_.packet_count || parameters_.frame_size;
         const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss || parameters_.duplication ||
                                parameters_.bandwidth || parameters_.blackhole || parameters_.isolated;
         switch (command)
@@ -583,9 +588,9 @@ namespace wirelab
 
       bool parameters_missing_required_for(ControlCommand command) const noexcept
       {
-        const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.batch_size ||
-                                   parameters_.duration_seconds || parameters_.seed || parameters_.packet_count ||
-                                   parameters_.frame_size;
+        const bool has_benchmark = parameters_.scenario || parameters_.backend || parameters_.generator ||
+                                   parameters_.batch_size || parameters_.duration_seconds || parameters_.seed ||
+                                   parameters_.packet_count || parameters_.frame_size;
         const bool has_fault = parameters_.latency || parameters_.jitter || parameters_.loss || parameters_.duplication ||
                                parameters_.bandwidth || parameters_.blackhole || parameters_.isolated;
         switch (command)
@@ -618,6 +623,7 @@ namespace wirelab
         bool topology_path = false;
         bool scenario = false;
         bool backend = false;
+        bool generator = false;
         bool batch_size = false;
         bool duration_seconds = false;
         bool seed = false;
@@ -900,6 +906,7 @@ namespace wirelab
     {
       result << ",\"parameters\":{\"scenario\":" << json_string(request.benchmark.scenario)
              << ",\"backend\":" << json_string(to_string(request.benchmark.backend))
+             << ",\"generator\":" << json_string(request.benchmark.generator)
              << ",\"batch_size\":" << request.benchmark.batch_size
              << ",\"duration_seconds\":" << request.benchmark.duration_seconds << ",\"seed\":" << request.benchmark.seed
              << ",\"packets\":" << request.benchmark.packet_count << ",\"frame_size\":" << request.benchmark.frame_size

@@ -65,6 +65,11 @@ namespace wirelab
     // refused rather than silently downgraded to CPU.
     void set_benchmark_backends(BenchmarkBackendFactory factory);
 
+    // The same arrangement for the frames a run analyses: a host built with a
+    // GPU generator supplies a factory that answers for it, and a generator
+    // nobody can build is refused rather than silently downgraded to CPU.
+    void set_traffic_sources(TrafficSourceFactory factory);
+
     [[nodiscard]] ControlDispatch dispatch(std::string_view json);
     // Stamps one pipeline outcome as revisioned control events. Fault events are
     // only emitted when the service was constructed with a topology controller,
@@ -97,6 +102,7 @@ namespace wirelab
     std::optional<std::reference_wrapper<TopologyController>> topology_controller_;
     SupervisionSource supervision_source_;
     BenchmarkBackendFactory benchmark_backends_;
+    TrafficSourceFactory traffic_sources_;
     std::optional<BenchmarkRun> benchmark_run_;
     std::string benchmark_operation_id_;
     // A duration-limited run stops on whichever comes first, its packet budget

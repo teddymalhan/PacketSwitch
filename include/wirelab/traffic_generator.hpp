@@ -12,7 +12,10 @@ namespace wirelab
     KnownUnicast,
     Broadcast,
     UnknownUnicast,
-    Mixed
+    Mixed,
+    UdpFlood,
+    PortScan,
+    BroadcastStorm
   };
 
   struct TrafficGeneratorConfig
@@ -23,6 +26,14 @@ namespace wirelab
     uint32_t host_count = 16;
   };
 
+  // Frames are a pure function of the configuration and a frame counter, so a
+  // GPU can produce frame N without having produced frame N - 1, and a resumed
+  // run reproduces the same traffic from the counter alone.
+  [[nodiscard]] std::vector<uint8_t> traffic_frame(const TrafficGeneratorConfig& config, uint64_t sequence);
+  // Returns the bytes written, zero for a configuration that cannot produce a
+  // frame. out must have room for config.frame_size bytes.
+  size_t write_traffic_frame(const TrafficGeneratorConfig& config, uint64_t sequence, uint8_t* out) noexcept;
+
   class DeterministicTrafficGenerator
   {
    public:
@@ -32,12 +43,9 @@ namespace wirelab
     [[nodiscard]] std::vector<std::vector<uint8_t>> generate(size_t count);
 
    private:
-    [[nodiscard]] TrafficScenario next_scenario() noexcept;
-
     TrafficGeneratorConfig config_;
-    uint64_t state_;
     uint64_t sequence_ = 0;
   };
-}
+}  // namespace wirelab
 
 #endif

@@ -1,6 +1,11 @@
 #include "wirelab/wirelab_view_model.hpp"
 
+#include <QDateTime>
+#include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QUrl>
 #include <QVariantMap>
 #include <algorithm>
@@ -10,6 +15,9 @@
 #include <sstream>
 #include <utility>
 #include <vector>
+
+#include "wirelab/accelerated_backends.hpp"
+#include "wirelab/version.hpp"
 
 #ifdef WIRELAB_HAS_CUDA
 #include "wirelab/cuda_packet_parser.hpp"
@@ -32,6 +40,12 @@ namespace wirelab
         scenario = TrafficScenario::UnknownUnicast;
       else if (name == "mixed-traffic")
         scenario = TrafficScenario::Mixed;
+      else if (name == "udp-flood")
+        scenario = TrafficScenario::UdpFlood;
+      else if (name == "port-scan")
+        scenario = TrafficScenario::PortScan;
+      else if (name == "broadcast-storm")
+        scenario = TrafficScenario::BroadcastStorm;
       else
         return false;
       return true;
@@ -177,6 +191,23 @@ namespace wirelab
       }
       result.push_back('"');
       return result;
+    }
+
+    // The GUI labels a backend the way a person reads it and the benchmark
+    // engine names it the way the CLI spells it; these two are the only place
+    // the spellings meet.
+    std::string benchmark_backend_id(const QString& label)
+    {
+      return label.toLower().toStdString();
+    }
+
+    QString benchmark_backend_label(const std::string& id)
+    {
+      if (id == "cuda")
+        return QStringLiteral("CUDA");
+      if (id == "metal")
+        return QStringLiteral("Metal");
+      return QStringLiteral("CPU");
     }
   }  // namespace
 
@@ -969,5 +1000,268 @@ namespace wirelab
       }
     }
     emit faultsChanged();
+  }
+
+  bool WireLabViewModel::reportRunning() const noexcept
+  {
+    return reportRunning_;
+  }
+  double WireLabViewModel::reportProgress() const noexcept
+  {
+    return reportProgress_;
+  }
+  QString WireLabViewModel::reportStage() const
+  {
+    return reportStage_;
+  }
+  QVariantList WireLabViewModel::reportRows() const
+  {
+    return reportRows_;
+  }
+  QVariantMap WireLabViewModel::reportProvenance() const
+  {
+    return reportProvenance_;
+  }
+  QString WireLabViewModel::reportExportPath() const
+  {
+    return reportExportPath_;
+  }
+
+  QStringList WireLabViewModel::reportScenarioNames() const
+  {
+    // Asking the benchmark engine which names it parses keeps the Reports form
+    // from offering a scenario the engine would reject.
+    QStringList names;
+    for (const char* candidate :
+         { "known-unicast", "broadcast", "unknown-unicast", "mixed-traffic", "udp-flood", "port-scan", "broadcast-storm" })
+    {
+      if (traffic_scenario_from_string(candidate))
+        names.push_back(QString::fromLatin1(candidate));
+    }
+    return names;
+  }
+
+  void WireLabViewModel::runBenchmarkReport(const QString& scenario, int packets, int batchSize, int frameSize, int seed)
+  {
+    if (reportRunning_)
+    {
+      setStatus(QStringLiteral("A benchmark report is already running."));
+      return;
+    }
+    const auto parsedScenario = traffic_scenario_from_string(scenario.toStdString());
+    if (!parsedScenario || packets <= 0 || batchSize <= 0 || seed < 0 ||
+        frameSize < static_cast<int>(ETHERNET_HEADER_SIZE) || frameSize > static_cast<int>(MAX_BENCHMARK_FRAME_SIZE))
+    {
+      setStatus(QStringLiteral("Report settings are invalid."));
+      return;
+    }
+
+    reportConfig_ = BenchmarkConfig{};
+    reportConfig_.traffic.scenario = parsedScenario.value();
+    reportConfig_.traffic.seed = static_cast<uint64_t>(seed);
+    reportConfig_.traffic.frame_size = static_cast<size_t>(frameSize);
+    reportConfig_.packet_count = static_cast<size_t>(packets);
+    reportConfig_.batch_size = static_cast<size_t>(batchSize);
+    reportQueue_ = availableBackends();
+    reportIndex_ = 0;
+    reportResults_.clear();
+    reportRows_.clear();
+    reportExportPath_.clear();
+    reportCompletedPackets_ = 0;
+    reportTotalPackets_ = reportConfig_.packet_count * static_cast<uint64_t>(reportQueue_.size());
+    // Twenty slices per backend keeps the GUI responsive without paying for a
+    // tick per batch; a slice never splits a batch, so the counters are the
+    // counters of an unsliced run either way.
+    reportSliceBudget_ = std::max<size_t>(reportConfig_.batch_size, (reportConfig_.packet_count + 19) / 20);
+    reportRunning_ = true;
+    reportProgress_ = 0.0;
+    rebuildReportProvenance();
+    if (!beginNextReportBackend())
+    {
+      finishReport();
+      return;
+    }
+    setStatus(QStringLiteral("Benchmark report running on %1 backend(s).").arg(reportQueue_.size()));
+    emit reportChanged();
+  }
+
+  bool WireLabViewModel::beginNextReportBackend()
+  {
+    while (reportIndex_ < reportQueue_.size())
+    {
+      BenchmarkConfig config = reportConfig_;
+      config.backend = benchmark_backend_id(reportQueue_.at(reportIndex_));
+      auto run = BenchmarkRun::create(config, accelerated_benchmark_backend_factory());
+      if (run)
+      {
+        reportRun_.emplace(std::move(run.value()));
+        reportStage_ = QStringLiteral("Measuring %1 (%2 of %3)")
+                           .arg(reportQueue_.at(reportIndex_))
+                           .arg(reportIndex_ + 1)
+                           .arg(reportQueue_.size());
+        return true;
+      }
+      // A device can vanish between listing the backends and measuring one; its
+      // share of the work still counts as done so progress reaches the end.
+      reportCompletedPackets_ += reportConfig_.packet_count;
+      ++reportIndex_;
+    }
+    return false;
+  }
+
+  void WireLabViewModel::runReportStep()
+  {
+    if (!reportRunning_)
+      return;
+    if (!reportRun_ && !beginNextReportBackend())
+    {
+      finishReport();
+      return;
+    }
+    const auto before = reportRun_->completed_packets();
+    reportRun_->advance(reportSliceBudget_);
+    reportCompletedPackets_ += reportRun_->completed_packets() - before;
+    if (reportRun_->finished())
+    {
+      reportResults_.push_back(reportRun_->result());
+      reportRun_.reset();
+      ++reportIndex_;
+      rebuildReportRows();
+      if (!beginNextReportBackend())
+      {
+        finishReport();
+        return;
+      }
+    }
+    reportProgress_ = reportTotalPackets_ == 0
+                          ? 1.0
+                          : static_cast<double>(reportCompletedPackets_) / static_cast<double>(reportTotalPackets_);
+    emit reportChanged();
+  }
+
+  void WireLabViewModel::finishReport()
+  {
+    reportRun_.reset();
+    reportRunning_ = false;
+    reportProgress_ = 1.0;
+    reportStage_ = QStringLiteral("%1 backend(s) measured · %2 packets each")
+                       .arg(reportRows_.size())
+                       .arg(static_cast<qulonglong>(reportConfig_.packet_count));
+    setStatus(QStringLiteral("Benchmark report complete."));
+    emit reportChanged();
+  }
+
+  void WireLabViewModel::rebuildReportRows()
+  {
+    double cpuPacketsPerSecond = 0.0;
+    for (const auto& result : reportResults_)
+      if (result.backend == "cpu")
+        cpuPacketsPerSecond = result.packets_per_second;
+    reportRows_.clear();
+    for (const auto& result : reportResults_)
+    {
+      const double speedup = cpuPacketsPerSecond <= 0.0 ? 0.0 : result.packets_per_second / cpuPacketsPerSecond;
+      reportRows_.append(
+          QVariantMap{ { "backend", benchmark_backend_label(result.backend) },
+                       { "backendId", QString::fromStdString(result.backend) },
+                       { "scenario", QString::fromStdString(result.scenario) },
+                       { "packets", static_cast<qulonglong>(result.completed_packets) },
+                       { "elapsedNs", static_cast<qulonglong>(result.elapsed_ns) },
+                       { "packetsPerSecond", result.packets_per_second },
+                       { "goodputBitsPerSecond", result.goodput_bits_per_second },
+                       { "lossPercent", result.loss_percentage },
+                       { "latencyP50Ns", static_cast<qulonglong>(result.batch_analysis_latency_p50_ns) },
+                       { "latencyP95Ns", static_cast<qulonglong>(result.batch_analysis_latency_p95_ns) },
+                       { "latencyP99Ns", static_cast<qulonglong>(result.batch_analysis_latency_p99_ns) },
+                       { "hostToDeviceNs", static_cast<qulonglong>(result.timing.host_to_device_ns) },
+                       { "kernelNs", static_cast<qulonglong>(result.timing.kernel_ns) },
+                       { "deviceToHostNs", static_cast<qulonglong>(result.timing.device_to_host_ns) },
+                       { "speedup", speedup } });
+    }
+  }
+
+  void WireLabViewModel::rebuildReportProvenance()
+  {
+    QStringList compiledIn;
+    for (const QString& label : { QStringLiteral("CPU"), QStringLiteral("CUDA"), QStringLiteral("Metal") })
+      if (benchmark_backend_is_compiled_in(benchmark_backend_id(label)))
+        compiledIn.push_back(label);
+    reportProvenance_ = QVariantMap{ { "scenario", QString::fromLatin1(to_string(reportConfig_.traffic.scenario)) },
+                                     { "seed", static_cast<qulonglong>(reportConfig_.traffic.seed) },
+                                     { "packets", static_cast<qulonglong>(reportConfig_.packet_count) },
+                                     { "batchSize", static_cast<qulonglong>(reportConfig_.batch_size) },
+                                     { "frameSize", static_cast<qulonglong>(reportConfig_.traffic.frame_size) },
+                                     { "hostCount", static_cast<qulonglong>(reportConfig_.traffic.host_count) },
+                                     { "generator", QString::fromStdString(reportConfig_.generator) },
+                                     { "version", QStringLiteral(WIRELAB_VERSION) },
+                                     { "buildType", QStringLiteral(WIRELAB_BUILD_TYPE) },
+                                     { "backendsCompiledIn", compiledIn },
+                                     { "backendsPresent", availableBackends() },
+                                     { "generatedAt", QDateTime::currentDateTimeUtc().toString(Qt::ISODate) } };
+  }
+
+  bool WireLabViewModel::exportReport(const QString& path)
+  {
+    const auto fail = [this](const QString& message)
+    {
+      reportExportPath_ = message;
+      setStatus(message);
+      emit reportChanged();
+      return false;
+    };
+    if (reportRows_.isEmpty())
+      return fail(QStringLiteral("Run a benchmark report before exporting."));
+
+    QString localPath = path;
+    if (localPath.startsWith(QStringLiteral("file://")))
+      localPath = QUrl(localPath).toLocalFile();
+    if (localPath.endsWith(QStringLiteral(".json"), Qt::CaseInsensitive))
+      localPath.chop(5);
+    if (localPath.isEmpty())
+      return fail(QStringLiteral("Choose a file name for the report."));
+    const QString jsonPath = localPath + QStringLiteral(".json");
+    const QString csvPath = localPath + QStringLiteral(".csv");
+
+    QJsonArray results;
+    for (const auto& row : reportRows_)
+      results.append(QJsonObject::fromVariantMap(row.toMap()));
+    QJsonObject document;
+    document.insert(QStringLiteral("provenance"), QJsonObject::fromVariantMap(reportProvenance_));
+    document.insert(QStringLiteral("results"), results);
+
+    QFile jsonFile(jsonPath);
+    if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Truncate) ||
+        jsonFile.write(QJsonDocument(document).toJson(QJsonDocument::Indented)) < 0)
+      return fail(QStringLiteral("Could not write %1").arg(jsonPath));
+    jsonFile.close();
+
+    // The CSV carries the same rows in a fixed column order so a spreadsheet
+    // and the JSON never disagree about what a column means.
+    static const char* const columns[] = { "backend",        "scenario",         "packets",
+                                           "elapsedNs",      "packetsPerSecond", "goodputBitsPerSecond",
+                                           "lossPercent",    "latencyP50Ns",     "latencyP95Ns",
+                                           "latencyP99Ns",   "hostToDeviceNs",   "kernelNs",
+                                           "deviceToHostNs", "speedup" };
+    QString csv;
+    for (size_t column = 0; column < std::size(columns); ++column)
+      csv += QString::fromLatin1(columns[column]) +
+             (column + 1 == std::size(columns) ? QStringLiteral("\n") : QStringLiteral(","));
+    for (const auto& row : reportRows_)
+    {
+      const auto fields = row.toMap();
+      for (size_t column = 0; column < std::size(columns); ++column)
+        csv += fields.value(QString::fromLatin1(columns[column])).toString() +
+               (column + 1 == std::size(columns) ? QStringLiteral("\n") : QStringLiteral(","));
+    }
+    QFile csvFile(csvPath);
+    if (!csvFile.open(QIODevice::WriteOnly | QIODevice::Truncate) || csvFile.write(csv.toUtf8()) < 0)
+      return fail(QStringLiteral("Could not write %1").arg(csvPath));
+    csvFile.close();
+
+    reportExportPath_ = jsonPath;
+    setStatus(
+        QStringLiteral("Exported report to %1 and %2").arg(QFileInfo(jsonPath).fileName(), QFileInfo(csvPath).fileName()));
+    emit reportChanged();
+    return true;
   }
 }  // namespace wirelab

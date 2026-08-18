@@ -83,7 +83,7 @@ if(WIRELAB_ENABLE_CUDA)
     CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
-option(WIRELAB_ENABLE_METAL "Build the optional WireLab Metal packet parser for Apple GPUs" OFF)
+option(WIRELAB_ENABLE_METAL "Build the optional WireLab Metal packet parser and traffic generator for Apple GPUs" OFF)
 if(WIRELAB_ENABLE_METAL AND APPLE)
   enable_language(OBJCXX)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -96,10 +96,22 @@ if(WIRELAB_ENABLE_METAL AND APPLE)
     DEPENDS "${METAL_KERNEL_SOURCE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_metal.py"
     COMMENT "Embedding the WireLab Metal kernel source"
     VERBATIM)
+  set(METAL_TRAFFIC_KERNEL_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/metal_traffic_kernel.metal")
+  set(METAL_TRAFFIC_KERNEL_HEADER "${CMAKE_CURRENT_BINARY_DIR}/metal_traffic_kernel_source.h")
+  add_custom_command(
+    OUTPUT "${METAL_TRAFFIC_KERNEL_HEADER}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_metal.py"
+            "${METAL_TRAFFIC_KERNEL_SOURCE}" "${METAL_TRAFFIC_KERNEL_HEADER}"
+    DEPENDS "${METAL_TRAFFIC_KERNEL_SOURCE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed_metal.py"
+    COMMENT "Embedding the WireLab Metal traffic kernel source"
+    VERBATIM)
   add_library(wirelab_metal
     src/metal_packet_parser.mm
+    src/metal_traffic_generator.mm
     include/wirelab/metal_packet_parser.hpp
-    "${METAL_KERNEL_HEADER}")
+    include/wirelab/metal_traffic_generator.hpp
+    "${METAL_KERNEL_HEADER}"
+    "${METAL_TRAFFIC_KERNEL_HEADER}")
   target_compile_features(wirelab_metal PUBLIC cxx_std_17)
   set_target_properties(wirelab_metal PROPERTIES
     OBJCXX_STANDARD 17
@@ -205,6 +217,9 @@ target_include_directories(
   PUBLIC
   $<INSTALL_INTERFACE:include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  # The version header is generated into the build tree; consumers include it as
+  # <wirelab/version.hpp> exactly like a checked-in header.
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -283,9 +298,12 @@ if(PROJECT_BUILD_WIRELAB_GUI)
       VERSION 1.0
       QML_FILES src/gui/qml/Main.qml)
     target_link_libraries(wirelab_gui PRIVATE
-      ${PROJECT_NAME}
+      wirelab_backends
       Qt6::Quick
       Qt6::QuickControls2)
+    # The Reports workspace runs the same benchmark backends as the CLI, and
+    # names the configuration it ran in.
+    target_compile_definitions(wirelab_gui PRIVATE WIRELAB_BUILD_TYPE="$<CONFIG>")
     if(TARGET wirelab_cuda)
       target_link_libraries(wirelab_gui PRIVATE wirelab_cuda)
     endif()

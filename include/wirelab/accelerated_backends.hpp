@@ -11,6 +11,10 @@ namespace wirelab
   // service - asks here, so a backend name means the same thing in all of them.
   [[nodiscard]] BenchmarkBackendFactory accelerated_benchmark_backend_factory();
 
+  // Same rule for the frames a benchmark analyses: only the translation unit
+  // compiled with the accelerators knows which GPU generators exist.
+  [[nodiscard]] TrafficSourceFactory accelerated_traffic_source_factory();
+
   // True when this build could construct the named backend at all, ignoring
   // whether the machine currently has the device. Lets a caller tell "this build
   // has no CUDA" apart from "this machine has no CUDA device".

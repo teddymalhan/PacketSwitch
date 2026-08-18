@@ -8,6 +8,7 @@
 #endif
 #ifdef WIRELAB_HAS_METAL
 #include "wirelab/metal_packet_parser.hpp"
+#include "wirelab/metal_traffic_generator.hpp"
 #endif
 
 namespace wirelab
@@ -61,6 +62,29 @@ namespace wirelab
           return unexpected{ BenchmarkError::BackendUnavailable };
         }
         return timed_backend<MetalPacketAnalyzer>();
+      }
+#endif
+      return unexpected{ BenchmarkError::UnknownBackend };
+    };
+  }
+
+  TrafficSourceFactory accelerated_traffic_source_factory()
+  {
+    return [cpu = cpu_traffic_source_factory()](
+               const BenchmarkConfig& config) -> expected<std::unique_ptr<TrafficBatchSource>, BenchmarkError>
+    {
+      if (config.generator == "cpu")
+      {
+        return cpu(config);
+      }
+#ifdef WIRELAB_HAS_METAL
+      if (config.generator == "metal")
+      {
+        if (!MetalTrafficGenerator::is_available())
+        {
+          return unexpected{ BenchmarkError::BackendUnavailable };
+        }
+        return std::unique_ptr<TrafficBatchSource>(std::make_unique<MetalTrafficSource>(config.traffic));
       }
 #endif
       return unexpected{ BenchmarkError::UnknownBackend };

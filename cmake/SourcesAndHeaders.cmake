@@ -7,6 +7,7 @@ set(sources
     src/mac_table.cpp
     src/vswitch.cpp
     src/traffic_generator.cpp
+    src/traffic_source.cpp
     src/packet_analyzer.cpp
     src/packet_batch.cpp
     src/benchmark.cpp
@@ -38,6 +39,7 @@ set(headers
     include/wirelab/mac_table.hpp
     include/wirelab/vswitch.hpp
     include/wirelab/traffic_generator.hpp
+    include/wirelab/traffic_source.hpp
     include/wirelab/packet_analyzer.hpp
     include/wirelab/packet_batch.hpp
     include/wirelab/benchmark.hpp
@@ -66,6 +68,7 @@ set(test_sources
   src/mac_table_test.cpp
   src/integration_test.cpp
   src/traffic_generator_test.cpp
+  src/traffic_source_test.cpp
   src/packet_analyzer_test.cpp
   src/packet_batch_test.cpp
   src/benchmark_test.cpp

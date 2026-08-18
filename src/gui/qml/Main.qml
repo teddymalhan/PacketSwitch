@@ -49,6 +49,17 @@ ApplicationWindow {
         return wirelab.metricsHistory[wirelab.metricsHistory.length - 1][field]
     }
 
+    function microsText(nanoseconds) {
+        return (nanoseconds / 1000).toFixed(1)
+    }
+
+    function provenanceValue(field) {
+        const value = wirelab.reportProvenance[field]
+        if (value === undefined)
+            return "—"
+        return Array.isArray(value) ? value.join(", ") : String(value)
+    }
+
     function selectGraphLink(mouseX, mouseY, area) {
         let bestDistance = 12
         let best = null
@@ -92,11 +103,27 @@ ApplicationWindow {
         onAccepted: wirelab.saveTopology(root.localFilePath(selectedFile))
     }
 
+    FileDialog {
+        id: exportDialog
+        title: "Export benchmark report"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        nameFilters: ["JSON report (*.json)"]
+        onAccepted: wirelab.exportReport(root.localFilePath(selectedFile))
+    }
+
     Timer {
         interval: 500
         repeat: true
         running: wirelab.trafficRunning
         onTriggered: wirelab.runTrafficStep()
+    }
+
+    Timer {
+        interval: 16
+        repeat: true
+        running: wirelab.reportRunning
+        onTriggered: wirelab.runReportStep()
     }
 
     // System menu bar (renders natively on macOS)
@@ -246,6 +273,12 @@ ApplicationWindow {
                 ctx.beginPath(); ctx.moveTo(8, 6); ctx.lineTo(8, 10.5); ctx.stroke()
                 ctx.beginPath(); ctx.arc(8, 12.5, 1, 0, Math.PI * 2); ctx.fill()
                 break
+            case "reports":
+                ctx.beginPath(); ctx.moveTo(2, 14); ctx.lineTo(14.5, 14); ctx.stroke()
+                ctx.beginPath(); ctx.moveTo(4.5, 14); ctx.lineTo(4.5, 9)
+                ctx.moveTo(8, 14); ctx.lineTo(8, 4.5)
+                ctx.moveTo(11.5, 14); ctx.lineTo(11.5, 7); ctx.stroke()
+                break
             }
         }
         onIconColorChanged: requestPaint()
@@ -296,6 +329,7 @@ ApplicationWindow {
                         ListElement { label: "Packets & Security"; page: 3; icon: "security" }
                         ListElement { label: "Faults"; page: 4; icon: "faults" }
                         ListElement { label: "Policies"; page: 5; icon: "security" }
+                        ListElement { label: "Reports"; page: 6; icon: "reports" }
                     }
                     delegate: Item {
                         required property string label
@@ -1261,6 +1295,209 @@ ApplicationWindow {
                                         color: root.textSecondary
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ============ REPORTS ============
+            Item {
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 22
+                    spacing: 14
+                    Label { text: "Reports"; color: root.textPrimary; font.pixelSize: 26; font.weight: Font.Bold }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 150
+                        radius: 10
+                        color: root.cardBg
+                        GridLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            columns: 6
+                            Label { text: "Scenario"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Packets"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Batch size"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Frame bytes"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Label { text: "Seed"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                            Item { Layout.fillWidth: true }
+                            ComboBox { id: reportScenario; model: wirelab.reportScenarioNames }
+                            SpinBox { id: reportPackets; from: 1; to: 10000000; stepSize: 1000; value: 50000; editable: true }
+                            SpinBox { id: reportBatch; from: 1; to: 8192; stepSize: 32; value: 256; editable: true }
+                            SpinBox { id: reportFrame; from: 14; to: 9000; value: 128; editable: true }
+                            SpinBox { id: reportSeed; from: 0; to: 2147483647; value: 42; editable: true }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Button {
+                                    text: "Run report"
+                                    highlighted: true
+                                    enabled: !wirelab.reportRunning
+                                    onClicked: wirelab.runBenchmarkReport(reportScenario.currentText, reportPackets.value,
+                                                                          reportBatch.value, reportFrame.value, reportSeed.value)
+                                }
+                                Button {
+                                    text: "Export…"
+                                    enabled: !wirelab.reportRunning && wirelab.reportRows.length > 0
+                                    onClicked: exportDialog.open()
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
+                            RowLayout {
+                                Layout.columnSpan: 6
+                                Layout.fillWidth: true
+                                spacing: 12
+                                ProgressBar {
+                                    Layout.preferredWidth: 220
+                                    from: 0
+                                    to: 1
+                                    value: wirelab.reportProgress
+                                }
+                                Label {
+                                    text: wirelab.reportStage === "" ? "No report has been run yet" : wirelab.reportStage
+                                    color: root.textPrimary
+                                    font.pixelSize: 12
+                                }
+                                Item { Layout.fillWidth: true }
+                                Label {
+                                    text: wirelab.reportExportPath
+                                    color: root.textSecondary
+                                    font.pixelSize: 11
+                                    elide: Text.ElideMiddle
+                                    Layout.maximumWidth: 360
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 14
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                Label { text: "CPU / GPU COMPARISON"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                RowLayout {
+                                    Label { text: "BACKEND"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 84 }
+                                    Label { text: "MPKT/S"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 84 }
+                                    Label { text: "GOODPUT Mbit/s"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 118 }
+                                    Label { text: "P50 µs"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 78 }
+                                    Label { text: "P95 µs"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 78 }
+                                    Label { text: "P99 µs"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 78 }
+                                    Label { text: "TRANSFER µs"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 96 }
+                                    Label { text: "KERNEL µs"; color: root.textSecondary; font.pixelSize: 11; Layout.preferredWidth: 88 }
+                                    Label { text: "VS CPU"; color: root.textSecondary; font.pixelSize: 11; Layout.fillWidth: true }
+                                }
+                                ListView {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    clip: true
+                                    model: wirelab.reportRows
+                                    delegate: Rectangle {
+                                        required property var modelData
+                                        required property int index
+                                        width: ListView.view.width
+                                        height: 34
+                                        color: index % 2 ? "transparent" : root.cardAltBg
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: 1
+                                            color: root.separator
+                                        }
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            Label { text: modelData.backend; font.weight: Font.DemiBold; Layout.preferredWidth: 84 }
+                                            Label { text: (modelData.packetsPerSecond / 1000000).toFixed(2); font.family: "Menlo"; font.pixelSize: 12; Layout.preferredWidth: 84 }
+                                            Label { text: (modelData.goodputBitsPerSecond / 1000000).toFixed(1); font.family: "Menlo"; font.pixelSize: 12; Layout.preferredWidth: 118 }
+                                            Label { text: root.microsText(modelData.latencyP50Ns); font.family: "Menlo"; font.pixelSize: 12; Layout.preferredWidth: 78 }
+                                            Label { text: root.microsText(modelData.latencyP95Ns); font.family: "Menlo"; font.pixelSize: 12; Layout.preferredWidth: 78 }
+                                            Label { text: root.microsText(modelData.latencyP99Ns); font.family: "Menlo"; font.pixelSize: 12; Layout.preferredWidth: 78 }
+                                            Label {
+                                                text: root.microsText(modelData.hostToDeviceNs + modelData.deviceToHostNs)
+                                                font.family: "Menlo"
+                                                font.pixelSize: 12
+                                                color: root.textSecondary
+                                                Layout.preferredWidth: 96
+                                            }
+                                            Label {
+                                                text: root.microsText(modelData.kernelNs)
+                                                font.family: "Menlo"
+                                                font.pixelSize: 12
+                                                color: root.textSecondary
+                                                Layout.preferredWidth: 88
+                                            }
+                                            Label {
+                                                text: modelData.speedup.toFixed(2) + "×"
+                                                font.weight: Font.DemiBold
+                                                color: modelData.speedup >= 1 ? root.good : root.warning
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+                                    }
+                                    Label {
+                                        anchors.centerIn: parent
+                                        visible: parent.count === 0
+                                        text: "Run a report to compare the analyzer backends"
+                                        color: root.textSecondary
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            Layout.preferredWidth: 340
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: root.cardBg
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 16
+                                spacing: 8
+                                Label { text: "CONFIGURATION PROVENANCE"; color: root.textSecondary; font.pixelSize: 11; font.weight: Font.DemiBold; font.letterSpacing: 0.6 }
+                                Repeater {
+                                    model: [
+                                        { label: "Scenario", field: "scenario" },
+                                        { label: "Seed", field: "seed" },
+                                        { label: "Packets", field: "packets" },
+                                        { label: "Batch size", field: "batchSize" },
+                                        { label: "Frame bytes", field: "frameSize" },
+                                        { label: "Hosts", field: "hostCount" },
+                                        { label: "Generator", field: "generator" },
+                                        { label: "WireLab", field: "version" },
+                                        { label: "Build", field: "buildType" },
+                                        { label: "Compiled in", field: "backendsCompiledIn" },
+                                        { label: "On this machine", field: "backendsPresent" },
+                                        { label: "Generated", field: "generatedAt" }
+                                    ]
+                                    delegate: RowLayout {
+                                        required property var modelData
+                                        Layout.fillWidth: true
+                                        spacing: 8
+                                        Label {
+                                            text: modelData.label
+                                            color: root.textSecondary
+                                            font.pixelSize: 12
+                                            Layout.preferredWidth: 118
+                                        }
+                                        Label {
+                                            text: root.provenanceValue(modelData.field)
+                                            color: root.textPrimary
+                                            font.pixelSize: 12
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+                                Item { Layout.fillHeight: true }
                             }
                         }
                     }

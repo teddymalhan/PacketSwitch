@@ -54,6 +54,9 @@ namespace wirelab
   {
     std::string scenario;
     AnalyzerBackend backend = AnalyzerBackend::Cpu;
+    // Which traffic generator produces the frames. Optional in a request: a
+    // client that never heard of GPU generation still gets a CPU run.
+    std::string generator = "cpu";
     uint64_t packet_count = 0;
     uint32_t frame_size = 64;
     uint32_t batch_size = 1;

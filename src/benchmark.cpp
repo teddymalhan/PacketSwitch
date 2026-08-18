@@ -21,9 +21,9 @@ namespace wirelab
 
   struct BenchmarkRun::State
   {
-    State(BenchmarkConfig run_config, BenchmarkBackend backend)
+    State(BenchmarkConfig run_config, BenchmarkBackend backend, std::unique_ptr<TrafficBatchSource> traffic)
         : config(std::move(run_config)),
-          generator(config.traffic),
+          source(std::move(traffic)),
           analyzer(std::move(backend.analyzer)),
           timing(std::move(backend.timing))
     {
@@ -31,7 +31,10 @@ namespace wirelab
     }
 
     BenchmarkConfig config;
-    DeterministicTrafficGenerator generator;
+    std::unique_ptr<TrafficBatchSource> source;
+    // Reused across batches: a run fills the same buffers packet_count/batch_size
+    // times and must not pay for a fresh allocation each time.
+    std::vector<std::vector<uint8_t>> frames;
     std::unique_ptr<PacketAnalyzer> analyzer;
     std::function<AnalyzerTiming()> timing;
     std::vector<uint64_t> analysis_latency_ns;
@@ -66,6 +69,9 @@ namespace wirelab
       case TrafficScenario::Broadcast: return "broadcast";
       case TrafficScenario::UnknownUnicast: return "unknown-unicast";
       case TrafficScenario::Mixed: return "mixed-traffic";
+      case TrafficScenario::UdpFlood: return "udp-flood";
+      case TrafficScenario::PortScan: return "port-scan";
+      case TrafficScenario::BroadcastStorm: return "broadcast-storm";
     }
     return "mixed-traffic";
   }
@@ -76,6 +82,9 @@ namespace wirelab
     if (name == "broadcast") return TrafficScenario::Broadcast;
     if (name == "unknown-unicast") return TrafficScenario::UnknownUnicast;
     if (name == "mixed-traffic") return TrafficScenario::Mixed;
+    if (name == "udp-flood") return TrafficScenario::UdpFlood;
+    if (name == "port-scan") return TrafficScenario::PortScan;
+    if (name == "broadcast-storm") return TrafficScenario::BroadcastStorm;
     return unexpected{ BenchmarkError::UnknownScenario };
   }
 
@@ -92,7 +101,8 @@ namespace wirelab
     };
   }
 
-  expected<BenchmarkRun, BenchmarkError> BenchmarkRun::create(BenchmarkConfig config, BenchmarkBackendFactory factory)
+  expected<BenchmarkRun, BenchmarkError>
+  BenchmarkRun::create(BenchmarkConfig config, BenchmarkBackendFactory factory, TrafficSourceFactory traffic)
   {
     if (config.packet_count == 0 || config.batch_size == 0)
     {
@@ -102,13 +112,18 @@ namespace wirelab
     {
       return unexpected{ BenchmarkError::InvalidConfiguration };
     }
+    // Frames address a source and a destination host, so a scenario needs two.
+    if (config.traffic.host_count < 2)
+    {
+      return unexpected{ BenchmarkError::InvalidConfiguration };
+    }
     // PacketBatch addresses its bytes with 32-bit offsets, so a batch that cannot
     // be built is rejected here rather than failing mid-run.
     if (config.batch_size > std::numeric_limits<uint32_t>::max() / config.traffic.frame_size)
     {
       return unexpected{ BenchmarkError::InvalidConfiguration };
     }
-    if (!factory)
+    if (!factory || !traffic)
     {
       return unexpected{ BenchmarkError::InvalidConfiguration };
     }
@@ -123,7 +138,17 @@ namespace wirelab
       return unexpected{ BenchmarkError::BackendUnavailable };
     }
 
-    return BenchmarkRun(std::make_unique<State>(std::move(config), std::move(*backend)));
+    auto source = traffic(config);
+    if (!source)
+    {
+      return unexpected{ source.error() };
+    }
+    if (!source->get())
+    {
+      return unexpected{ BenchmarkError::BackendUnavailable };
+    }
+
+    return BenchmarkRun(std::make_unique<State>(std::move(config), std::move(*backend), std::move(*source)));
   }
 
   BenchmarkRun::BenchmarkRun(std::unique_ptr<State> state) noexcept : state_(std::move(state))
@@ -151,10 +176,10 @@ namespace wirelab
     {
       const size_t remaining = state.config.packet_count - state.completed_packets;
       const size_t current_batch_size = std::min(state.config.batch_size, remaining);
-      const auto frames = state.generator.generate(current_batch_size);
+      state.source->fill(state.completed_packets, current_batch_size, state.frames);
       std::vector<PacketView> packets;
-      packets.reserve(frames.size());
-      for (const auto& frame : frames)
+      packets.reserve(state.frames.size());
+      for (const auto& frame : state.frames)
       {
         packets.push_back(PacketView{ frame.data(), frame.size() });
       }
@@ -238,13 +263,11 @@ namespace wirelab
     result.unknown_unicast_packets = state.unknown_unicast_packets;
     result.known_unicast_packets = state.known_unicast_packets;
     result.elapsed_ns = state.elapsed_ns;
-    result.packets_per_second =
-        elapsed_seconds == 0.0 ? 0.0 : static_cast<double>(state.received_packets) / elapsed_seconds;
+    result.packets_per_second = elapsed_seconds == 0.0 ? 0.0 : static_cast<double>(state.received_packets) / elapsed_seconds;
     result.goodput_bits_per_second =
         elapsed_seconds == 0.0 ? 0.0 : static_cast<double>(state.received_bytes) * 8.0 / elapsed_seconds;
-    result.loss_percentage = state.received_packets == 0
-                                 ? 0.0
-                                 : static_cast<double>(state.malformed_packets) * 100.0 / state.received_packets;
+    result.loss_percentage =
+        state.received_packets == 0 ? 0.0 : static_cast<double>(state.malformed_packets) * 100.0 / state.received_packets;
     result.batch_analysis_latency_p50_ns = percentile(50, 100);
     result.batch_analysis_latency_p95_ns = percentile(95, 100);
     result.batch_analysis_latency_p99_ns = percentile(99, 100);

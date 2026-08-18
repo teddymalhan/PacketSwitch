@@ -368,6 +368,69 @@ Only Ethernet captures load. Add `--only-flagged` to export just the packets
 that carry a verdict; run `wirelab_pcap` with no arguments for every threshold
 flag.
 
+### Traffic scenarios
+
+The generator is a pure function of `(scenario, seed, sequence)`: frame N is
+derived from a splitmix64 stream re-seeded per frame, so the same seed
+reproduces the same bytes, a run can resume mid-stream, and a GPU can produce
+frame N without producing frame N-1.
+
+| `--scenario` | What it sends | What it trips |
+|---|---|---|
+| `known-unicast` | host to known host | nothing; this is the baseline |
+| `broadcast` | broadcast MAC | nothing at benign rates |
+| `unknown-unicast` | unlearned destination MACs | nothing at benign rates |
+| `mixed-traffic` | the three above, round-robin | nothing |
+| `udp-flood` | one source to one destination, UDP port 9000 | `udp_flood` |
+| `port-scan` | one source sweeping 1024 destination ports | `port_scan` |
+| `broadcast-storm` | broadcast from three sources | `broadcast_storm` |
+
+The last three exist so the detectors and policies can be exercised end to end
+rather than only against hand-built test frames: point a `broadcast-storm` run
+at a supervised switch and the `quarantine-broadcast-storm` policy contains the
+port that sent it.
+
+### GPU traffic generation
+
+`--generator metal` synthesises a whole batch of frames on the GPU, one thread
+per frame, using the same per-frame derivation the CPU generator uses. That is
+the contract: `traffic_source_test` asserts GPU bytes equal CPU bytes frame for
+frame across scenarios, batches, and a non-zero starting sequence, so choosing
+a generator changes who did the work and nothing about the workload.
+
+```bash
+wirelab_bench --analyzer cpu --generator metal --scenario mixed-traffic \
+  --packets 4096 --batch-size 256 --frame-size 128 --seed 5
+```
+
+`metal` exists only in a build configured with `-DWIRELAB_ENABLE_METAL=ON`, and
+the same wiring accepts `cuda` in a `-DWIRELAB_ENABLE_CUDA=ON` build. A
+generator that is compiled in but has no device is refused rather than quietly
+run on the CPU. `start_benchmark` accepts `"generator"` over the control
+channel with the same rules.
+
+### Reports and the demo
+
+```bash
+make bench-report    # every backend and generator this build has, one report
+make demo-gui        # the five-minute scripted GUI walkthrough
+```
+
+`scripts/bench_report.sh` runs the analyzer-by-generator matrix at a pinned
+scenario, seed, frame size and batch size, and writes `<base>.json` and
+`<base>.csv`. It discovers the matrix by running each combination once rather
+than by trusting the build flags, so an absent device is reported as absent.
+The columns are the GUI Reports workspace's export columns, so a report from CI
+and a report exported from the frontend diff against each other directly.
+
+The Reports workspace runs the same measurement in the GUI, in slices off the
+frame tick so the window keeps drawing, and its export carries provenance:
+scenario, seed, packet and batch and frame size, WireLab version, build type,
+which backends this build compiled in, and which are present on the machine.
+Transfer and kernel timing are separate columns because a GPU number that hides
+the copy is not a result - in a Debug build the CPU usually wins, and the table
+says so.
+
 ## Architecture
 
 The three core components map directly to source files under `include/wirelab/` and `src/`:

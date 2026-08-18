@@ -5,14 +5,18 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
+#include <QVariantMap>
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "wirelab/analysis_pipeline.hpp"
 #include "wirelab/anomaly_detector.hpp"
+#include "wirelab/benchmark.hpp"
 #include "wirelab/packet_analyzer.hpp"
 #include "wirelab/policy_enforcer.hpp"
 #include "wirelab/topology_controller.hpp"
@@ -46,6 +50,13 @@ namespace wirelab
     Q_PROPERTY(QVariantList enforcedPorts READ enforcedPorts NOTIFY telemetryChanged)
     Q_PROPERTY(QStringList anomalyTypeNames READ anomalyTypeNames CONSTANT)
     Q_PROPERTY(QStringList policyActionNames READ policyActionNames CONSTANT)
+    Q_PROPERTY(bool reportRunning READ reportRunning NOTIFY reportChanged)
+    Q_PROPERTY(double reportProgress READ reportProgress NOTIFY reportChanged)
+    Q_PROPERTY(QString reportStage READ reportStage NOTIFY reportChanged)
+    Q_PROPERTY(QVariantList reportRows READ reportRows NOTIFY reportChanged)
+    Q_PROPERTY(QVariantMap reportProvenance READ reportProvenance NOTIFY reportChanged)
+    Q_PROPERTY(QString reportExportPath READ reportExportPath NOTIFY reportChanged)
+    Q_PROPERTY(QStringList reportScenarioNames READ reportScenarioNames CONSTANT)
 
    public:
     explicit WireLabViewModel(QObject* parent = nullptr);
@@ -73,6 +84,13 @@ namespace wirelab
     [[nodiscard]] QVariantList enforcedPorts() const;
     [[nodiscard]] QStringList anomalyTypeNames() const;
     [[nodiscard]] QStringList policyActionNames() const;
+    [[nodiscard]] bool reportRunning() const noexcept;
+    [[nodiscard]] double reportProgress() const noexcept;
+    [[nodiscard]] QString reportStage() const;
+    [[nodiscard]] QVariantList reportRows() const;
+    [[nodiscard]] QVariantMap reportProvenance() const;
+    [[nodiscard]] QString reportExportPath() const;
+    [[nodiscard]] QStringList reportScenarioNames() const;
 
     Q_INVOKABLE void openTopology(const QString& path);
     Q_INVOKABLE void saveTopology(const QString& path);
@@ -93,6 +111,9 @@ namespace wirelab
     Q_INVOKABLE void removePolicy(const QString& name);
     Q_INVOKABLE void setPolicyEnabled(const QString& name, bool enabled);
     Q_INVOKABLE void releaseEnforcement(const QString& portId);
+    Q_INVOKABLE void runBenchmarkReport(const QString& scenario, int packets, int batchSize, int frameSize, int seed);
+    Q_INVOKABLE void runReportStep();
+    Q_INVOKABLE bool exportReport(const QString& path);
 
    signals:
     void topologyChanged();
@@ -102,6 +123,7 @@ namespace wirelab
     void telemetryChanged();
     void faultsChanged();
     void policiesChanged();
+    void reportChanged();
 
    private:
     struct PortCounters
@@ -123,6 +145,12 @@ namespace wirelab
         double averageLatencyMs);
     void resetSimulation();
     void setStatus(QString message);
+    // The report advances one backend at a time; beginNextReportBackend() arms the
+    // next queued backend and answers whether there was one left to arm.
+    bool beginNextReportBackend();
+    void finishReport();
+    void rebuildReportRows();
+    void rebuildReportProvenance();
 
     TopologyController topologyController_;
     TopologyConfiguration topologyConfiguration_;
@@ -163,6 +191,21 @@ namespace wirelab
     QVariantList policyRules_;
     QVariantList policyActions_;
     QVariantList enforcedPorts_;
+
+    bool reportRunning_ = false;
+    double reportProgress_ = 0.0;
+    QString reportStage_;
+    QString reportExportPath_;
+    BenchmarkConfig reportConfig_;
+    QStringList reportQueue_;
+    int reportIndex_ = 0;
+    size_t reportSliceBudget_ = 0;
+    uint64_t reportCompletedPackets_ = 0;
+    uint64_t reportTotalPackets_ = 0;
+    std::optional<BenchmarkRun> reportRun_;
+    std::vector<BenchmarkResult> reportResults_;
+    QVariantList reportRows_;
+    QVariantMap reportProvenance_;
   };
 }  // namespace wirelab
 

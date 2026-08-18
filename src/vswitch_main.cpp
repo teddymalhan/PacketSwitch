@@ -237,6 +237,7 @@ int main(int argc, char* argv[])
         // A benchmark asked for over the control channel runs on this process,
         // so it must reach the same accelerators the CLI benchmark can.
         control_service->set_benchmark_backends(wirelab::accelerated_benchmark_backend_factory());
+        control_service->set_traffic_sources(wirelab::accelerated_traffic_source_factory());
         supervisor->attach_control(*control_server);
         std::cout << "Control channel on " << control_address << ':' << control_server->port()
                   << "; newline-delimited JSON, one control message per line.\n";

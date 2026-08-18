@@ -115,6 +115,12 @@ if(TARGET wirelab_metal)
   add_test(NAME packet_metal_test COMMAND packet_metal_test_Tests)
 endif()
 
+# The CPU-vs-GPU parity test is the contract between write_traffic_frame() and
+# the Metal kernel, so it needs the generator whenever this build has one.
+if(TARGET wirelab_metal)
+  target_link_libraries(traffic_source_test_Tests PRIVATE wirelab_metal)
+endif()
+
 add_test(
   NAME wirelab_bench_cpu_smoke
   COMMAND $<TARGET_FILE:wirelab_bench>
@@ -189,10 +195,11 @@ if(TARGET wirelab_gui)
   set_target_properties(wirelab_view_model_test_Tests PROPERTIES AUTOMOC ON)
   target_compile_features(wirelab_view_model_test_Tests PRIVATE cxx_std_17)
   target_compile_definitions(wirelab_view_model_test_Tests
-    PRIVATE PROJECT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
+    PRIVATE PROJECT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}"
+            WIRELAB_BUILD_TYPE="$<CONFIG>")
   target_link_libraries(wirelab_view_model_test_Tests PRIVATE
     ${WIRELAB_GTEST_LIBRARIES}
-    ${CMAKE_PROJECT_NAME}
+    wirelab_backends
     Qt6::Core)
   if(TARGET wirelab_metal)
     target_link_libraries(wirelab_view_model_test_Tests PRIVATE wirelab_metal)

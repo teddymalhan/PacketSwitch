@@ -19,29 +19,44 @@ namespace
     return *scenario;
   }
 
-  // Reports the backend failure in the terms the operator can act on, which the
-  // library-level BenchmarkError deliberately does not encode.
-  [[noreturn]] void throw_backend_error(const std::string& analyzer_name, wirelab::BenchmarkError error)
+  // Reports the failure in the terms the operator can act on, which the
+  // library-level BenchmarkError deliberately does not encode. A run resolves
+  // its analyzer before its generator and the CPU answers both unconditionally,
+  // so which of the two an error belongs to follows from the names.
+  [[noreturn]] void
+  throw_backend_error(const std::string& analyzer_name, const std::string& generator_name, wirelab::BenchmarkError error)
   {
     if (error == wirelab::BenchmarkError::UnknownBackend)
     {
-#ifndef WIRELAB_HAS_CUDA
-      if (analyzer_name == "cuda")
+      if (!wirelab::benchmark_backend_is_compiled_in(analyzer_name))
       {
-        throw std::runtime_error(
-            "CUDA analyzer selected, but this wirelab_bench build has no CUDA backend; "
-            "reconfigure with -DWIRELAB_ENABLE_CUDA=ON");
-      }
+#ifndef WIRELAB_HAS_CUDA
+        if (analyzer_name == "cuda")
+        {
+          throw std::runtime_error(
+              "CUDA analyzer selected, but this wirelab_bench build has no CUDA backend; "
+              "reconfigure with -DWIRELAB_ENABLE_CUDA=ON");
+        }
 #endif
 #ifndef WIRELAB_HAS_METAL
-      if (analyzer_name == "metal")
+        if (analyzer_name == "metal")
+        {
+          throw std::runtime_error(
+              "Metal analyzer selected, but this wirelab_bench build has no Metal backend; "
+              "reconfigure with -DWIRELAB_ENABLE_METAL=ON");
+        }
+#endif
+        throw std::invalid_argument("unknown analyzer: " + analyzer_name);
+      }
+#ifndef WIRELAB_HAS_METAL
+      if (generator_name == "metal")
       {
         throw std::runtime_error(
-            "Metal analyzer selected, but this wirelab_bench build has no Metal backend; "
+            "Metal generator selected, but this wirelab_bench build has no Metal generator; "
             "reconfigure with -DWIRELAB_ENABLE_METAL=ON");
       }
 #endif
-      throw std::invalid_argument("unknown analyzer: " + analyzer_name);
+      throw std::invalid_argument("unknown generator: " + generator_name);
     }
     if (error == wirelab::BenchmarkError::BackendUnavailable)
     {
@@ -49,7 +64,11 @@ namespace
       {
         throw std::runtime_error("CUDA analyzer selected, but no compatible CUDA device is available");
       }
-      throw std::runtime_error("Metal analyzer selected, but no compatible Metal device is available");
+      if (analyzer_name == "metal")
+      {
+        throw std::runtime_error("Metal analyzer selected, but no compatible Metal device is available");
+      }
+      throw std::runtime_error("Metal generator selected, but no compatible Metal device is available");
     }
     throw std::invalid_argument(wirelab::to_string(error));
   }
@@ -57,8 +76,8 @@ namespace
   void print_usage(const char* program)
   {
     std::cerr << "Usage: " << program
-              << " [--analyzer cpu|cuda|metal]"
-                 " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic]"
+              << " [--analyzer cpu|cuda|metal] [--generator cpu|metal]"
+                 " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic|udp-flood|port-scan|broadcast-storm]"
                  " [--packets count] [--batch-size count] [--frame-size bytes] [--seed value]\n";
   }
 }  // namespace
@@ -81,6 +100,8 @@ int main(int argc, char* argv[])
       const std::string value = argv[index + 1];
       if (option == "--analyzer")
         config.backend = value;
+      else if (option == "--generator")
+        config.generator = value;
       else if (option == "--scenario")
         config.traffic.scenario = parse_scenario(value);
       else if (option == "--packets")
@@ -115,10 +136,12 @@ int main(int argc, char* argv[])
     }
 
     const std::string analyzer_name = config.backend;
-    auto run = wirelab::BenchmarkRun::create(config, wirelab::accelerated_benchmark_backend_factory());
+    const std::string generator_name = config.generator;
+    auto run = wirelab::BenchmarkRun::create(
+        config, wirelab::accelerated_benchmark_backend_factory(), wirelab::accelerated_traffic_source_factory());
     if (!run)
     {
-      throw_backend_error(analyzer_name, run.error());
+      throw_backend_error(analyzer_name, generator_name, run.error());
     }
 
     while (!run->finished())
@@ -129,10 +152,10 @@ int main(int argc, char* argv[])
     const double elapsed_seconds = static_cast<double>(result.elapsed_ns) / 1e9;
 
     std::cout << std::fixed << std::setprecision(2);
-    std::cout << "backend=" << result.backend << " scenario=" << result.scenario << " seed=" << result.seed
-              << " frame_size=" << result.frame_size << " packets=" << result.total_packets
+    std::cout << "backend=" << result.backend << " generator=" << generator_name << " scenario=" << result.scenario
+              << " seed=" << result.seed << " frame_size=" << result.frame_size << " packets=" << result.total_packets
               << " batch_size=" << result.batch_size << " elapsed_seconds=" << elapsed_seconds
-              << " packets_per_second=" << result.packets_per_second
+              << " elapsed_ns=" << result.elapsed_ns << " packets_per_second=" << result.packets_per_second
               << " goodput_bits_per_second=" << result.goodput_bits_per_second
               << " loss_percentage=" << result.loss_percentage
               << " batch_analysis_latency_p50_ns=" << result.batch_analysis_latency_p50_ns
