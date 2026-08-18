@@ -1,9 +1,12 @@
 #include "wirelab/switch_supervisor.hpp"
 
+#include "wirelab/packet_batch.hpp"
+
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <thread>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -69,8 +72,61 @@ namespace
     return socket;
   }
 
-  TEST(SwitchSupervisorTest, AttributesSendersToTopologyPortsInFirstSeenOrder)
+  // Stands in for a device analyzer: proves the supervisor parses with whatever
+  // it was given, without needing a GPU present to run the test.
+  class RecordingAnalyzer final : public wirelab::PacketAnalyzer
   {
+   public:
+    [[nodiscard]] wirelab::AnalysisBatch analyze(const wirelab::PacketView* packets, size_t count) override
+    {
+      ++calls_;
+      analysed_ += count;
+      return delegate_.analyze(packets, count);
+    }
+    [[nodiscard]] wirelab::AnalysisBatch analyze(const wirelab::PacketBatch& batch) override
+    {
+      ++calls_;
+      analysed_ += batch.packet_count();
+      return delegate_.analyze(batch);
+    }
+    [[nodiscard]] size_t calls() const noexcept
+    {
+      return calls_;
+    }
+    [[nodiscard]] size_t analysed() const noexcept
+    {
+      return analysed_;
+    }
+
+   private:
+    wirelab::CpuPacketAnalyzer delegate_;
+    size_t calls_ = 0;
+    size_t analysed_ = 0;
+  };
+
+  TEST(SwitchSupervisorTest, AnalysesLiveFramesWithTheInjectedAnalyzer)
+  {
+    wirelab::TopologyController controller;
+    controller.load(make_topology());
+    wirelab::AnalysisPipeline pipeline(storm_config());
+    auto analyzer = std::make_unique<RecordingAnalyzer>();
+    auto* observed = analyzer.get();
+    wirelab::SwitchSupervisor supervisor(pipeline, controller, {}, std::move(analyzer));
+
+    const auto frame = broadcast_frame(0x01);
+    const auto now = std::chrono::steady_clock::now();
+    (void)supervisor.inspect(frame, wirelab::Endpoint("127.0.0.1", 4001), now);
+    (void)supervisor.inspect(frame, wirelab::Endpoint("127.0.0.1", 4002), now);
+    supervisor.tick(now);
+
+    EXPECT_EQ(observed->calls(), 1U);
+    EXPECT_EQ(observed->analysed(), 2U);
+    // The injected analyzer feeds the same counters the CPU one would, so a
+    // report cannot silently lose frames by changing backend.
+    EXPECT_EQ(supervisor.analysed_frames(), 2U);
+  }
+
+  TEST(SwitchSupervisorTest, AttributesSendersToTopologyPortsInFirstSeenOrder)  {
     wirelab::TopologyController controller;
     controller.load(make_topology());
     wirelab::AnalysisPipeline pipeline(storm_config());

@@ -15,6 +15,11 @@ namespace wirelab
   // compiled with the accelerators knows which GPU generators exist.
   [[nodiscard]] TrafficSourceFactory accelerated_traffic_source_factory();
 
+  // The analyzer a live consumer wants, named the way the benchmark names it so
+  // that "metal-live" means the same thing to the switch and to a report.
+  [[nodiscard]] expected<std::unique_ptr<PacketAnalyzer>, BenchmarkError>
+  accelerated_packet_analyzer(std::string_view backend);
+
   // True when this build could construct the named backend at all, ignoring
   // whether the machine currently has the device. Lets a caller tell "this build
   // has no CUDA" apart from "this machine has no CUDA device".

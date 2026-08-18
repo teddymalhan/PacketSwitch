@@ -111,7 +111,7 @@ endif()
 if(TARGET wirelab_metal)
   add_executable(packet_metal_test_Tests src/metal_packet_parser_test.cpp)
   target_compile_features(packet_metal_test_Tests PUBLIC cxx_std_17)
-  target_link_libraries(packet_metal_test_Tests PRIVATE ${WIRELAB_GTEST_LIBRARIES} wirelab_metal)
+  target_link_libraries(packet_metal_test_Tests PRIVATE ${WIRELAB_GTEST_LIBRARIES} wirelab_metal wirelab_backends)
   add_test(NAME packet_metal_test COMMAND packet_metal_test_Tests)
 endif()
 
@@ -179,6 +179,16 @@ if(TARGET wirelab_metal)
     NAME wirelab_bench_metal_smoke
     COMMAND $<TARGET_FILE:wirelab_bench>
       --analyzer metal
+      --scenario mixed-traffic
+      --packets 32
+      --batch-size 8
+      --frame-size 64
+      --seed 42
+  )
+  add_test(
+    NAME wirelab_bench_metal_live_smoke
+    COMMAND $<TARGET_FILE:wirelab_bench>
+      --analyzer metal-live
       --scenario mixed-traffic
       --packets 32
       --batch-size 8

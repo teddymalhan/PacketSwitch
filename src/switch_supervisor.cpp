@@ -10,11 +10,14 @@ namespace wirelab
   SwitchSupervisor::SwitchSupervisor(
       AnalysisPipeline& pipeline,
       TopologyController& controller,
-      SwitchSupervisorConfig config)
+      SwitchSupervisorConfig config,
+      std::unique_ptr<PacketAnalyzer> analyzer)
       : pipeline_(pipeline),
         controller_(controller),
-        config_(config)
+        config_(config),
+        owned_analyzer_(std::move(analyzer))
   {
+    analyzer_ = owned_analyzer_ == nullptr ? static_cast<PacketAnalyzer*>(&cpu_analyzer_) : owned_analyzer_.get();
     pipeline_.attach(controller_);
     batch_.reserve(config_.max_batch_frames);
   }
@@ -103,7 +106,7 @@ namespace wirelab
       views.push_back({ frame.bytes.data(), frame.bytes.size(), frame.ingress_port });
     }
 
-    const auto analysis = analyzer_.analyze(views.data(), views.size());
+    const auto analysis = analyzer_->analyze(views.data(), views.size());
     analysed_frames_ += analysis.received_packets;
     batch_.clear();
 

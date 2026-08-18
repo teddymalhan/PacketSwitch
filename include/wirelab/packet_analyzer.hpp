@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -138,6 +139,28 @@ namespace wirelab
     virtual ~PacketAnalyzer() = default;
     [[nodiscard]] virtual AnalysisBatch analyze(const PacketView* packets, size_t packet_count) = 0;
     [[nodiscard]] virtual AnalysisBatch analyze(const PacketBatch& batch) = 0;
+  };
+
+  // An analyzer that can be handed a batch now and asked for the answer later.
+  //
+  // A device analyzer that answers synchronously leaves the host idle for the
+  // whole kernel, which is affordable offline and not affordable live. This is
+  // the shape that lets a caller keep feeding while results come back, and it
+  // exists as its own interface because most callers do not want it: a batch
+  // answered now is simpler, and simpler is right until it is measurably slow.
+  //
+  // Results always arrive in submission order, because the analyzers behind it
+  // learn MAC addresses in order.
+  class StreamingPacketAnalyzer
+  {
+   public:
+    virtual ~StreamingPacketAnalyzer() = default;
+    virtual void submit(const PacketBatch& batch) = 0;
+    // The oldest finished batch, or nothing when the oldest is still running.
+    [[nodiscard]] virtual std::optional<AnalysisBatch> try_collect() = 0;
+    // Every outstanding batch, in submission order.
+    [[nodiscard]] virtual std::vector<AnalysisBatch> drain() = 0;
+    [[nodiscard]] virtual size_t in_flight() const noexcept = 0;
   };
 
   class PacketAnalysisAggregator final
