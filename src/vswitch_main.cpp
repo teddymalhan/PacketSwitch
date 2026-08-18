@@ -63,7 +63,8 @@ void install_default_policies(wirelab::AnalysisPipeline& pipeline)
 void print_usage(const char* program_name)
 {
   std::cerr << "Usage: " << program_name
-            << " <port> [--verbose] [--topology <file>] [--control-port <port>] [--control-address <address>]\n";
+            << " <port> [--verbose] [--topology <file>] [--control-port <port>] [--control-address <address>]"
+               " [--analyzer <backend>]\n";
   std::cerr << "\n";
   std::cerr << "Arguments:\n";
   std::cerr << "  port     UDP port to listen on (0 for ephemeral)\n";
@@ -76,6 +77,9 @@ void print_usage(const char* program_name)
   std::cerr << "  --control-address <address>  Bind the control channel to this address instead of 127.0.0.1.\n";
   std::cerr << "                     The control protocol has no authentication: anyone who can reach the\n";
   std::cerr << "                     address can quarantine a port, so keep it on a network you trust\n";
+  std::cerr << "  --analyzer <cpu|cuda|metal|metal-live>  Parse supervised frames with this backend instead of\n";
+  std::cerr << "                     the CPU. Requires --topology. Only backends this build and this machine\n";
+  std::cerr << "                     actually have are accepted; detection still resolves within the same tick\n";
   std::cerr << "\n";
   std::cerr << "Examples:\n";
   std::cerr << "  " << program_name << " 8080\n";
@@ -104,6 +108,7 @@ int main(int argc, char* argv[])
   std::string topology_path;
   long control_port = -1;
   std::string control_address = "127.0.0.1";
+  std::string analyzer_backend = "cpu";
   for (int index = 2; index < argc; ++index)
   {
     const std::string_view option(argv[index]);
@@ -133,6 +138,11 @@ int main(int argc, char* argv[])
       control_address = argv[++index];
       continue;
     }
+    if (option == "--analyzer" && index + 1 < argc)
+    {
+      analyzer_backend = argv[++index];
+      continue;
+    }
     std::cerr << "Error: Unknown option '" << option << "'\n";
     print_usage(argv[0]);
     return EXIT_FAILURE;
@@ -145,6 +155,11 @@ int main(int argc, char* argv[])
   if (control_port < 0 && control_address != "127.0.0.1")
   {
     std::cerr << "Error: --control-address requires --control-port; there is no control channel to bind\n";
+    return EXIT_FAILURE;
+  }
+  if (analyzer_backend != "cpu" && topology_path.empty())
+  {
+    std::cerr << "Error: --analyzer requires --topology; without supervision no frames are analysed\n";
     return EXIT_FAILURE;
   }
 
@@ -217,7 +232,16 @@ int main(int argc, char* argv[])
       }
       controller.load(std::move(topology.value()));
       install_default_policies(pipeline);
-      supervisor = std::make_unique<wirelab::SwitchSupervisor>(pipeline, controller);
+      auto analyzer = wirelab::accelerated_packet_analyzer(analyzer_backend);
+      if (!analyzer)
+      {
+        std::cerr << "Error: Cannot analyse frames with '" << analyzer_backend
+                  << "': " << wirelab::to_string(analyzer.error()) << "\n";
+        return EXIT_FAILURE;
+      }
+      std::cout << "Analyzing supervised frames with: " << analyzer_backend << "\n";
+      supervisor = std::make_unique<wirelab::SwitchSupervisor>(
+          pipeline, controller, wirelab::SwitchSupervisorConfig{}, std::move(analyzer.value()));
       g_vswitch->set_frame_gate(supervisor.get());
       if (control_port >= 0)
       {

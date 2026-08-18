@@ -79,7 +79,7 @@ probe() {
 }
 
 analyzers=()
-for candidate in cpu cuda metal; do
+for candidate in cpu cuda metal metal-live; do
   if probe --analyzer "$candidate"; then analyzers+=("$candidate"); fi
 done
 generators=()
@@ -126,7 +126,8 @@ with open(os.environ["WIRELAB_REPORT_RUNS"], encoding="utf-8") as handle:
 # Column names and order are the GUI export's, so the two reports are diffable.
 COLUMNS = ["backend", "generator", "scenario", "packets", "elapsedNs", "packetsPerSecond",
            "goodputBitsPerSecond", "lossPercent", "latencyP50Ns", "latencyP95Ns",
-           "latencyP99Ns", "hostToDeviceNs", "kernelNs", "deviceToHostNs", "speedup"]
+           "latencyP99Ns", "hostToDeviceNs", "kernelNs", "deviceToHostNs",
+           "transferInclusiveNs", "queueWaitNs", "speedup"]
 
 cpu_rate = next((float(run["packets_per_second"]) for run in runs
                  if run["backend"] == "cpu" and run["generator"] == "cpu"), None)
@@ -149,6 +150,10 @@ for run in runs:
         "hostToDeviceNs": int(run["host_to_device_ns"]),
         "kernelNs": int(run["kernel_ns"]),
         "deviceToHostNs": int(run["device_to_host_ns"]),
+        # Non-zero only for a pipelined backend, where the caller never blocked
+        # on a batch and the host clock around the call is not its latency.
+        "transferInclusiveNs": int(run["transfer_inclusive_ns"]),
+        "queueWaitNs": int(run["queue_wait_ns"]),
         # Against the all-CPU run, which is the baseline every machine has.
         "speedup": round(rate / cpu_rate, 4) if cpu_rate else 0.0,
     })

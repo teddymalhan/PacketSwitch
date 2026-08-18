@@ -39,7 +39,7 @@ namespace
         }
 #endif
 #ifndef WIRELAB_HAS_METAL
-        if (analyzer_name == "metal")
+        if (analyzer_name == "metal" || analyzer_name == "metal-live")
         {
           throw std::runtime_error(
               "Metal analyzer selected, but this wirelab_bench build has no Metal backend; "
@@ -64,7 +64,7 @@ namespace
       {
         throw std::runtime_error("CUDA analyzer selected, but no compatible CUDA device is available");
       }
-      if (analyzer_name == "metal")
+      if (analyzer_name == "metal" || analyzer_name == "metal-live")
       {
         throw std::runtime_error("Metal analyzer selected, but no compatible Metal device is available");
       }
@@ -76,7 +76,7 @@ namespace
   void print_usage(const char* program)
   {
     std::cerr << "Usage: " << program
-              << " [--analyzer cpu|cuda|metal] [--generator cpu|metal]"
+              << " [--analyzer cpu|cuda|metal|metal-live] [--generator cpu|metal]"
                  " [--scenario known-unicast|broadcast|unknown-unicast|mixed-traffic|udp-flood|port-scan|broadcast-storm]"
                  " [--packets count] [--batch-size count] [--frame-size bytes] [--seed value]\n";
   }
@@ -163,6 +163,8 @@ int main(int argc, char* argv[])
               << " batch_analysis_latency_p99_ns=" << result.batch_analysis_latency_p99_ns
               << " host_to_device_ns=" << result.timing.host_to_device_ns << " kernel_ns=" << result.timing.kernel_ns
               << " device_to_host_ns=" << result.timing.device_to_host_ns
+              << " transfer_inclusive_ns=" << result.timing.transfer_inclusive_ns
+              << " queue_wait_ns=" << result.timing.queue_wait_ns
               << " malformed_packets=" << result.malformed_packets << " broadcast_packets=" << result.broadcast_packets
               << " unknown_unicast_packets=" << result.unknown_unicast_packets
               << " known_unicast_packets=" << result.known_unicast_packets << "\n";

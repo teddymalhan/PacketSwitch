@@ -198,6 +198,8 @@ namespace wirelab
     // the spellings meet.
     std::string benchmark_backend_id(const QString& label)
     {
+      if (label == QStringLiteral("Metal (live)"))
+        return "metal-live";
       return label.toLower().toStdString();
     }
 
@@ -207,6 +209,8 @@ namespace wirelab
         return QStringLiteral("CUDA");
       if (id == "metal")
         return QStringLiteral("Metal");
+      if (id == "metal-live")
+        return QStringLiteral("Metal (live)");
       return QStringLiteral("CPU");
     }
   }  // namespace
@@ -415,6 +419,10 @@ namespace wirelab
     if (MetalPacketParser::is_available())
     {
       backends.push_back(QStringLiteral("Metal"));
+    }
+    if (MetalStreamParser::is_available())
+    {
+      backends.push_back(QStringLiteral("Metal (live)"));
     }
 #endif
     return backends;
@@ -713,6 +721,8 @@ namespace wirelab
 #ifdef WIRELAB_HAS_METAL
     if (activeBackend_ == QStringLiteral("Metal"))
       trafficAnalyzer_ = std::make_unique<MetalPacketAnalyzer>();
+    if (activeBackend_ == QStringLiteral("Metal (live)"))
+      trafficAnalyzer_ = std::make_unique<MetalStreamingAnalyzer>();
 #endif
     trafficRunning_ = true;
     setStatus(QStringLiteral("Traffic running on %1").arg(activeBackend_));
@@ -1176,6 +1186,8 @@ namespace wirelab
                        { "hostToDeviceNs", static_cast<qulonglong>(result.timing.host_to_device_ns) },
                        { "kernelNs", static_cast<qulonglong>(result.timing.kernel_ns) },
                        { "deviceToHostNs", static_cast<qulonglong>(result.timing.device_to_host_ns) },
+                       { "transferInclusiveNs", static_cast<qulonglong>(result.timing.transfer_inclusive_ns) },
+                       { "queueWaitNs", static_cast<qulonglong>(result.timing.queue_wait_ns) },
                        { "speedup", speedup } });
     }
   }
@@ -1183,7 +1195,10 @@ namespace wirelab
   void WireLabViewModel::rebuildReportProvenance()
   {
     QStringList compiledIn;
-    for (const QString& label : { QStringLiteral("CPU"), QStringLiteral("CUDA"), QStringLiteral("Metal") })
+    for (const QString& label : { QStringLiteral("CPU"),
+                                  QStringLiteral("CUDA"),
+                                  QStringLiteral("Metal"),
+                                  QStringLiteral("Metal (live)") })
       if (benchmark_backend_is_compiled_in(benchmark_backend_id(label)))
         compiledIn.push_back(label);
     reportProvenance_ = QVariantMap{ { "scenario", QString::fromLatin1(to_string(reportConfig_.traffic.scenario)) },
@@ -1237,11 +1252,12 @@ namespace wirelab
 
     // The CSV carries the same rows in a fixed column order so a spreadsheet
     // and the JSON never disagree about what a column means.
-    static const char* const columns[] = { "backend",        "scenario",         "packets",
-                                           "elapsedNs",      "packetsPerSecond", "goodputBitsPerSecond",
-                                           "lossPercent",    "latencyP50Ns",     "latencyP95Ns",
-                                           "latencyP99Ns",   "hostToDeviceNs",   "kernelNs",
-                                           "deviceToHostNs", "speedup" };
+    static const char* const columns[] = { "backend",        "scenario",           "packets",
+                                           "elapsedNs",      "packetsPerSecond",   "goodputBitsPerSecond",
+                                           "lossPercent",    "latencyP50Ns",       "latencyP95Ns",
+                                           "latencyP99Ns",   "hostToDeviceNs",     "kernelNs",
+                                           "deviceToHostNs", "transferInclusiveNs", "queueWaitNs",
+                                           "speedup" };
     QString csv;
     for (size_t column = 0; column < std::size(columns); ++column)
       csv += QString::fromLatin1(columns[column]) +

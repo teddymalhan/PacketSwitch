@@ -657,6 +657,26 @@ If GPU batching increases p99 latency unacceptably, retain CPU analysis for live
 - Transfer-inclusive latency and throughput comparison.
 - Explicit CPU or CUDA backend selection from the Qt frontend and CLI.
 
+**Status: delivered on Metal, not on CUDA.** The milestone was written
+CUDA-first, but this project's only GPU is an Apple one, so the pipeline was
+built where it could be measured. `MetalStreamParser` reuses shared-storage
+buffers across batches and keeps up to three in flight, giving 515k -> 2.35M
+pps on a 20k-frame mixed run with counters identical to the CPU analyzer.
+Transfer-inclusive and queue-wait spans are measured and reported through the
+CLI, `bench_report.sh`, and the GUI's report export. Live selection exists in
+both frontends: `vswitch --analyzer` and the Reports workspace backend list.
+
+Two deviations are deliberate. Apple's unified memory has no host-to-device
+staging copy for pinned memory to accelerate, so what is overlapped is host fill
+against GPU execution rather than copy against compute. And the live switch
+still resolves each batch within the tick that recorded it: deferring a batch to
+win latency would make containment arrive after the window that justified it.
+
+The CUDA path remains synchronous and unpipelined. The
+`StreamingPacketAnalyzer` interface it would implement is backend-agnostic and
+already in place, so this is a port and not a redesign — but it is unbuilt and
+unmeasured, and claiming otherwise would be a guess.
+
 ### Milestone 7: GPU traffic generation and polished Qt demo
 
 - GPU-generated synthetic traffic batches.

@@ -43,6 +43,12 @@ namespace wirelab
     uint64_t host_to_device_ns = 0;
     uint64_t kernel_ns = 0;
     uint64_t device_to_host_ns = 0;
+    // Submit to result in hand, transfers included. Zero for a backend that
+    // answers synchronously, where the batch analysis latency already is it.
+    uint64_t transfer_inclusive_ns = 0;
+    // Time a submit spent waiting for a free pipeline slot. Non-zero means the
+    // GPU is behind the host rather than the other way round.
+    uint64_t queue_wait_ns = 0;
   };
 
   struct BenchmarkResult
@@ -75,11 +81,14 @@ namespace wirelab
 
   // Built by whoever owns the accelerator backends; the core library only knows
   // CPU because it links neither CUDA nor Metal. timing may be empty when the
-  // analyzer reports no device transfer or kernel time.
+  // analyzer reports no device transfer or kernel time. streaming is set only
+  // when analyzer can also be fed without blocking, and points at that same
+  // object rather than owning a second one.
   struct BenchmarkBackend
   {
     std::unique_ptr<PacketAnalyzer> analyzer;
     std::function<AnalyzerTiming()> timing;
+    StreamingPacketAnalyzer* streaming = nullptr;
   };
 
   using BenchmarkBackendFactory = std::function<expected<BenchmarkBackend, BenchmarkError>(const BenchmarkConfig&)>;

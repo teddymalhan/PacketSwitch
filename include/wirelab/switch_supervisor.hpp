@@ -39,7 +39,14 @@ namespace wirelab
   class SwitchSupervisor final : public FrameGate
   {
    public:
-    SwitchSupervisor(AnalysisPipeline& pipeline, TopologyController& controller, SwitchSupervisorConfig config = {});
+    // analyzer defaults to the CPU one. Passing a device analyzer moves live
+    // frame parsing onto the GPU without moving detection: the batch is still
+    // answered within the tick that recorded it, because a lease measured in
+    // seconds and a window measured in seconds have to mean the same tick.
+    SwitchSupervisor(AnalysisPipeline& pipeline,
+                     TopologyController& controller,
+                     SwitchSupervisorConfig config = {},
+                     std::unique_ptr<PacketAnalyzer> analyzer = nullptr);
 
     // Gives the supervisor a control plane to serve and to publish onto. The
     // server is polled from tick(), so the switch stays single-threaded and a
@@ -90,7 +97,11 @@ namespace wirelab
     TopologyController& controller_;
     SwitchSupervisorConfig config_;
     ControlServer* control_ = nullptr;
-    CpuPacketAnalyzer analyzer_;
+    CpuPacketAnalyzer cpu_analyzer_;
+    // Points at cpu_analyzer_ unless the caller supplied one, which keeps the
+    // common case free of an allocation and the supervisor free of a branch.
+    std::unique_ptr<PacketAnalyzer> owned_analyzer_;
+    PacketAnalyzer* analyzer_ = nullptr;
     std::unordered_map<std::string, Binding> bindings_;
     // Frames are copied because analysis runs after the switch has released the
     // receive buffer; views into it would dangle by the time the batch flushes.

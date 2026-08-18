@@ -5,8 +5,14 @@
 
 #include "wirelab/metal_packet_parser.hpp"
 
+#include "wirelab/accelerated_backends.hpp"
+#include "wirelab/benchmark.hpp"
+
 #include <array>
 #include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -368,4 +374,330 @@ TEST(MetalPacketParserTest, ReportsKernelTiming)
   const auto timing = metal.last_timing();
   EXPECT_GT(timing.kernel_ns, 0ULL);
   EXPECT_GT(timing.host_to_device_ns, 0ULL);
+}
+
+// The pipelined parser exists so a live caller does not block on the GPU. It is
+// only worth having if it still agrees with the CPU analyzer batch for batch and
+// in the order the batches were submitted, so that is what these pin down.
+
+namespace
+{
+  wirelab::PacketBatch batch_of(const std::vector<std::vector<uint8_t>>& frames)
+  {
+    const auto views = to_views(frames);
+    auto batch = wirelab::PacketBatch::create(views.data(), views.size());
+    EXPECT_TRUE(batch.has_value());
+    return *batch;
+  }
+
+  std::vector<std::vector<std::vector<uint8_t>>> learning_batches()
+  {
+    return {
+      { valid_udp_frame(), broadcast_frame(), fragmented_frame() },
+      { b_to_a_frame(), a_to_c_frame() },
+      { valid_udp_frame() },
+      { valid_tcp_frame(), valid_icmp_frame(), arp_frame(), short_frame() },
+      { a_to_c_frame(), b_to_a_frame(), ipv6_frame() },
+    };
+  }
+}
+
+TEST(MetalStreamParserTest, RejectsAnUnusablePipelineDepth)
+{
+  EXPECT_THROW((void)wirelab::MetalStreamParser(0), std::invalid_argument);
+  EXPECT_THROW((void)wirelab::MetalStreamParser(wirelab::MetalStreamParser::MAX_PIPELINE_DEPTH + 1),
+               std::invalid_argument);
+}
+
+TEST(MetalStreamParserTest, KeepsBatchesInFlightInsteadOfBlockingOnEachOne)
+{
+  wirelab::MetalStreamParser parser(3);
+  ASSERT_EQ(3U, parser.pipeline_depth());
+  EXPECT_TRUE(parser.idle());
+
+  for (size_t index = 0; index < parser.pipeline_depth(); ++index)
+  {
+    parser.submit(batch_of({ valid_udp_frame(), valid_tcp_frame() }));
+  }
+  // Nothing was collected, so every submitted batch is still outstanding: the
+  // host never waited for a kernel it had not asked for.
+  EXPECT_EQ(parser.pipeline_depth(), parser.in_flight());
+
+  const auto batches = parser.drain();
+  EXPECT_EQ(parser.pipeline_depth(), batches.size());
+  EXPECT_TRUE(parser.idle());
+}
+
+TEST(MetalStreamParserTest, ReturnsBatchesInSubmissionOrder)
+{
+  wirelab::MetalStreamParser parser(2);
+  const auto frames = learning_batches();
+  for (const auto& batch : frames)
+  {
+    parser.submit(batch_of(batch));
+  }
+
+  const auto collected = parser.drain();
+  ASSERT_EQ(frames.size(), collected.size());
+  for (size_t index = 0; index < collected.size(); ++index)
+  {
+    EXPECT_EQ(index, collected[index].sequence);
+    EXPECT_EQ(frames[index].size(), collected[index].packets.size());
+  }
+}
+
+TEST(MetalStreamParserTest, AcceptsMoreBatchesThanTheRingHolds)
+{
+  // Depth one has no spare slot, so every submit past the first must reclaim the
+  // oldest. The results of that reclaimed batch have to survive it.
+  wirelab::MetalStreamParser parser(1);
+  const auto frames = learning_batches();
+  for (const auto& batch : frames)
+  {
+    parser.submit(batch_of(batch));
+  }
+
+  const auto collected = parser.drain();
+  ASSERT_EQ(frames.size(), collected.size());
+  for (size_t index = 0; index < collected.size(); ++index)
+  {
+    EXPECT_EQ(index, collected[index].sequence);
+    EXPECT_EQ(frames[index].size(), collected[index].packets.size());
+  }
+}
+
+TEST(MetalStreamParserTest, StopsAllocatingBuffersOnceTheWorkloadIsSteady)
+{
+  wirelab::MetalStreamParser parser(3);
+  const std::vector<std::vector<uint8_t>> frames = { valid_udp_frame(), valid_tcp_frame(), broadcast_frame() };
+
+  // Warm every slot, which is where the only legitimate allocations happen.
+  for (size_t index = 0; index < 2 * parser.pipeline_depth(); ++index)
+  {
+    parser.submit(batch_of(frames));
+    (void)parser.collect();
+  }
+  const size_t warmed = parser.buffer_allocations();
+  EXPECT_GT(warmed, 0U);
+
+  for (size_t index = 0; index < 20; ++index)
+  {
+    parser.submit(batch_of(frames));
+    (void)parser.collect();
+  }
+  // A batch of the same shape must now reuse what the slots already hold.
+  EXPECT_EQ(warmed, parser.buffer_allocations());
+}
+
+TEST(MetalStreamParserTest, GrowsBuffersForALargerBatchAndKeepsThemForTheNextOne)
+{
+  wirelab::MetalStreamParser parser(1);
+  const std::vector<std::vector<uint8_t>> small = { valid_udp_frame() };
+  std::vector<std::vector<uint8_t>> large;
+  for (size_t index = 0; index < 64; ++index)
+  {
+    large.push_back(valid_udp_frame());
+  }
+
+  parser.submit(batch_of(small));
+  (void)parser.collect();
+  parser.submit(batch_of(large));
+  (void)parser.collect();
+  const size_t after_growth = parser.buffer_allocations();
+
+  parser.submit(batch_of(large));
+  (void)parser.collect();
+  EXPECT_EQ(after_growth, parser.buffer_allocations());
+}
+
+TEST(MetalStreamParserTest, ReportsTransferInclusiveLatency)
+{
+  wirelab::MetalStreamParser parser(2);
+  parser.submit(batch_of({ valid_udp_frame(), valid_tcp_frame(), broadcast_frame() }));
+  const auto collected = parser.collect();
+  ASSERT_TRUE(collected.has_value());
+
+  const auto timing = collected->timing;
+  EXPECT_GT(timing.host_to_device_ns, 0ULL);
+  EXPECT_GT(timing.kernel_ns, 0ULL);
+  // Submit to result in hand covers the fill and the read-back, so it cannot be
+  // smaller than either of them.
+  EXPECT_GE(timing.transfer_inclusive_ns, timing.host_to_device_ns);
+  EXPECT_GE(timing.transfer_inclusive_ns, timing.device_to_host_ns);
+}
+
+TEST(MetalStreamParserTest, TryCollectDoesNotWaitForAnUnfinishedBatch)
+{
+  wirelab::MetalStreamParser parser(3);
+  parser.submit(batch_of({ valid_udp_frame() }));
+  // Whether this batch has finished yet is the GPU's business; either answer is
+  // correct, and neither may lose the batch.
+  const auto early = parser.try_collect();
+  const size_t remaining = early.has_value() ? 0U : 1U;
+  EXPECT_EQ(remaining, parser.in_flight());
+  EXPECT_EQ(remaining, parser.drain().size());
+}
+
+TEST(MetalStreamParserTest, KeepsAnEmptyBatchInSequence)
+{
+  wirelab::MetalStreamParser parser(2);
+  parser.submit(batch_of({ valid_udp_frame() }));
+  parser.submit(batch_of({}));
+  parser.submit(batch_of({ valid_tcp_frame() }));
+
+  const auto collected = parser.drain();
+  ASSERT_EQ(3U, collected.size());
+  EXPECT_EQ(0U, collected[0].sequence);
+  EXPECT_EQ(1U, collected[1].sequence);
+  EXPECT_EQ(2U, collected[2].sequence);
+  EXPECT_EQ(1U, collected[0].packets.size());
+  EXPECT_TRUE(collected[1].packets.empty());
+  EXPECT_EQ(1U, collected[2].packets.size());
+}
+
+TEST(MetalStreamingAnalyzerTest, MatchesCpuAcrossLearningBatchesWhilePipelined)
+{
+  wirelab::CpuPacketAnalyzer cpu;
+  wirelab::MetalStreamingAnalyzer metal(3);
+  const auto frames = learning_batches();
+
+  std::vector<wirelab::AnalysisBatch> expected;
+  for (const auto& batch : frames)
+  {
+    expected.push_back(cpu.analyze(batch_of(batch)));
+  }
+
+  // Submit everything before collecting anything: the ordered MAC learning has
+  // to survive the host running ahead of the GPU.
+  for (const auto& batch : frames)
+  {
+    metal.submit(batch_of(batch));
+  }
+  const auto actual = metal.drain();
+
+  ASSERT_EQ(expected.size(), actual.size());
+  for (size_t index = 0; index < expected.size(); ++index)
+  {
+    expect_same_analysis(expected[index], actual[index]);
+  }
+}
+
+TEST(MetalStreamingAnalyzerTest, MatchesTheSynchronousMetalAnalyzer)
+{
+  wirelab::MetalPacketAnalyzer synchronous;
+  wirelab::MetalStreamingAnalyzer streaming(2);
+  for (const auto& frames : learning_batches())
+  {
+    const auto batch = batch_of(frames);
+    const auto expected = synchronous.analyze(batch);
+    const auto actual = streaming.analyze(batch);
+    expect_same_analysis(expected, actual);
+  }
+}
+
+TEST(MetalStreamingAnalyzerTest, DrainsOutstandingWorkBeforeAnsweringSynchronously)
+{
+  wirelab::CpuPacketAnalyzer cpu;
+  wirelab::MetalStreamingAnalyzer metal(3);
+  const auto first = batch_of({ valid_udp_frame(), broadcast_frame() });
+  const auto second = batch_of({ b_to_a_frame(), a_to_c_frame() });
+
+  const auto expected_first = cpu.analyze(first);
+  const auto expected_second = cpu.analyze(second);
+
+  metal.submit(first);
+  // Mixing the shapes must not reorder learning: the submitted batch precedes
+  // this one, so it has to be folded in first.
+  const auto actual_second = metal.analyze(second);
+  EXPECT_EQ(0U, metal.in_flight());
+  expect_same_analysis(expected_second, actual_second);
+  (void)expected_first;
+}
+
+TEST(MetalStreamingAnalyzerTest, ResetForgetsLearnedMacs)
+{
+  wirelab::MetalStreamingAnalyzer metal(2);
+  const auto frames = batch_of({ valid_udp_frame(), b_to_a_frame() });
+  const auto first = metal.analyze(frames);
+  metal.reset();
+  const auto second = metal.analyze(frames);
+  expect_same_analysis(first, second);
+}
+
+// A faster backend that counts differently is not a faster backend, so the
+// pipelined path has to reproduce the other two end to end, however it is driven.
+
+namespace
+{
+  using BenchmarkCounters =
+      std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t>;
+
+  BenchmarkCounters counters_of(const wirelab::BenchmarkResult& result)
+  {
+    return { result.total_packets,           result.completed_packets, result.received_packets,
+             result.received_bytes,          result.malformed_packets, result.broadcast_packets,
+             result.unknown_unicast_packets, result.known_unicast_packets };
+  }
+
+  wirelab::BenchmarkConfig benchmark_config(const std::string& backend)
+  {
+    wirelab::BenchmarkConfig config;
+    config.traffic.scenario = wirelab::TrafficScenario::Mixed;
+    config.traffic.seed = 42;
+    config.traffic.frame_size = 128;
+    config.packet_count = 512;
+    config.batch_size = 32;
+    config.backend = backend;
+    return config;
+  }
+
+  wirelab::BenchmarkResult run_benchmark(const std::string& backend, size_t slice)
+  {
+    auto run = wirelab::BenchmarkRun::create(benchmark_config(backend),
+                                             wirelab::accelerated_benchmark_backend_factory(),
+                                             wirelab::accelerated_traffic_source_factory());
+    EXPECT_TRUE(run.has_value());
+    while (!run->finished())
+    {
+      run->advance(slice);
+    }
+    return run->result();
+  }
+}
+
+TEST(MetalLiveBenchmarkTest, CountsWhatTheCpuAndSynchronousMetalBackendsCount)
+{
+  const auto cpu = run_benchmark("cpu", 512);
+  const auto metal = run_benchmark("metal", 512);
+  const auto live = run_benchmark("metal-live", 512);
+  EXPECT_EQ(counters_of(cpu), counters_of(metal));
+  EXPECT_EQ(counters_of(cpu), counters_of(live));
+}
+
+TEST(MetalLiveBenchmarkTest, CountsTheSameWhenDrivenInSlices)
+{
+  // Slicing must not change the counters, and a pipelined run has outstanding
+  // work at a slice boundary, which is exactly where that could break.
+  const auto whole = run_benchmark("metal-live", 512);
+  const auto sliced = run_benchmark("metal-live", 32);
+  const auto tiny = run_benchmark("metal-live", 1);
+  EXPECT_EQ(counters_of(whole), counters_of(sliced));
+  EXPECT_EQ(counters_of(whole), counters_of(tiny));
+}
+
+TEST(MetalLiveBenchmarkTest, ReportsTransferInclusiveLatencyThatTheOthersCannot)
+{
+  const auto live = run_benchmark("metal-live", 512);
+  const auto metal = run_benchmark("metal", 512);
+  EXPECT_GT(live.timing.transfer_inclusive_ns, 0ULL);
+  EXPECT_GT(live.timing.kernel_ns, 0ULL);
+  // The batch-at-a-time backend blocks, so its batch latency already is the
+  // transfer-inclusive number and it reports none separately.
+  EXPECT_EQ(0ULL, metal.timing.transfer_inclusive_ns);
+  EXPECT_GT(live.batch_analysis_latency_p50_ns, 0ULL);
+}
+
+TEST(MetalLiveBenchmarkTest, IsCompiledInUnderItsOwnName)
+{
+  EXPECT_TRUE(wirelab::benchmark_backend_is_compiled_in("metal-live"));
 }

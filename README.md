@@ -196,12 +196,14 @@ VSwitch logs show MAC learning events and per-frame forwarding decisions. Both V
 ### CLI reference
 
 ```
-vswitch <port> [--verbose] [--topology <file>] [--control-port <port>] [--control-address <address>]
+vswitch <port> [--verbose] [--topology <file>] [--control-port <port>] [--control-address <address>] [--analyzer <backend>]
   port                       UDP port to listen on (0 = ephemeral)
   --verbose                  Log every forwarding decision
   --topology <file>          Analyse and police forwarded traffic against this topology
   --control-port <port>      Serve the control protocol on this TCP port (requires --topology)
   --control-address <addr>   Bind the control channel somewhere other than 127.0.0.1
+  --analyzer <backend>       Parse supervised frames with cpu, cuda, metal or metal-live
+                             (requires --topology; default cpu)
 
 vport <vswitch_ip> <vswitch_port> [tap_name]
   vswitch_ip    IP address of the VSwitch host
@@ -233,6 +235,19 @@ fault configuration is restored and traffic resumes on its own.
 Faults that delay or duplicate rather than drop are honoured too: deferred
 copies are queued and sent when they come due, which is why the receive loop
 waits with a deadline instead of blocking inside `recvfrom`.
+
+Frame parsing itself is a choice: `--analyzer metal-live` moves it onto the GPU
+for live switched traffic.
+
+```bash
+./build/vswitch 8080 --topology scenarios/security-lab.yaml --analyzer metal-live
+```
+
+Detection does not move with it. The batch a tick recorded is still answered
+inside that tick, because a lease measured in seconds and a detection window
+measured in seconds have to mean the same seconds; deferring a batch to the next
+tick to win latency would make containment arrive late. A backend that is
+compiled in but has no device is refused rather than quietly run on the CPU.
 
 ### Control channel
 
@@ -409,6 +424,47 @@ generator that is compiled in but has no device is refused rather than quietly
 run on the CPU. `start_benchmark` accepts `"generator"` over the control
 channel with the same rules.
 
+### Pipelined GPU analysis
+
+`--analyzer metal` submits a batch and waits for it. The host is then idle for
+the whole kernel, which is affordable offline and not affordable on a live
+switch. `--analyzer metal-live` keeps the same kernel and changes when the
+caller blocks: buffers are allocated once and reused, and up to three batches
+are in flight at a time, so the host fills batch N+1 while the GPU runs batch N.
+
+```bash
+wirelab_bench --analyzer metal-live --generator cpu --scenario mixed-traffic \
+  --packets 20000 --batch-size 256 --frame-size 128 --seed 5
+```
+
+On an M-series Mac at 20k mixed frames, batch 256: 515k pps synchronous,
+**2.35M pps pipelined**, with identical counters. The counters matching is the
+point — `metal_packet_parser_test` asserts the pipelined path agrees with the
+CPU analyzer frame for frame, including under a different batch slicing, so
+choosing a backend changes who did the work and nothing about the answer.
+
+Results come back in submission order even though the ring completes them
+independently, because the aggregator downstream learns MAC addresses as it
+goes: a batch that overtook another would disagree about what was already
+known. An empty tick takes a ring slot with no work rather than skipping the
+ring, so it cannot arrive ahead of traffic that preceded it.
+
+Two caveats worth stating plainly:
+
+- Apple's unified memory means shared-storage buffers *are* the transfer; there
+  is no staging copy to overlap the way pinned host memory overlaps on CUDA.
+  What overlaps here is host fill against GPU execution.
+- `kernel_ns` is measured from the device clock on this path and from the host
+  clock around `waitUntilCompleted` on the synchronous one, so the two
+  backends' `kernel_ns` are not directly comparable. Compare
+  `packets_per_second`, or `transfer_inclusive_ns`, which spans submit to
+  collect for the whole batch.
+
+The CUDA analyzer remains synchronous: it has no pinned-buffer or stream
+pipeline, because this project has no CUDA hardware to measure one on, and an
+unmeasured optimisation is a guess. The interface it would implement
+(`StreamingPacketAnalyzer`) is backend-agnostic and already in place.
+
 ### Reports and the demo
 
 ```bash
@@ -429,7 +485,9 @@ scenario, seed, packet and batch and frame size, WireLab version, build type,
 which backends this build compiled in, and which are present on the machine.
 Transfer and kernel timing are separate columns because a GPU number that hides
 the copy is not a result - in a Debug build the CPU usually wins, and the table
-says so.
+says so. Two further columns, `transferInclusiveNs` and `queueWaitNs`, are
+non-zero only for a pipelined backend, where the caller never blocked on a batch
+and the host clock around the call is therefore not that batch's latency.
 
 ## Architecture
 

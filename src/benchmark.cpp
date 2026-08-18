@@ -25,7 +25,8 @@ namespace wirelab
         : config(std::move(run_config)),
           source(std::move(traffic)),
           analyzer(std::move(backend.analyzer)),
-          timing(std::move(backend.timing))
+          timing(std::move(backend.timing)),
+          streaming(backend.streaming)
     {
       analysis_latency_ns.reserve((config.packet_count + config.batch_size - 1) / config.batch_size);
     }
@@ -37,6 +38,9 @@ namespace wirelab
     std::vector<std::vector<uint8_t>> frames;
     std::unique_ptr<PacketAnalyzer> analyzer;
     std::function<AnalyzerTiming()> timing;
+    // Non-owning; the same object as analyzer when this backend can be fed
+    // without blocking.
+    StreamingPacketAnalyzer* streaming = nullptr;
     std::vector<uint64_t> analysis_latency_ns;
     AnalyzerTiming accumulated_timing;
     size_t completed_packets = 0;
@@ -47,6 +51,31 @@ namespace wirelab
     uint64_t unknown_unicast_packets = 0;
     uint64_t known_unicast_packets = 0;
     uint64_t elapsed_ns = 0;
+
+    void account(const AnalysisBatch& analysis)
+    {
+      received_packets += analysis.received_packets;
+      received_bytes += analysis.received_bytes;
+      malformed_packets += analysis.malformed_packets;
+      broadcast_packets += analysis.broadcast_packets;
+      unknown_unicast_packets += analysis.unknown_unicast_packets;
+      known_unicast_packets += analysis.known_unicast_packets;
+      if (timing)
+      {
+        const AnalyzerTiming batch_timing = timing();
+        accumulated_timing.host_to_device_ns += batch_timing.host_to_device_ns;
+        accumulated_timing.kernel_ns += batch_timing.kernel_ns;
+        accumulated_timing.device_to_host_ns += batch_timing.device_to_host_ns;
+        accumulated_timing.transfer_inclusive_ns += batch_timing.transfer_inclusive_ns;
+        accumulated_timing.queue_wait_ns += batch_timing.queue_wait_ns;
+        if (streaming != nullptr)
+        {
+          // A pipelined batch's latency is not the host's time around a call it
+          // never blocked on; it is submit to result, transfers included.
+          analysis_latency_ns.push_back(batch_timing.transfer_inclusive_ns);
+        }
+      }
+    }
   };
 
   const char* to_string(BenchmarkError error) noexcept
@@ -193,27 +222,38 @@ namespace wirelab
         break;
       }
 
-      const auto analysis_started = std::chrono::steady_clock::now();
-      const AnalysisBatch analysis = state.analyzer->analyze(*batch);
-      state.analysis_latency_ns.push_back(elapsed_ns_since(analysis_started));
-
-      state.received_packets += analysis.received_packets;
-      state.received_bytes += analysis.received_bytes;
-      state.malformed_packets += analysis.malformed_packets;
-      state.broadcast_packets += analysis.broadcast_packets;
-      state.unknown_unicast_packets += analysis.unknown_unicast_packets;
-      state.known_unicast_packets += analysis.known_unicast_packets;
-      if (state.timing)
+      if (state.streaming != nullptr)
       {
-        const AnalyzerTiming timing = state.timing();
-        state.accumulated_timing.host_to_device_ns += timing.host_to_device_ns;
-        state.accumulated_timing.kernel_ns += timing.kernel_ns;
-        state.accumulated_timing.device_to_host_ns += timing.device_to_host_ns;
+        // Hand the batch over and keep going. Whatever the device has finished
+        // by now is accounted on the way past, so the host fills the next batch
+        // instead of standing still for this one.
+        state.streaming->submit(*batch);
+        while (auto analysis = state.streaming->try_collect())
+        {
+          state.account(*analysis);
+        }
+      }
+      else
+      {
+        const auto analysis_started = std::chrono::steady_clock::now();
+        const AnalysisBatch analysis = state.analyzer->analyze(*batch);
+        state.analysis_latency_ns.push_back(elapsed_ns_since(analysis_started));
+        state.account(analysis);
       }
 
       state.completed_packets += current_batch_size;
       completed_here += current_batch_size;
     } while (completed_here < max_packets && state.completed_packets < state.config.packet_count);
+
+    if (state.streaming != nullptr && state.completed_packets >= state.config.packet_count)
+    {
+      // The run submitted its last batch; its counters are not final until the
+      // device has answered for every one of them.
+      for (const auto& analysis : state.streaming->drain())
+      {
+        state.account(analysis);
+      }
+    }
 
     state.elapsed_ns += elapsed_ns_since(slice_started);
     return completed_here;
