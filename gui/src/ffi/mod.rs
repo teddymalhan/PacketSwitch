@@ -10,6 +10,12 @@
 //!   therefore rejects holding a row across a mutation -- the boundary's
 //!   sharpest edge, made impossible to walk into.
 
+// The boundary mirrors the whole C ABI, not the subset today's pages happen to
+// read: every dirty bit, every row field, and the layout entry points only the
+// test calls. A binding trimmed to its current callers is how ABI drift hides,
+// so the unused half stays and is silenced here.
+#![allow(dead_code)]
+
 pub mod raw;
 
 use std::ffi::CString;

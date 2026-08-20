@@ -398,60 +398,11 @@ if(PROJECT_BUILD_DESKTOP)
       --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/gui/Cargo.toml")
 endif()
 
-option(PROJECT_BUILD_WIRELAB_GUI "Build the Qt 6 WireLab frontend" OFF)
-if(PROJECT_BUILD_WIRELAB_GUI)
-  find_package(Qt6 6.5 QUIET COMPONENTS Quick QuickControls2)
-  if(Qt6_FOUND)
-    qt_add_executable(wirelab_gui
-      apps/wirelab_gui.cpp
-      src/wirelab_view_model.cpp
-      include/wirelab/wirelab_view_model.hpp)
-    set_target_properties(wirelab_gui PROPERTIES AUTOMOC ON AUTORCC ON)
-    qt_add_qml_module(wirelab_gui
-      RESOURCE_PREFIX "/qt/qml"
-      URI WireLab
-      VERSION 1.0
-      QML_FILES src/gui/qml/Main.qml)
-    target_link_libraries(wirelab_gui PRIVATE
-      wirelab_session
-      Qt6::Quick
-      Qt6::QuickControls2)
-    # The Reports workspace runs the same benchmark backends as the CLI, and
-    # names the configuration it ran in.
-    target_compile_definitions(wirelab_gui PRIVATE WIRELAB_BUILD_TYPE="$<CONFIG>")
-    if(TARGET wirelab_cuda)
-      target_link_libraries(wirelab_gui PRIVATE wirelab_cuda)
-    endif()
-    if(TARGET wirelab_metal)
-      target_link_libraries(wirelab_gui PRIVATE wirelab_metal)
-    endif()
-    target_compile_features(wirelab_gui PRIVATE cxx_std_17)
-    if(APPLE)
-      set_target_properties(wirelab_gui PROPERTIES
-        MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_BUNDLE_NAME "WireLab"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "dev.wirelab.desktop"
-        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_ICON_FILE "WireLab.icns")
-      add_custom_command(TARGET wirelab_gui POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          "${CMAKE_CURRENT_SOURCE_DIR}/apps/resources/WireLab.icns"
-          "$<TARGET_BUNDLE_CONTENT_DIR:wirelab_gui>/Resources/WireLab.icns")
-    endif()
-  else()
-    message(WARNING "PROJECT_BUILD_WIRELAB_GUI is enabled, but Qt 6.5 Quick and QuickControls2 were not found.")
-  endif()
-endif()
 set_target_properties(
   vport vswitch wirelab_bench wirelab_pcap
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
 )
-if(TARGET wirelab_gui)
-  set_target_properties(wirelab_gui PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
-endif()
 
 verbose_message("Added vport and vswitch executable targets.")
 
@@ -487,12 +438,22 @@ install(
   include
 )
 
-if(TARGET wirelab_gui)
-  install(
-    TARGETS wirelab_gui
-    BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  )
+# wirelab-desktop is a custom target driving cargo, so what is installed is the
+# artifact it leaves behind: the assembled bundle on macOS, the bare executable
+# everywhere else.
+if(PROJECT_BUILD_DESKTOP)
+  if(APPLE)
+    install(
+      DIRECTORY "${WIRELAB_DESKTOP_BUNDLE}"
+      DESTINATION ${CMAKE_INSTALL_BINDIR}
+      USE_SOURCE_PERMISSIONS
+    )
+  else()
+    install(
+      PROGRAMS "${CMAKE_BINARY_DIR}/cargo/${WIRELAB_DESKTOP_PROFILE_DIR}/wirelab-desktop"
+      DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  endif()
 endif()
 
 install(

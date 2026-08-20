@@ -11,21 +11,21 @@
 
 set -Eeuo pipefail
 
-readonly GUI_DEFAULT="build/gui/bin/Debug/wirelab_gui.app/Contents/MacOS/wirelab_gui"
-readonly GUI_LINUX_DEFAULT="build/gui/bin/Debug/wirelab_gui"
+readonly GUI_DEFAULT="build/gui/bin/WireLab.app/Contents/MacOS/wirelab-desktop"
+readonly GUI_LINUX_DEFAULT="build/gui/cargo/debug/wirelab-desktop"
 
 usage() {
   cat <<'EOF'
 Usage: scripts/demo_gui.sh [--gui <path>] [--no-wait] [--skip-report]
 
-  --gui <path>    wirelab_gui binary (default: the build/gui Debug build, or $WIRELAB_GUI)
+  --gui <path>    wirelab-desktop binary (default: the build/gui Debug build, or $WIRELAB_GUI)
   --no-wait       Print the whole script at once instead of pausing per chapter
   --skip-report   Do not run the headless report at the end
 
 Build the frontend first:
-  cmake -S . -B build/gui -DCMAKE_BUILD_TYPE=Debug -DPROJECT_BUILD_WIRELAB_GUI=ON \
-        -DWIRELAB_ENABLE_METAL=ON -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt
-  cmake --build build/gui --target wirelab_gui
+  cmake -S . -B build/gui -DCMAKE_BUILD_TYPE=Debug -DPROJECT_BUILD_DESKTOP=ON \
+        -DWIRELAB_ENABLE_METAL=ON
+  cmake --build build/gui --target wirelab-desktop
 EOF
 }
 
@@ -48,7 +48,7 @@ if [[ -z "$gui" ]]; then
 fi
 
 if [[ ! -x "$gui" ]]; then
-  echo "Error: no wirelab_gui at '$gui'." >&2
+  echo "Error: no wirelab-desktop at '$gui'." >&2
   usage >&2
   exit 1
 fi

@@ -15,7 +15,7 @@ use gpui::{
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::input::InputState;
 
-use crate::ffi::{Dirty, Session};
+use crate::ffi::Session;
 use crate::pages;
 use crate::ui::color;
 
@@ -524,8 +524,8 @@ mod tests {
     /// during prepaint, a page that reads the session while mutating it.
     #[gpui::test]
     fn draws_every_workspace(cx: &mut TestAppContext) {
-        cx.update(|cx| gpui_component::init(cx));
-        let (lab, cx) = cx.add_window_view(|window, cx| WireLab::new(window, cx));
+        cx.update(gpui_component::init);
+        let (lab, cx) = cx.add_window_view(WireLab::new);
 
         // A loaded topology and one traffic tick populate every table, so the
         // pages are drawn with data rather than in their empty state.
@@ -575,8 +575,8 @@ mod tests {
     /// frozen lab that still claims to be running.
     #[gpui::test]
     fn ticks_traffic_until_it_is_stopped(cx: &mut TestAppContext) {
-        cx.update(|cx| gpui_component::init(cx));
-        let (lab, cx) = cx.add_window_view(|window, cx| WireLab::new(window, cx));
+        cx.update(gpui_component::init);
+        let (lab, cx) = cx.add_window_view(WireLab::new);
 
         lab.update(cx, |lab, cx| {
             let scenario = scenario_path();
@@ -616,8 +616,8 @@ mod tests {
     /// task is proven to carry a report to completion on its own.
     #[gpui::test]
     fn draws_the_reports_workspace_while_a_report_runs(cx: &mut TestAppContext) {
-        cx.update(|cx| gpui_component::init(cx));
-        let (lab, cx) = cx.add_window_view(|window, cx| WireLab::new(window, cx));
+        cx.update(gpui_component::init);
+        let (lab, cx) = cx.add_window_view(WireLab::new);
 
         lab.update(cx, |lab, cx| {
             lab.page = Page::Reports;

@@ -270,15 +270,6 @@ pub fn choices<T: Clone + PartialEq + 'static>(
         )
 }
 
-/// Monospace cell text, so MAC addresses and IPs align column-wise.
-pub fn mono(text: impl Into<String>) -> impl IntoElement {
-    div()
-        .font_family("Menlo")
-        .text_sm()
-        .text_color(color::text())
-        .child(text.into())
-}
-
 pub fn pill(text: impl Into<String>, tint: Hsla) -> impl IntoElement {
     div()
         .px_2()

@@ -176,7 +176,7 @@ The GPU may classify packets and emit anomaly candidates. The host policy engine
 
 ### Telemetry and visualization
 
-The Qt desktop frontend is the primary WireLab control and visualization surface. The core processes expose a versioned local control API plus a read-only telemetry/event stream; the frontend must not read or mutate dataplane internals directly.
+The desktop frontend is the primary WireLab control and visualization surface. The core owns every dataplane decision; the frontend reads materialised display rows and issues commands, and never reaches into dataplane internals.
 
 Required views:
 
@@ -190,9 +190,9 @@ Required views:
 - CPU utilization, GPU utilization, GPU memory, transfer time, and kernel time;
 - active injected faults.
 
-### Qt desktop frontend
+### Desktop frontend
 
-Build the frontend with Qt 6, C++ and Qt Quick/QML. Keep the long-lived networking, topology, telemetry, and CUDA ownership in the C++ core; use QML for the interactive workspace, charts, and topology presentation. A QWidget-only implementation is acceptable for administrative forms, but the live topology and high-rate charts should use Qt Quick.
+Build the frontend in Rust with [GPUI](https://www.gpui.rs/), linking the C++ core through the hand-written C ABI in `include/wirelab/wirelab_ffi.h`. Long-lived networking, topology, telemetry, and GPU-backend ownership stay in the C++ core, behind `wirelab::Session` (`include/wirelab/session.hpp`), which is the orchestration layer the ABI exposes. Rust is presentation only: layout, painting, input and formatting. `docs/gpui-migration-plan.md` records the boundary's design and the alternatives that were rejected.
 
 The frontend controls every supported WireLab operation:
 
@@ -217,9 +217,11 @@ Frontend safety and UX rules:
 
 ### Core-to-frontend contract
 
-Use a local loopback control service rather than linking the GUI into `vswitch`. This keeps the dataplane independently testable, lets a headless benchmark run without Qt, and gives the GUI one stable contract.
+There are two contracts, and they are not alternatives to each other.
 
-Initial transport: JSON commands and JSON events over localhost WebSocket or a local domain socket. The interface is versioned from the first message:
+**In-process, for the desktop application.** `wirelab-desktop` owns a `wirelab::Session` through the C ABI: commands are C functions, change notification is a poll-and-clear dirty bitmask (`wirelab_session_take_dirty`), and telemetry crosses as spans borrowed from session-owned storage that the next mutating call invalidates. The session is single-threaded and belongs to the thread that opened it. This is the path the frontend takes because a newline-delimited JSON row per packet cannot feed the Packets workspace.
+
+**Out-of-process, for a running switch.** `vswitch --control-port` serves the same JSON control protocol to scripts, operators, and any future "attach to a live switch" feature. It keeps the dataplane independently testable and lets a headless benchmark run without a frontend at all. The interface is versioned from the first message:
 
 ```json
 {
@@ -236,9 +238,9 @@ Initial transport: JSON commands and JSON events over localhost WebSocket or a l
 }
 ```
 
-Commands return either an accepted operation identifier or a structured validation/error result. Long-running actions publish progress and a final immutable result. The protocol includes command IDs, topology revision IDs, and monotonic event sequence numbers so the frontend can discard stale telemetry after a restart or topology reload.
+Commands return either an accepted operation identifier or a structured validation/error result. Long-running actions publish progress and a final immutable result. The protocol includes command IDs, topology revision IDs, and monotonic event sequence numbers so a client can discard stale telemetry after a restart or topology reload.
 
-The C++ core owns protocol types and validation. Qt uses typed view models that translate only validated API messages into presentation state.
+The C++ core owns protocol types and validation on both paths. A client — the desktop frontend over the ABI, or a control client over the socket — translates only validated results into presentation state; it never re-implements a decision the core makes.
 
 ## CUDA Architecture
 
@@ -359,7 +361,6 @@ apps/
   vport_main.cpp
   wirelab_ctl.cpp
   wirelab_bench.cpp
-  wirelab_gui.cpp
 
 include/wirelab/
   control/
@@ -367,7 +368,8 @@ include/wirelab/
   telemetry/
   traffic/
   cuda/
-  gui/
+  session.hpp
+  wirelab_ffi.h
 
 src/
   control/
@@ -389,20 +391,23 @@ src/
     flow_aggregation.cu
     statistics.cu
     cuda_analyzer.cpp
-  gui/
-    wirelab_application.cpp
-    topology_model.cpp
-    telemetry_model.cpp
-    benchmark_model.cpp
-    qml/
-      Main.qml
-      TopologyWorkspace.qml
-      TrafficLab.qml
-      FaultLab.qml
-      PolicyLab.qml
-      MonitorWorkspace.qml
-      CudaLab.qml
-      ReportsWorkspace.qml
+  session.cpp
+  session_topology.cpp
+  session_traffic.cpp
+  session_policy.cpp
+  session_report.cpp
+  wirelab_ffi.cpp
+
+gui/                        # the Rust/GPUI frontend, built by cargo under CMake
+  build.rs
+  src/
+    main.rs
+    app.rs
+    ffi/
+      raw.rs                # hand-written mirrors of wirelab_ffi.h
+      mod.rs                # safe, !Send Session wrapper
+    pages/
+    widgets/
 
 tests/
   unit/
@@ -467,29 +472,30 @@ vswitch --analyzer cuda
 
 CUDA selection must fail clearly when no compatible device is present. It must not silently alter forwarding behavior or silently fall back during benchmarks.
 
-### Qt build integration
+### Desktop build integration
 
-The Qt frontend is optional at build time, but is a first-class supported executable when enabled. It links to the control-client and typed view-model layer, not directly to the dataplane or CUDA implementation.
+The frontend is optional at build time and off by default, but is a first-class supported artifact when enabled. CMake stays the master build: it produces the static archives and hands their directories to cargo, so one command builds the whole application. The frontend links `wirelab_ffi` and the orchestration layer beneath it, never the dataplane or a GPU backend directly.
 
 ```cmake
-option(PROJECT_BUILD_WIRELAB_GUI "Build the Qt 6 WireLab frontend" ON)
+option(PROJECT_BUILD_DESKTOP "Build the GPUI desktop frontend (requires a Rust toolchain)" OFF)
 
-if(PROJECT_BUILD_WIRELAB_GUI)
-  find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2 Network)
-  qt_add_executable(wirelab_gui apps/wirelab_gui.cpp)
-  qt_add_qml_module(wirelab_gui
-    URI WireLab
-    VERSION 1.0
-    QML_FILES src/gui/qml/Main.qml)
-  target_link_libraries(wirelab_gui PRIVATE
-    wirelab_control_client
-    Qt6::Quick
-    Qt6::QuickControls2
-    Qt6::Network)
+if(PROJECT_BUILD_DESKTOP)
+  add_custom_target(wirelab-desktop ALL
+    COMMAND ${CMAKE_COMMAND} -E env
+      "WIRELAB_LIB_DIRS=$<TARGET_FILE_DIR:wirelab_ffi>;..."
+      ${CARGO_EXECUTABLE} build ${WIRELAB_DESKTOP_PROFILE_FLAG}
+      --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/gui/Cargo.toml")
+  add_dependencies(wirelab-desktop wirelab_ffi)
+  # macOS: assemble bin/WireLab.app around the cargo binary.
 endif()
 ```
 
-`wirelab_gui` starts and connects to a local WireLab control service. The control service may run in-process only for a dedicated development mode; production and benchmark runs use the same external API contract as the GUI.
+```bash
+cmake -S . -B build -DPROJECT_BUILD_DESKTOP=ON
+cmake --build build --target wirelab-desktop
+```
+
+Corrosion was considered and rejected: cargo already tracks its own inputs, `add_dependencies` expresses the ordering just as precisely, and a custom target adds no configure-time download. `cargo build` alone still works for frontend iteration once the archives exist — set `WIRELAB_LIB_DIRS` by hand; `build.rs` deliberately refuses to guess a build directory, because a guess that finds a stale archive is worse than a clear failure.
 
 ## Performance and Test Plan
 
@@ -555,15 +561,15 @@ Test both CPU and CUDA analyzers against generated frames and saved traces:
 
 Differential tests compare CPU and CUDA results for exact parsing validity, header values, forwarding class, packet-to-result association, aggregate counters, and policy/anomaly evidence.
 
-### Qt frontend validation
+### Desktop frontend validation
 
 Test the frontend at three boundaries:
 
-1. **View-model unit tests:** control-message decoding, topology revision handling, command-state transitions, error presentation, metric downsampling, and CPU/CUDA result labeling.
-2. **Control-contract integration tests:** the real control server accepts valid topology, traffic, fault, policy, and benchmark commands; rejects invalid requests; and emits ordered progress/result events.
-3. **GUI smoke tests:** launch `wirelab_gui` against a test control server; open a topology, start a deterministic run, inject a fault, enable a policy, select the CUDA analysis view when available, and confirm the completed report appears. These tests use Qt Test and Qt Quick Test where applicable.
+1. **Session unit tests** (`tests/src/session_test.cpp`): the orchestration every frontend drives — topology editing and layout, the traffic tick, the report state machine, policy and fault commands, export provenance. GTest, no frontend of any kind.
+2. **ABI contract tests** (`tests/src/wirelab_ffi_test.cpp`, and the Rust `layout_mismatches` check): the C entry points drive a full session lifecycle, and the Rust mirrors are compared against the layout the C++ compiler actually produced. The C++ half runs under ASan; the Rust half runs as the `wirelab_desktop_bindings` ctest.
+3. **Headless render tests** (`gui/src/app.rs`, `#[gpui::test]`): every workspace is built and painted against a loaded topology and a stepped traffic run, and both tick loops are driven to completion. This catches what a compile cannot — a missing theme global, an element that panics during prepaint, a page that reads the session while mutating it.
 
-GUI tests must use a deterministic test scenario and mock only the rendering-independent control-server timing. They must not replace core dataplane, CUDA, or benchmark tests.
+Frontend tests use a deterministic scenario and a fixed seed, so a number shown in a workspace is comparable to the same number from the CLI. They do not replace core dataplane, GPU, or benchmark tests.
 
 ### CUDA validation
 
@@ -623,23 +629,23 @@ If GPU batching increases p99 latency unacceptably, retain CPU analysis for live
 - Deterministic scenario tests.
 - Control commands and state-change events for every topology and fault action.
 
-### Milestone 3: Qt control frontend
+### Milestone 3: Desktop control frontend
 
-- Qt 6/QML application shell and typed control client.
+- Application shell and typed session boundary.
 - Topology, Traffic Lab, and Fault Lab workspaces.
 - Open/save topology, start/stop run, generator/replay configuration, and fault controls.
 - Command acknowledgement, validation errors, reconnect handling, and stale-event rejection.
-- Qt view-model, contract-integration, and GUI smoke tests.
+- Session, ABI-contract, and headless render tests.
 
-### Milestone 4: Telemetry, policies, and Qt monitoring
+### Milestone 4: Telemetry, policies, and monitoring
 
 - Metrics endpoint and event stream.
 - Top talkers, forwarding counters, traffic matrix, and latency reporting.
 - Broadcast storm, MAC flap, unknown-unicast flood, and UDP-flood detectors.
 - Allow, drop, mirror, rate-limit, and quarantine actions.
-- Qt Monitor and Policy Lab workspaces with live topology, charts, flow table, event timeline, and action explanations.
+- Monitor and Policy Lab workspaces with live topology, charts, flow table, event timeline, and action explanations.
 
-### Milestone 5: CUDA offline analyzer and Qt CUDA Lab
+### Milestone 5: CUDA offline analyzer and GPU Lab
 
 - Optional CMake CUDA target.
 - Batching and GPU packet parsing.
@@ -647,7 +653,7 @@ If GPU batching increases p99 latency unacceptably, retain CPU analysis for live
 - CPU/CUDA differential tests.
 - Compute Sanitizer validation.
 - CPU-versus-CUDA offline trace performance report.
-- Qt CUDA Lab showing device details, backend state, batch configuration, transfer timing, kernel timing, and clearly labeled analysis results.
+- GPU Lab showing device details, backend state, batch configuration, transfer timing, kernel timing, and clearly labeled analysis results.
 
 ### Milestone 6: CUDA live analysis
 
@@ -655,7 +661,7 @@ If GPU batching increases p99 latency unacceptably, retain CPU analysis for live
 - `cudaMemcpyAsync`, streams, and events.
 - Live GPU flow/statistics/anomaly analysis.
 - Transfer-inclusive latency and throughput comparison.
-- Explicit CPU or CUDA backend selection from the Qt frontend and CLI.
+- Explicit CPU or GPU backend selection from the desktop frontend and CLI.
 
 **Status: delivered on Metal, not on CUDA.** The milestone was written
 CUDA-first, but this project's only GPU is an Apple one, so the pipeline was
@@ -663,8 +669,8 @@ built where it could be measured. `MetalStreamParser` reuses shared-storage
 buffers across batches and keeps up to three in flight, giving 515k -> 2.35M
 pps on a 20k-frame mixed run with counters identical to the CPU analyzer.
 Transfer-inclusive and queue-wait spans are measured and reported through the
-CLI, `bench_report.sh`, and the GUI's report export. Live selection exists in
-both frontends: `vswitch --analyzer` and the Reports workspace backend list.
+CLI, `bench_report.sh`, and the desktop frontend's report export. Live selection
+exists in both: `vswitch --analyzer` and the Reports workspace backend list.
 
 Two deviations are deliberate. Apple's unified memory has no host-to-device
 staging copy for pinned memory to accelerate, so what is overlapped is host fill
@@ -677,11 +683,11 @@ The CUDA path remains synchronous and unpipelined. The
 already in place, so this is a port and not a redesign — but it is unbuilt and
 unmeasured, and claiming otherwise would be a guess.
 
-### Milestone 7: GPU traffic generation and polished Qt demo
+### Milestone 7: GPU traffic generation and polished demo
 
 - GPU-generated synthetic traffic batches.
 - Repeatable normal, flood, scan, and broadcast-storm scenarios.
-- Qt Reports workspace with CPU/CUDA comparison, configuration provenance, export, and screenshots.
+- Reports workspace with CPU/GPU comparison, configuration provenance, export, and screenshots.
 - Five-minute scripted GUI demonstration and reproducible headless benchmark command.
 
 ### Milestone 8: GPU-native dataplane (hardware-dependent stretch)
@@ -699,4 +705,4 @@ This milestone is separate from normal CUDA development. GPU-native NIC receive/
 - [NVIDIA DOCA GPUNetIO](https://docs.nvidia.com/doca/sdk/doca-gpunetio/)
 - [NVIDIA DOCA GPU Packet Processing Application Guide](https://docs.nvidia.com/doca/sdk/doca-gpu-packet-processing-application-guide/)
 - [Cisco TRex traffic generator](https://trex-tgn.cisco.com/)
-- [Qt 6 documentation](https://doc.qt.io/qt-6/)
+- [GPUI](https://www.gpui.rs/)

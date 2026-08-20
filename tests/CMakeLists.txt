@@ -197,9 +197,8 @@ if(TARGET wirelab_metal)
   )
 endif()
 
-# The session test is the Qt-free replacement for wirelab_view_model_test and,
-# unlike it, is built and run unconditionally: the orchestration it covers is
-# what every frontend drives.
+# The session test covers the orchestration every frontend drives, so it is
+# built and run unconditionally.
 add_executable(session_test_Tests src/session_test.cpp)
 target_compile_features(session_test_Tests PRIVATE cxx_std_17)
 target_compile_definitions(session_test_Tests
@@ -219,25 +218,5 @@ target_link_libraries(wirelab_ffi_test_Tests PRIVATE
   ${WIRELAB_GTEST_LIBRARIES}
   wirelab_ffi)
 add_test(NAME wirelab_ffi_test COMMAND wirelab_ffi_test_Tests)
-
-if(TARGET wirelab_gui)
-  add_executable(wirelab_view_model_test_Tests
-    src/wirelab_view_model_test.cpp
-    ${CMAKE_SOURCE_DIR}/src/wirelab_view_model.cpp
-    ${CMAKE_SOURCE_DIR}/include/wirelab/wirelab_view_model.hpp)
-  set_target_properties(wirelab_view_model_test_Tests PROPERTIES AUTOMOC ON)
-  target_compile_features(wirelab_view_model_test_Tests PRIVATE cxx_std_17)
-  target_compile_definitions(wirelab_view_model_test_Tests
-    PRIVATE PROJECT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}"
-            WIRELAB_BUILD_TYPE="$<CONFIG>")
-  target_link_libraries(wirelab_view_model_test_Tests PRIVATE
-    ${WIRELAB_GTEST_LIBRARIES}
-    wirelab_session
-    Qt6::Core)
-  if(TARGET wirelab_metal)
-    target_link_libraries(wirelab_view_model_test_Tests PRIVATE wirelab_metal)
-  endif()
-  add_test(NAME wirelab_view_model_test COMMAND wirelab_view_model_test_Tests)
-endif()
 
 verbose_message("Finished adding unit tests for ${CMAKE_PROJECT_NAME}.")

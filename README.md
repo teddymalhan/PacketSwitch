@@ -489,6 +489,39 @@ says so. Two further columns, `transferInclusiveNs` and `queueWaitNs`, are
 non-zero only for a pipelined backend, where the caller never blocked on a batch
 and the host clock around the call is therefore not that batch's latency.
 
+## Desktop application
+
+`wirelab-desktop` is the frontend: a Rust/[GPUI](https://www.gpui.rs/) application
+that links the C++ core in-process through a hand-written C ABI. Seven workspaces —
+Dashboard, Topology, Traffic, Packets & Security, Faults, Policies, Reports — over
+the same `Session` the tests drive, so a number on screen is a number the CLI
+produces for the same seed.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPROJECT_BUILD_DESKTOP=ON
+cmake --build build --target wirelab-desktop
+open build/bin/WireLab.app          # macOS; elsewhere: build/cargo/release/wirelab-desktop
+```
+
+A Rust toolchain is required and the option is off by default, so a C++-only
+checkout builds exactly as before. CMake stays the master build: it compiles the
+static archives and hands cargo their directories, and on macOS assembles
+`WireLab.app` around the binary so the app is named and iconed rather than
+showing up as its executable.
+
+The boundary is deliberate. Orchestration lives in C++ (`wirelab::Session`),
+the ABI is frozen and versioned (`include/wirelab/wirelab_ffi.h`), and Rust does
+layout, painting, input and formatting only. Telemetry crosses as spans borrowed
+from session-owned storage, and the safe wrapper makes that lifetime a compile
+error rather than a rule to remember: getters take `&self`, commands take
+`&mut self`, and the session type is neither `Send` nor `Sync`. `cargo test`
+compares every mirrored struct against the layout the C++ compiler actually
+produced, so ABI drift fails a test instead of reading as plausible garbage.
+
+macOS is the supported platform; Linux is best-effort. See
+[`docs/gpui-migration-plan.md`](docs/gpui-migration-plan.md) for the design and
+the alternatives that were rejected.
+
 ## Architecture
 
 The three core components map directly to source files under `include/wirelab/` and `src/`:
@@ -512,6 +545,8 @@ The WireLab analysis and control plane adds a closed loop on top of that datapla
 | `ControlService` | Turns switch state, topology commands, anomalies, policy decisions and enforcement into revisioned events over the versioned control protocol, and answers `get_supervision_state` from whatever supervision source it was given |
 | `ControlServer` / `ControlClient` | Carries that protocol over TCP as newline-delimited JSON, polled from the switch's receive loop so the control plane never blocks forwarding; the client reconnects and resynchronises against the revision the switch reports |
 | `PcapCapture` / `PcapNgWriter` | Reads classic pcap and pcapng captures zero-copy, and writes pcapng carrying WireLab's verdict as a per-packet comment |
+| `Session` | Frontend-agnostic orchestration: topology editing and layout, the traffic tick, the report state machine, policy and fault commands, and JSON/CSV/YAML export. Signals are a poll-and-clear dirty bitmask, so it needs no event loop and is tested without one |
+| `wirelab_ffi` | The frozen, version-fenced C ABI `wirelab-desktop` binds. Strings and telemetry cross as spans borrowed from session-owned storage, valid until the next mutating call |
 
 Enforcement is genuinely closed-loop: a quarantined port stops forwarding frames because the enforcer installs a real `FaultConfiguration` the topology controller already honours, and the port recovers automatically once the lease lapses. Rules, enforced ports, and the enforcement log are editable and observable from the GUI's **Policies** workspace.
 

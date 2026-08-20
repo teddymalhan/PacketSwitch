@@ -3,7 +3,7 @@
 //! Everything here is derived from the session's current rows; the page keeps
 //! no state of its own, so a tick that changes nothing renders identically.
 
-use gpui::{Context, IntoElement, ParentElement as _, Styled as _, Window, div, prelude::*};
+use gpui::{Context, IntoElement, ParentElement as _, Styled as _, Window, div};
 
 use crate::app::WireLab;
 use crate::ffi::{self, SelectionKind};

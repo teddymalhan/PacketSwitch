@@ -94,6 +94,69 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: ctest -C ${{ matrix.config.build_type }} --output-on-failure --verbose
 
+  desktop-macos:
+    name: Desktop Frontend (macOS)
+    runs-on: macos-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, '[ci skip]')"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: brew install cmake ninja
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('gui/Cargo.lock') }}
+
+      # Metal stays off: the desktop job exists to check the frontend and its
+      # binding, and the GPU backends are already covered by the build matrix.
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWireLab_ENABLE_UNIT_TESTING=ON \
+            -DWireLab_ENABLE_CCACHE=OFF \
+            -DPROJECT_BUILD_DESKTOP=ON \
+            -G Ninja
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      # Runs the whole suite: wirelab_desktop_bindings is the cargo test that
+      # checks the Rust mirrors against the layout the C++ compiler produced,
+      # and it is only meaningful next to the C++ tests of the same build.
+      - name: Run tests
+        working-directory: ${{github.workspace}}/build
+        run: ctest -C Release --output-on-failure
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path gui/Cargo.toml --check
+
+      # The archives CMake just built are what the crate links against; find
+      # them rather than hardcoding a layout the generator is free to change.
+      # build.rs runs with gui/ as its working directory, so the paths it is
+      # handed have to be absolute.
+      - name: Lint
+        run: |
+          LIB_DIRS=$(find "$PWD/build" \( -name 'libwirelab_*.a' -o -name 'libWireLab.a' \) \
+            -exec dirname {} \; | sort -u | paste -sd';' -)
+          echo "Linking against: $LIB_DIRS"
+          WIRELAB_LIB_DIRS="$LIB_DIRS" \
+            cargo clippy --manifest-path gui/Cargo.toml --all-targets -- -D warnings
+
   static-analysis:
     name: Static Analysis (Clang-Tidy)
     runs-on: ubuntu-latest
