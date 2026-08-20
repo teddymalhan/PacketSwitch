@@ -1,6 +1,8 @@
 # WireLab
 
-<img width="1934" height="907" alt="WireLab architecture diagram" src="https://github.com/user-attachments/assets/0f61eb0d-bd69-4111-8d11-18adf71003a2" />
+
+https://github.com/user-attachments/assets/e53b113a-df3d-41a7-ae93-054d985b4217
+
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
