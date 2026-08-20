@@ -6,24 +6,17 @@
 #include <QStringList>
 #include <QVariantList>
 #include <QVariantMap>
-#include <chrono>
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <string>
-#include <unordered_map>
-#include <vector>
 
-#include "wirelab/analysis_pipeline.hpp"
-#include "wirelab/anomaly_detector.hpp"
-#include "wirelab/benchmark.hpp"
-#include "wirelab/packet_analyzer.hpp"
-#include "wirelab/policy_enforcer.hpp"
-#include "wirelab/topology_controller.hpp"
-#include "wirelab/traffic_generator.hpp"
+#include "wirelab/session.hpp"
 
 namespace wirelab
 {
+  // Qt adapter over Session. It owns no lab state of its own: every command is
+  // forwarded, every model is a Qt-shaped copy of a Session row vector, and the
+  // dirty mask Session returns is fanned back out as the signals QML binds to.
+  //
+  // This class exists only while the Qt frontend and the GPUI frontend ship
+  // side by side; it is deleted with the QML UI.
   class WireLabViewModel final : public QObject
   {
     Q_OBJECT
@@ -126,62 +119,14 @@ namespace wirelab
     void reportChanged();
 
    private:
-    struct PortCounters
-    {
-      uint64_t received = 0;
-      uint64_t forwarded = 0;
-      uint64_t dropped = 0;
-    };
+    // Drains the session's dirty mask, refreshes the Qt-shaped caches whose
+    // category changed, and emits the matching signals. Every command calls it.
+    void publish();
 
-    [[nodiscard]] bool commitTopology(TopologyConfiguration configuration, const QString& successMessage);
-    void rebuildTopologyModels();
-    void rebuildFaultModel();
-    void rebuildPolicyModel();
-    void rebuildTelemetryModels(
-        const AnalysisBatch& analysis,
-        uint64_t tickBytes,
-        uint64_t tickDropped,
-        double throughputMbps,
-        double averageLatencyMs);
-    void resetSimulation();
-    void setStatus(QString message);
-    // The report advances one backend at a time; beginNextReportBackend() arms the
-    // next queued backend and answers whether there was one left to arm.
-    bool beginNextReportBackend();
-    void finishReport();
-    void rebuildReportRows();
-    void rebuildReportProvenance();
+    Session session_;
 
-    TopologyController topologyController_;
-    TopologyConfiguration topologyConfiguration_;
-    QString topologyPath_;
     QVariantList topologyNodes_;
     QVariantList topologyLinks_;
-    QString selectedType_;
-    QString selectedId_;
-    QString selectedFirst_;
-    QString selectedSecond_;
-    QString selectedSummary_;
-    QString statusMessage_;
-
-    bool trafficRunning_ = false;
-    QString activeBackend_ = QStringLiteral("CPU");
-    TrafficScenario trafficScenario_ = TrafficScenario::Mixed;
-    int packetsPerTick_ = 256;
-    int frameSize_ = 64;
-    uint64_t trafficSeed_ = 1;
-    uint64_t tickSequence_ = 0;
-    uint64_t totalPackets_ = 0;
-    uint64_t totalBytes_ = 0;
-    uint64_t totalDropped_ = 0;
-    std::unique_ptr<DeterministicTrafficGenerator> trafficGenerator_;
-    std::unique_ptr<PacketAnalyzer> trafficAnalyzer_;
-    AnalysisPipeline analysisPipeline_;
-    std::unordered_map<std::string, PortCounters> portCounters_;
-    std::chrono::steady_clock::time_point simulationStart_{};
-    std::unordered_map<std::string, std::string> learnedMacPorts_;
-
-    QString trafficResult_;
     QVariantList metricsHistory_;
     QVariantList macTable_;
     QVariantList portStates_;
@@ -191,19 +136,6 @@ namespace wirelab
     QVariantList policyRules_;
     QVariantList policyActions_;
     QVariantList enforcedPorts_;
-
-    bool reportRunning_ = false;
-    double reportProgress_ = 0.0;
-    QString reportStage_;
-    QString reportExportPath_;
-    BenchmarkConfig reportConfig_;
-    QStringList reportQueue_;
-    int reportIndex_ = 0;
-    size_t reportSliceBudget_ = 0;
-    uint64_t reportCompletedPackets_ = 0;
-    uint64_t reportTotalPackets_ = 0;
-    std::optional<BenchmarkRun> reportRun_;
-    std::vector<BenchmarkResult> reportResults_;
     QVariantList reportRows_;
     QVariantMap reportProvenance_;
   };

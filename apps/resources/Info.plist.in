@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>wirelab-desktop</string>
+	<key>CFBundleIconFile</key>
+	<string>WireLab.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.wirelab.desktop</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<!-- macOS titles the application menu after CFBundleName, ignoring the name
+	     the process gives its first menu, so this is what makes the menu bar
+	     read "WireLab" rather than "wirelab-desktop". -->
+	<key>CFBundleName</key>
+	<string>WireLab</string>
+	<key>CFBundleDisplayName</key>
+	<string>WireLab</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@PROJECT_VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@PROJECT_VERSION@</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+</dict>
+</plist>

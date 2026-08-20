@@ -4,6 +4,10 @@
 /build-*/
 /out/
 /cmake-build-*/
+
+# Rust frontend build output. Cargo.lock IS committed: gpui and gpui-component
+# are pre-1.0, so the exact resolved dependency graph is part of the build.
+/gui/target/
 **/CMakeFiles/
 **/CMakeCache.txt
 **/cmake_install.cmake

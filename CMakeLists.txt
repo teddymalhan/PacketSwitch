@@ -283,6 +283,121 @@ if(TARGET wirelab_metal)
   target_link_libraries(wirelab_bench PRIVATE wirelab_metal)
 endif()
 
+# The Qt-free orchestration layer every desktop frontend drives. It sits above
+# wirelab_backends because the Reports workspace runs the same accelerated
+# benchmark backends the CLI does.
+add_library(wirelab_session STATIC
+  src/session.cpp
+  src/session_topology.cpp
+  src/session_traffic.cpp
+  src/session_policy.cpp
+  src/session_report.cpp
+  src/session_detail.hpp
+  include/wirelab/session.hpp)
+target_link_libraries(wirelab_session PUBLIC wirelab_backends)
+target_compile_features(wirelab_session PUBLIC cxx_std_17)
+# The Reports workspace names the configuration its numbers were measured in.
+target_compile_definitions(wirelab_session PRIVATE WIRELAB_BUILD_TYPE="$<CONFIG>")
+if(TARGET wirelab_cuda)
+  target_link_libraries(wirelab_session PUBLIC wirelab_cuda)
+endif()
+if(TARGET wirelab_metal)
+  target_link_libraries(wirelab_session PUBLIC wirelab_metal)
+endif()
+
+# The C ABI a native frontend binds to. Kept in its own target so a binding
+# generator or a foreign linker sees exactly one header and one archive.
+add_library(wirelab_ffi STATIC
+  src/wirelab_ffi.cpp
+  include/wirelab/wirelab_ffi.h)
+target_link_libraries(wirelab_ffi PUBLIC wirelab_session)
+target_compile_features(wirelab_ffi PUBLIC cxx_std_17)
+
+# The GPUI frontend. CMake stays the master build: it produces the archives and
+# then hands cargo their directories, so `cmake --build --target wirelab-desktop`
+# is the one command that builds the whole application.
+#
+# A custom target rather than Corrosion: cargo already tracks its own inputs,
+# this needs no configure-time download, and target ordering is expressed just
+# as precisely with add_dependencies.
+option(PROJECT_BUILD_DESKTOP "Build the GPUI desktop frontend (requires a Rust toolchain)" OFF)
+if(PROJECT_BUILD_DESKTOP)
+  find_program(CARGO_EXECUTABLE cargo)
+  if(NOT CARGO_EXECUTABLE)
+    message(FATAL_ERROR "PROJECT_BUILD_DESKTOP is enabled but cargo was not found. Install a Rust toolchain or set CARGO_EXECUTABLE.")
+  endif()
+
+  set(WIRELAB_DESKTOP_LIB_DIRS
+    "$<TARGET_FILE_DIR:wirelab_ffi>;$<TARGET_FILE_DIR:wirelab_session>;$<TARGET_FILE_DIR:wirelab_backends>;$<TARGET_FILE_DIR:${PROJECT_NAME}>")
+  set(WIRELAB_DESKTOP_PROFILE_FLAG "")
+  set(WIRELAB_DESKTOP_PROFILE_DIR "debug")
+  if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(WIRELAB_DESKTOP_PROFILE_FLAG "--release")
+    set(WIRELAB_DESKTOP_PROFILE_DIR "release")
+  endif()
+  if(TARGET wirelab_metal)
+    list(APPEND WIRELAB_DESKTOP_LIB_DIRS "$<TARGET_FILE_DIR:wirelab_metal>")
+    set(WIRELAB_DESKTOP_METAL 1)
+  else()
+    set(WIRELAB_DESKTOP_METAL 0)
+  endif()
+  if(TARGET wirelab_cuda)
+    list(APPEND WIRELAB_DESKTOP_LIB_DIRS "$<TARGET_FILE_DIR:wirelab_cuda>")
+    set(WIRELAB_DESKTOP_CUDA 1)
+  else()
+    set(WIRELAB_DESKTOP_CUDA 0)
+  endif()
+  string(REPLACE ";" "$<SEMICOLON>" WIRELAB_DESKTOP_LIB_DIRS_ARG "${WIRELAB_DESKTOP_LIB_DIRS}")
+
+  set(WIRELAB_DESKTOP_CARGO_ENV
+    "WIRELAB_LIB_DIRS=${WIRELAB_DESKTOP_LIB_DIRS_ARG}"
+    "WIRELAB_LINK_METAL=${WIRELAB_DESKTOP_METAL}"
+    "WIRELAB_LINK_CUDA=${WIRELAB_DESKTOP_CUDA}"
+    "CARGO_TARGET_DIR=${CMAKE_BINARY_DIR}/cargo")
+
+  add_custom_target(wirelab-desktop ALL
+    COMMAND ${CMAKE_COMMAND} -E env ${WIRELAB_DESKTOP_CARGO_ENV}
+      ${CARGO_EXECUTABLE} build ${WIRELAB_DESKTOP_PROFILE_FLAG}
+      --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/gui/Cargo.toml"
+    BYPRODUCTS "${CMAKE_BINARY_DIR}/cargo/${WIRELAB_DESKTOP_PROFILE_DIR}/wirelab-desktop"
+    COMMENT "Building the GPUI desktop frontend"
+    VERBATIM
+    USES_TERMINAL)
+  add_dependencies(wirelab-desktop wirelab_ffi)
+
+  if(APPLE)
+    # macOS reads the application name, the icon and the retina flag from the
+    # bundle, not from the process, so an unbundled binary shows up as
+    # "wirelab-desktop" with a generic icon.
+    set(WIRELAB_DESKTOP_BUNDLE "${CMAKE_BINARY_DIR}/bin/WireLab.app")
+    configure_file(
+      "${CMAKE_CURRENT_SOURCE_DIR}/apps/resources/Info.plist.in"
+      "${CMAKE_BINARY_DIR}/desktop/Info.plist"
+      @ONLY)
+    add_custom_command(TARGET wirelab-desktop POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${WIRELAB_DESKTOP_BUNDLE}/Contents/MacOS"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${WIRELAB_DESKTOP_BUNDLE}/Contents/Resources"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_BINARY_DIR}/desktop/Info.plist"
+        "${WIRELAB_DESKTOP_BUNDLE}/Contents/Info.plist"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/apps/resources/WireLab.icns"
+        "${WIRELAB_DESKTOP_BUNDLE}/Contents/Resources/WireLab.icns"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_BINARY_DIR}/cargo/${WIRELAB_DESKTOP_PROFILE_DIR}/wirelab-desktop"
+        "${WIRELAB_DESKTOP_BUNDLE}/Contents/MacOS/wirelab-desktop"
+      COMMENT "Assembling WireLab.app"
+      VERBATIM)
+  endif()
+
+  # The binding is only trustworthy with the layout check run, so the test suite
+  # runs cargo test rather than trusting a clean compile.
+  add_test(NAME wirelab_desktop_bindings
+    COMMAND ${CMAKE_COMMAND} -E env ${WIRELAB_DESKTOP_CARGO_ENV}
+      ${CARGO_EXECUTABLE} test ${WIRELAB_DESKTOP_PROFILE_FLAG}
+      --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/gui/Cargo.toml")
+endif()
+
 option(PROJECT_BUILD_WIRELAB_GUI "Build the Qt 6 WireLab frontend" OFF)
 if(PROJECT_BUILD_WIRELAB_GUI)
   find_package(Qt6 6.5 QUIET COMPONENTS Quick QuickControls2)
@@ -298,7 +413,7 @@ if(PROJECT_BUILD_WIRELAB_GUI)
       VERSION 1.0
       QML_FILES src/gui/qml/Main.qml)
     target_link_libraries(wirelab_gui PRIVATE
-      wirelab_backends
+      wirelab_session
       Qt6::Quick
       Qt6::QuickControls2)
     # The Reports workspace runs the same benchmark backends as the CLI, and

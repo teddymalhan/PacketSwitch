@@ -1,0 +1,23 @@
+[package]
+name = "wirelab-desktop"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "WireLab desktop frontend"
+
+[[bin]]
+name = "wirelab-desktop"
+path = "src/main.rs"
+
+[dependencies]
+# Pinned exactly: both crates are pre-1.0 and move fast. An upgrade is a
+# deliberate task, not something `cargo update` should perform.
+gpui = "=0.2.2"
+gpui-component = "=0.5.1"
+
+[profile.release]
+lto = "thin"
+
+[dev-dependencies]
+# test-support gives the headless TestAppContext the render check drives.
+gpui = { version = "=0.2.2", features = ["test-support"] }
